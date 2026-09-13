@@ -634,3 +634,62 @@ one input resolves differently than before — asserted directly in the host tes
 The middleware branch that routes a partner host ships **now** rather than with
 the domain: without it, the first partner host configured would fall through to
 the tenant rewrite and be looked up as a restaurant, which it is not.
+
+---
+
+## D23 — Products register adapters; the portal knows none of them
+
+**Settled.** Phase 6. `packages/core/src/products/adapter.ts`.
+
+The brief's requirement in one line: *adding a vertical must not require touching
+the partner portal.* Before this, the portal called `provisionDemo` — Servd's own
+restaurant-creation function — so adding laundry meant editing the portal, and
+the portal then knew about laundry. Two verticals in, every new product is a
+change to shared code the others have to be re-tested against.
+
+Now the portal collects what is true of any merchant (name, contact, logo), hands
+it to `provisionMerchant(productId, partnerId, payload)`, and knows nothing else.
+Each vertical registers a `ProductAdapter`.
+
+**A registry, not an import.** The dependency has to point one way: core cannot
+import Servd without core depending on a Next app and a Prisma schema. The
+vertical knows about core; core knows only that something claimed a product id.
+
+**The shared payload is deliberately small.** Every field on it is a field the
+portal must render for every vertical, so each addition taxes all of them — and a
+field meaningless for laundry does not belong on a laundry operator's form.
+Product-specific fields go in `extra`, which only that adapter reads, and the
+friction of having to provide your own step for it is the point.
+
+**The adapter sets ownership itself.** The dispatch cannot: only the adapter knows
+where its product records an owner, and a merchant created without one is
+invisible to its partner under the RLS policies and absent from every statement,
+with nothing erroring to say so.
+
+**Refusals return a reason, not an exception.** Two of the four are ordinary
+states rather than faults — a product listed but not live, and one whose adapter
+is not registered in this deployment. `product_not_live` is reported before
+`no_adapter` because the first is a fact about the product and the second is a
+fact about the deployment, and only the first means anything to the partner
+reading it.
+
+**`live: false` is load-bearing.** `printosph`, `laundry` and `pharmacy` are in
+the registry so partners can see what is coming, and the dispatch refuses to
+provision into them. Visible and unusable is the honest state; creatable before
+the adapter works would be an account the merchant discovers is broken.
+
+### Q7 splits this phase, and only half was built
+
+Built, because it does not depend on the answer: the interface, the dispatch,
+Servd's adapter, and the portal calling through it. The same interface holds
+whether the other verticals move into this monorepo or consume `@servd/core` as a
+published package from their own repositories.
+
+Not built: migrating `jobanica/laundry`, `jobanica/Pharmacy` and
+`jobanica/print-new`. Three codebases sharing no code with Servd, none attached
+to this session. For those, "write an adapter" is preceded by "give that codebase
+partner-aware multi-tenancy", which is Phase 1 repeated per repo.
+
+`docs/canvexia/adding-a-vertical.md` is the scaffold — written from having done
+it for Servd rather than imagined, because a code scaffold for repositories
+nobody here has read would be fiction.

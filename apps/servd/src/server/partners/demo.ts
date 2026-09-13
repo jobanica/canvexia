@@ -7,7 +7,8 @@ import { z } from "zod";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { pesosToCentavos } from "@/lib/money";
 import { getCurrentPartner } from "@/server/partners/auth";
-import { provisionDemo, receiptJson } from "@/server/storefront-demo/provision";
+import { receiptJson } from "@/server/storefront-demo/provision";
+import { provisionMerchantForPartner } from "@/server/products";
 import { convertDemo } from "@/server/storefront-demo/convert";
 import { PARTNER_SCAN_LIMIT } from "@/lib/menu/scan-limit";
 import { demoAlreadyScanned } from "@/server/partners/demo-queries";
@@ -84,15 +85,20 @@ export async function createPartnerDemo(_prev: DemoFormState, formData: FormData
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
 
+  // Goes through the product dispatch rather than calling Servd's own
+  // restaurant creation. The product id is hard-coded here only because this
+  // action IS the Servd demo builder; the generic "create a merchant" flow in
+  // the portal passes whichever product the partner picked, and neither knows
+  // what a restaurant is.
   try {
-    await provisionDemo({
+    const outcome = await provisionMerchantForPartner("servd", partner.id, {
       name: d.name,
       tagline: d.tagline ?? "",
       address: d.address ?? "",
       phone: d.phone ?? "",
       logoUrl: d.logoUrl ?? "",
-      demoPartnerId: partner.id,
     });
+    if (!outcome.ok) return { error: outcome.message };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Couldn't create the storefront." };
   }

@@ -1,60 +1,69 @@
-# Phase 5 — brand engine ✅
+# Phase 6 — the product adapter ✅
 
-Q4 and Q5 were the two open questions this phase needed. Both decided (D20, D21).
+The brief's requirement, in one line: *"Adding a new vertical must not require
+touching the partner portal."* The portal called `provisionDemo` — Servd's own
+restaurant-creation function — so adding laundry meant editing the portal, and
+the portal then knew about laundry.
 
-- [x] **Q4** — diner-facing surfaces render the *merchant's* brand; merchant-facing
-      surfaces render the *partner's*. `src/server/branding/partner-brand.ts`
-- [x] **Q5** — either the merchant's paid unlock or the partner's contracted brand
-      mode removes the Servd badge; neither reinstates it. Grandfathering intact
-- [x] `parseHost` gains a `partner` kind on a second root domain, inert until
-      `NEXT_PUBLIC_PARTNER_ROOT_DOMAIN` is set
-- [x] Middleware routes a partner host to the portal — shipped *before* the domain,
-      because without it the first host configured would be looked up as a restaurant
-- [x] 41 new tests, including an exhaustive identity property
+- [x] `ProductAdapter` + registry + `provisionMerchant(productId, partnerId, payload)`
+      in `packages/core`
+- [x] Servd's adapter — fifteen lines, wrapping `provisionDemo` rather than
+      reimplementing creation
+- [x] `createPartnerDemo` goes through the dispatch; nothing in the portal path
+      names a restaurant
+- [x] Guards: unknown product · not live · no adapter · invalid input · partner
+      not approved
+- [x] `docs/canvexia/adding-a-vertical.md` — the scaffold
+- [x] 13 unit tests + 6 end-to-end
 
-## The gate — run, not asserted
+## Verification
 
-The promise was that servdph.com renders identically. Built and served the app at
-the **pre-Phase-5** source against a seeded database, captured three pages, then
-rebuilt at the Phase-5 source and captured again:
+Offline: typecheck ✅ · **996 tests** ✅ (was 983) · build ✅ 118 pages.
 
-| Page | Result |
+Live PostgreSQL: **38/38 across 6 DB-backed files**. The new one provisions a
+merchant through the real dispatch and asserts the chain Phases 1–3 built:
+
+| Check | Result |
 |---|---|
-| diner ordering page | **IDENTICAL** (20,354 chars) |
-| restaurant page | **IDENTICAL** (18,386 chars) |
-| platform home | **IDENTICAL** (105,134 chars) |
+| Merchant created, owned by the partner | ✅ `partnerId` and `demoPartnerId` both set |
+| Slug assigned by the product, returned by the adapter | ✅ matches the row |
+| Visible to that partner **with no where clause** | ✅ RLS alone |
+| Invisible to another partner | ✅ zero rows |
+| Suspended partner | ✅ refused |
+| Product not live | ✅ refused with `product_not_live` |
 
-The raw captures differed by exactly three opaque fragments, which turned out to
-be pieces of `.next/BUILD_ID` — random per build. Normalised out, byte-identical.
+## Design points worth keeping
 
-## Found while building the fixture — not fixed here
+**A registry, not an import.** Core cannot import Servd without depending on a
+Next app and a Prisma schema. The vertical knows about core; core knows only that
+something claimed a product id.
 
-`hasFeature(restaurantId, "whiteLabel")` returns **true** for seeded demo
-restaurants *and* for a restaurant with no plan and no subscription at all. So
-`servdBranding` short-circuits on `ownsWhiteLabel` and the badge is suppressed
-regardless of any partner term.
+**The shared payload is deliberately small.** Every field on it must be rendered
+for every vertical, so each addition taxes all of them. Product-specific fields go
+in `extra`, and the friction of needing your own step for it is the point.
 
-This is pre-existing, nothing to do with Phase 5, and it is why the end-to-end
-fixture could not be made to exercise the partner arm — the unit tests carry that
-proof instead. It may well be deliberate (a preview account with everything on).
-Worth a look before the first external operator goes live, because a merchant who
-has not paid for white-label should be showing the badge.
+**The adapter sets ownership itself.** The dispatch cannot — only the adapter
+knows where its product records an owner, and a merchant created without one is
+invisible to its partner and absent from every statement, with nothing erroring.
 
-## Deferred, with reasons
+**A payload cannot override the partner.** The partner comes from the session;
+asserted by test, because a payload field winning would let one partner open
+accounts owned by another.
 
-**Surfacing the partner brand in merchant-facing UI.** The resolver and the
-platform defaults are built and tested, but there is no support-contact element
-in the admin shell to swap — the `servdph.com` references live in the badge, the
-QR splash and outbound email. Wiring this means *designing* a support surface,
-not rebranding an existing one, and that is a screen rather than a resolution
-layer.
+## Q7 split this phase, and only half is built
 
-**The partner-host portal page itself.** `parseHost` and the middleware route it;
-`getPartnerBrandBySlug` resolves it. What a partner's public front door actually
-shows is a page nobody has specified.
+**Built** — the interface, the dispatch, Servd's adapter, the portal calling
+through it. The same interface holds whether the other verticals move into this
+monorepo or consume `@servd/core` from their own repositories.
 
-## Next — Phase 6
+**Not built** — migrating `jobanica/laundry`, `jobanica/Pharmacy`,
+`jobanica/print-new`. Three codebases sharing no code with Servd, none attached
+to this session. For those, "write an adapter" is preceded by "give that codebase
+partner-aware multi-tenancy", which is Phase 1 repeated per repo.
 
-Product adapter + scaffold for the next vertical. **Scope depends on Q7**, still
-open: an adapter interface against `provisionMerchant` is about a week; migrating
-laundry / Pharmacy / print-new into this monorepo is three repo migrations.
+They sit in the registry as `live: false`: visible to partners, refused by the
+dispatch. That is the honest state until Q7 is answered.
+
+The scaffold is **written, not generated** — `docs/canvexia/adding-a-vertical.md`,
+from having done it for Servd. A code scaffold for repositories nobody here has
+read would be fiction.
