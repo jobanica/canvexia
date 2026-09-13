@@ -552,3 +552,85 @@ partner, whose money is CANVEXIA's — and those are one-off platform charges
 rather than the partner-shared subscription revenue this phase is about. They
 follow when the first external operator onboards, which is also when
 `SUB_ACCOUNT_MECHANISM_CONFIRMED` has to become true.
+
+---
+
+## D20 — Brand precedence: diner sees the merchant, merchant sees the partner
+
+**Settled.** Phase 5. Answers Q4.
+
+- **Diner-facing** surfaces render the **merchant's** brand. A diner scanning a
+  QR at Mango Grill should see Mango Grill — that is what the restaurant pays for
+  and what their customers recognise. Already how it works
+  (`Restaurant.displayName` / `logoUrl` / `brandPrimaryColor`); Phase 5 does not
+  touch it.
+- **Merchant-facing** surfaces render the **partner's** brand: the owner's
+  dashboard, the emails they receive, and above all who they contact for help. To
+  the restaurant, the partner *is* the software company.
+
+Getting it backwards in either direction is a real failure, not a cosmetic one: a
+partner's logo on a diner's receipt confuses the restaurant's customers, and
+Servd's support address on a partner's merchant dashboard sends their customers
+to us.
+
+`src/server/branding/partner-brand.ts` resolves the merchant-facing side against
+`PLATFORM_BRAND`, so an unbranded partner produces exactly today's look rather
+than a half-styled page.
+
+---
+
+## D21 — Either side removes the badge; neither puts it back
+
+**Settled.** Phase 5. Answers Q5.
+
+Two systems answered one question — does "Powered by Servd" appear. A merchant
+can buy the white-label unlock; their partner can be contracted to full
+white-label. The rule: **either suppresses it, neither reinstates it.**
+
+The direction is not arbitrary. A merchant who *paid* for the badge to be gone
+bought exactly that, so a partner term cannot bring it back. A partner on full
+white-label contracted for no CANVEXIA mention anywhere their customers can see,
+so a merchant who never bought the unlock cannot expose it on their behalf. Both
+point the same way, and "either suppresses" is the only rule keeping both
+promises. An unrecognised brand mode falls back to showing the badge — failing
+towards the status quo rather than silently white-labelling.
+
+`POWERED_BY_SINCE` grandfathering is untouched.
+
+### The gate, actually run
+
+The promise was that servdph.com renders identically. Verified end to end rather
+than asserted: seeded a database, built and served the app at the **pre-Phase-5**
+source, captured the diner ordering page, the restaurant page and the platform
+home, then rebuilt at the Phase-5 source and captured again.
+
+The three pages differed by exactly the Next.js **build ID**, which is random per
+build. With it normalised out, all three are byte-identical. Plus 41 unit tests
+including an exhaustive identity property: absent, `null` and `"powered_by"` brand
+modes all produce exactly the pre-CANVEXIA answer for every combination of
+grandfathering and unlock.
+
+**One thing the fixture work turned up**, unrelated to this change and not fixed
+here: `hasFeature(restaurantId, "whiteLabel")` returns **true** for seeded demo
+restaurants *and* for a restaurant with no plan and no subscription at all. So
+the badge is suppressed for them regardless of any partner term. It is why the
+end-to-end fixture could not be made to exercise the partner arm, and it may be
+deliberate (a preview with everything on). Worth a look before the first external
+operator goes live, since a merchant who has not paid for white-label should be
+showing the badge.
+
+---
+
+## D22 — Partner hosts are a second root domain, inert until configured
+
+**Settled.** Phase 5.
+
+`parseHost` takes an optional `partnerRootDomain` and gains a `partner` kind, so
+`cebu.canvexia.app` resolves to an operator's portal while `mango-grill.servd.app`
+stays a storefront. Two roots because they answer different questions.
+
+`NEXT_PUBLIC_PARTNER_ROOT_DOMAIN` is unset in production, and with it absent not
+one input resolves differently than before — asserted directly in the host tests.
+The middleware branch that routes a partner host ships **now** rather than with
+the domain: without it, the first partner host configured would fall through to
+the tenant rewrite and be looked up as a restaurant, which it is not.

@@ -39,6 +39,13 @@ export interface BrandingInput {
   createdAt: Date | string | null | undefined;
   /** Owns the full white-label unlock. */
   ownsWhiteLabel: boolean;
+  /**
+   * The owning partner's contracted brand mode: "powered_by" | "full_whitelabel".
+   *
+   * Optional, and absent means "powered_by" — which is what makes every existing
+   * caller and every existing account behave exactly as it did.
+   */
+  partnerBrandMode?: string | null;
 }
 
 export interface ServdBranding {
@@ -48,8 +55,24 @@ export interface ServdBranding {
   showSplash: boolean;
 }
 
-export function servdBranding({ createdAt, ownsWhiteLabel }: BrandingInput): ServdBranding {
-  if (ownsWhiteLabel) return { showFooter: false, showSplash: false };
+export function servdBranding({
+  createdAt,
+  ownsWhiteLabel,
+  partnerBrandMode,
+}: BrandingInput): ServdBranding {
+  // TWO SYSTEMS, ONE QUESTION. A merchant can buy the white-label unlock, and
+  // their partner can be contracted to full white-label. Either one removes the
+  // badge; neither can put it back.
+  //
+  // The direction is not arbitrary. A merchant who PAID for the badge to be gone
+  // has bought exactly that, so a partner term cannot reinstate it. A partner on
+  // full white-label has contracted for no CANVEXIA mention anywhere their
+  // customers can see, so a merchant who never bought the unlock cannot expose
+  // it on their behalf. Both point the same way, and "either suppresses" is the
+  // only rule that keeps both promises.
+  if (ownsWhiteLabel || partnerBrandMode === "full_whitelabel") {
+    return { showFooter: false, showSplash: false };
+  }
   return { showFooter: createdOnOrAfterCutoff(createdAt), showSplash: true };
 }
 

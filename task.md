@@ -1,81 +1,60 @@
-# Phase 4 — per-partner gateway, suspension, ledger ✅
+# Phase 5 — brand engine ✅
 
-## 4a — The settlement security fix
+Q4 and Q5 were the two open questions this phase needed. Both decided (D20, D21).
 
-Six handlers settled a payment by gateway reference **alone**. Sound with one
-trusted gateway; not sound with N sub-accounts, where a reference unique inside
-one account need not be unique across them.
+- [x] **Q4** — diner-facing surfaces render the *merchant's* brand; merchant-facing
+      surfaces render the *partner's*. `src/server/branding/partner-brand.ts`
+- [x] **Q5** — either the merchant's paid unlock or the partner's contracted brand
+      mode removes the Servd badge; neither reinstates it. Grandfathering intact
+- [x] `parseHost` gains a `partner` kind on a second root domain, inert until
+      `NEXT_PUBLIC_PARTNER_ROOT_DOMAIN` is set
+- [x] Middleware routes a partner host to the portal — shipped *before* the domain,
+      because without it the first host configured would be looked up as a restaurant
+- [x] 41 new tests, including an exhaustive identity property
 
-- [x] All six take an explicit `SettlementScope` — a tagged union, so
-      `PLATFORM_SCOPE` has to be written out rather than defaulted into
-- [x] `Partner.gatewaySubAccountId` + migration (an identifier, not a secret)
-- [x] `getBillingProviderForPartner()`, and the unverified sub-account mechanism
-      alone in `subaccount.ts` behind `SUB_ACCOUNT_MECHANISM_CONFIRMED = false`
-- [x] `/api/webhooks/billing/[partnerId]` — per-partner route
-- [x] `settle.ts` — one ordered chain shared by both webhook routes
-- [x] Outbound checkout resolves through the owning partner (D19)
+## The gate — run, not asserted
 
-**Deviation from the plan, deliberately.** It said retire `/api/webhooks/billing`
-with a 410. That was wrong — the URL is configured in the gateway dashboard and
-is how subscriptions settle today. It stays live on `PLATFORM_SCOPE`.
+The promise was that servdph.com renders identically. Built and served the app at
+the **pre-Phase-5** source against a seeded database, captured three pages, then
+rebuilt at the Phase-5 source and captured again:
 
-## 4b — Suspension that does not depend on `failedCharges`
-
-- [x] `MAX_PAST_DUE_DAYS = 14`, keyed on the oldest unpaid invoice
-- [x] **A second bug on the same path:** the daily cron raised a *new* invoice on
-      every run for a past-due merchant. Thirty days late meant thirty open
-      invoices for one month of service. Now raises one only when nothing is
-      outstanding.
-
-## 4c — The ledger (D15)
-
-- [x] `PartnerLedgerEntry` — one row per settled payment, written in the same
-      transaction that grants the access it paid for
-- [x] `providerRef` unique → a replayed webhook credits nobody twice
-- [x] `sharePct` snapshotted → renegotiating a rate cannot rewrite past statements
-- [x] Excluded from the tenant RLS loop with a partner-and-HQ-only policy — each
-      row holds the partner/HQ split, which is not the merchant's business
-
-## Verification
-
-Offline: typecheck ✅ · **942 tests** ✅ (was 933) · build ✅ 118 pages.
-
-Live PostgreSQL 16, along the upgrade path production takes — push the **Phase 3**
-schema, then the two Phase 4 migrations:
-
-| Check | Result |
+| Page | Result |
 |---|---|
-| `add-partner-subaccount.sql` + `add-partner-ledger.sql` on a Phase 3 DB | ✅ clean, self-checks true |
-| Column/table drift afterwards | ✅ none |
-| `db:rls` with the ledger policies | ✅ `ledger_read` (SELECT) + `ledger_write` (ALL) |
-| **DB-backed suite** | ✅ **32/32 across 5 files** |
-| Partner A settling partner B's invoice | ✅ refused, invoice still open, no ledger row |
-| Owning partner settling it | ✅ paid, split recorded at **65%** — B's negotiated rate, not the 70 default |
-| Replayed webhook | ✅ exactly one ledger row |
-| Merchant reading the ledger | ✅ zero rows |
-| Partner reading the ledger | ✅ their own entries only |
+| diner ordering page | **IDENTICAL** (20,354 chars) |
+| restaurant page | **IDENTICAL** (18,386 chars) |
+| platform home | **IDENTICAL** (105,134 chars) |
+
+The raw captures differed by exactly three opaque fragments, which turned out to
+be pieces of `.next/BUILD_ID` — random per build. Normalised out, byte-identical.
+
+## Found while building the fixture — not fixed here
+
+`hasFeature(restaurantId, "whiteLabel")` returns **true** for seeded demo
+restaurants *and* for a restaurant with no plan and no subscription at all. So
+`servdBranding` short-circuits on `ownsWhiteLabel` and the badge is suppressed
+regardless of any partner term.
+
+This is pre-existing, nothing to do with Phase 5, and it is why the end-to-end
+fixture could not be made to exercise the partner arm — the unit tests carry that
+proof instead. It may well be deliberate (a preview account with everything on).
+Worth a look before the first external operator goes live, because a merchant who
+has not paid for white-label should be showing the badge.
 
 ## Deferred, with reasons
 
-**The monthly statement job and its UI.** The ledger is the part everything else
-reads and it is now verified against a real database on its own. A statement is a
-query over it plus a cron entry.
+**Surfacing the partner brand in merchant-facing UI.** The resolver and the
+platform defaults are built and tested, but there is no support-contact element
+in the admin shell to swap — the `servdph.com` references live in the badge, the
+QR splash and outbound email. Wiring this means *designing* a support surface,
+not rebranding an existing one, and that is a screen rather than a resolution
+layer.
 
-**Xendit's recurring / card-on-file API.** Needs
-`docs/canvexia/xendit-questions.md` §2 answered — specifically whether it works
-inside the platform arrangement at all. 4b makes its absence survivable rather
-than silent, which is what made this deferrable.
+**The partner-host portal page itself.** `parseHost` and the middleware route it;
+`getPartnerBrandBySlug` resolves it. What a partner's public front door actually
+shows is a page nobody has specified.
 
-**The five other checkout sites** (add-ons, features, branch, DIY activation)
-still resolve to the platform account. Correct today — every merchant belongs to
-the house partner, whose money is CANVEXIA's — and they are one-off platform
-charges rather than partner-shared subscription revenue. They follow when the
-first external operator onboards.
+## Next — Phase 6
 
-## Before any of this is real
-
-`SUB_ACCOUNT_MECHANISM_CONFIRMED` is **false**, and a partner-scoped gateway call
-throws while it is. That is deliberate: with N partners' revenue moving through
-one platform credential, a call whose sub-account binding is wrong does not fail
-— it succeeds, into the wrong account. Flip it once xendit-questions.md §1.1–1.2
-are answered and a sandbox call has been seen to land in the right sub-account.
+Product adapter + scaffold for the next vertical. **Scope depends on Q7**, still
+open: an adapter interface against `provisionMerchant` is about a week; migrating
+laundry / Pharmacy / print-new into this monorepo is three repo migrations.

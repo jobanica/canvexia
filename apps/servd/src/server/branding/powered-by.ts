@@ -22,11 +22,34 @@ export async function getServdBranding(restaurantId: string): Promise<ServdBrand
   try {
     const [row, ownsWhiteLabel] = await Promise.all([
       systemDb((tx) =>
-        tx.restaurant.findFirst({ where: { id: restaurantId }, select: { createdAt: true } }),
+        tx.restaurant.findFirst({
+          where: { id: restaurantId },
+          select: { createdAt: true, partnerId: true },
+        }),
       ),
       hasFeature(restaurantId, "whiteLabel"),
     ]);
-    return servdBranding({ createdAt: row?.createdAt ?? null, ownsWhiteLabel });
+
+    // The owning partner's contracted brand mode. Read separately and
+    // best-effort: it ships as a hand-run migration, and a storefront must not
+    // fail to render because a column is one migration behind. Absent reads as
+    // "powered_by", which is the pre-CANVEXIA answer.
+    let partnerBrandMode: string | null = null;
+    if (row?.partnerId) {
+      try {
+        const partner = await systemDb((tx) =>
+          tx.partner.findUnique({
+            where: { id: row.partnerId as string },
+            select: { brandMode: true },
+          }),
+        );
+        partnerBrandMode = partner?.brandMode ?? null;
+      } catch {
+        /* brandMode not migrated yet — treat as powered_by */
+      }
+    }
+
+    return servdBranding({ createdAt: row?.createdAt ?? null, ownsWhiteLabel, partnerBrandMode });
   } catch {
     return NO_SERVD_BRANDING;
   }

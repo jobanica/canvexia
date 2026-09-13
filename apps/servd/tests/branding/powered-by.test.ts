@@ -80,3 +80,94 @@ describe("NO_SERVD_BRANDING", () => {
     expect(NO_SERVD_BRANDING).toEqual({ showFooter: false, showSplash: true });
   });
 });
+
+/**
+ * THE IDENTITY GATE for Phase 5.
+ *
+ * Two systems now answer "does the Servd badge appear": the merchant's paid
+ * white-label unlock, and their partner's contracted brand mode. The promise
+ * made when adding the second was that servdph.com renders exactly as before —
+ * so the first block below is not a nicety, it is the gate. Every existing
+ * account belongs to a partner on "powered_by" (the house partner), and every
+ * existing caller passes no brand mode at all.
+ */
+describe("servdBranding — partner brand mode", () => {
+  const BEFORE = "2026-01-01T00:00:00+08:00"; // grandfathered
+  const AFTER = "2026-09-01T00:00:00+08:00"; // post-cutoff
+
+  describe("identity: nothing changes for a powered_by partner", () => {
+    const cases = [
+      { createdAt: BEFORE, ownsWhiteLabel: false },
+      { createdAt: AFTER, ownsWhiteLabel: false },
+      { createdAt: BEFORE, ownsWhiteLabel: true },
+      { createdAt: AFTER, ownsWhiteLabel: true },
+      { createdAt: null, ownsWhiteLabel: false },
+      { createdAt: undefined, ownsWhiteLabel: false },
+    ];
+
+    it.each(cases)("absent brand mode matches the old answer: %o", (input) => {
+      // The "old answer" written out longhand, so this test fails if the rule
+      // drifts rather than silently agreeing with a changed implementation.
+      const old = input.ownsWhiteLabel
+        ? { showFooter: false, showSplash: false }
+        : {
+            showFooter: !!input.createdAt && Date.parse(String(input.createdAt)) >= Date.parse(POWERED_BY_SINCE),
+            showSplash: true,
+          };
+      expect(servdBranding(input)).toEqual(old);
+    });
+
+    it.each(cases)("an explicit powered_by is the same as absent: %o", (input) => {
+      expect(servdBranding({ ...input, partnerBrandMode: "powered_by" })).toEqual(
+        servdBranding(input),
+      );
+    });
+
+    it.each(cases)("a null brand mode is the same as absent: %o", (input) => {
+      expect(servdBranding({ ...input, partnerBrandMode: null })).toEqual(servdBranding(input));
+    });
+
+    it("an unrecognised brand mode does not silently white-label", () => {
+      // Fail towards the status quo: only the exact contracted value suppresses.
+      expect(servdBranding({ createdAt: AFTER, ownsWhiteLabel: false, partnerBrandMode: "nonsense" }))
+        .toEqual(servdBranding({ createdAt: AFTER, ownsWhiteLabel: false }));
+    });
+  });
+
+  describe("either side suppresses the badge, neither reinstates it", () => {
+    it("a full_whitelabel partner removes it for a merchant who never bought it", () => {
+      expect(
+        servdBranding({ createdAt: AFTER, ownsWhiteLabel: false, partnerBrandMode: "full_whitelabel" }),
+      ).toEqual({ showFooter: false, showSplash: false });
+    });
+
+    it("a paid unlock still removes it under a powered_by partner", () => {
+      // The merchant paid for exactly this; a partner term cannot put it back.
+      expect(
+        servdBranding({ createdAt: AFTER, ownsWhiteLabel: true, partnerBrandMode: "powered_by" }),
+      ).toEqual({ showFooter: false, showSplash: false });
+    });
+
+    it("removes the splash too, not just the footer", () => {
+      // The QR splash was never grandfathered — it showed for everyone — so a
+      // white-label partner's diners must not meet a full-screen Servd logo.
+      const b = servdBranding({
+        createdAt: BEFORE,
+        ownsWhiteLabel: false,
+        partnerBrandMode: "full_whitelabel",
+      });
+      expect(b.showSplash).toBe(false);
+    });
+
+    it("grandfathering still applies within a powered_by partner", () => {
+      expect(
+        servdBranding({ createdAt: BEFORE, ownsWhiteLabel: false, partnerBrandMode: "powered_by" })
+          .showFooter,
+      ).toBe(false);
+      expect(
+        servdBranding({ createdAt: AFTER, ownsWhiteLabel: false, partnerBrandMode: "powered_by" })
+          .showFooter,
+      ).toBe(true);
+    });
+  });
+});

@@ -118,7 +118,32 @@ export async function middleware(req: NextRequest) {
     return captureAttribution(req, NextResponse.rewrite(url));
   }
 
-  const info = parseHost(host, rootDomain);
+  const info = parseHost(host, rootDomain, process.env.NEXT_PUBLIC_PARTNER_ROOT_DOMAIN);
+
+  // A partner's own domain serves the partner portal, not a storefront.
+  //
+  // This branch has to exist before NEXT_PUBLIC_PARTNER_ROOT_DOMAIN is set, not
+  // after: without it, the first partner host configured would fall through to
+  // the tenant rewrite below and be looked up as a restaurant, which it is not.
+  // Inert until that variable exists, because parseHost cannot return this kind
+  // without it.
+  if (info.kind === "partner") {
+    const session = await refreshSession(req);
+    const headers = new Headers(req.headers);
+    headers.set(PATH_HEADER, pathname);
+    // Already-prefixed paths are left alone so a redirect to /partner/login from
+    // inside the portal does not become /partner/partner/login.
+    const target = pathname.startsWith("/partner")
+      ? `${pathname}${search}`
+      : `/partner${pathname === "/" ? "" : pathname}${search}`;
+    return withSession(
+      captureAttribution(
+        req,
+        NextResponse.rewrite(new URL(target, req.url), { request: { headers } }),
+      ),
+      session,
+    );
+  }
 
   if (info.kind === "platform") {
     if (pathname.startsWith("/sites")) {
