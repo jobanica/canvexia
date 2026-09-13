@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Print a SQL query that reports every column Prisma expects and the database
- * doesn't have.
+ * doesn't have, plus every tenant table whose row-level security is missing.
  *
  *   node scripts/schema-drift.mjs | pbcopy     # then paste into the SQL editor
  *
@@ -77,5 +77,25 @@ WHERE NOT EXISTS (
   SELECT 1 FROM information_schema.columns k
   WHERE k.table_schema = 'public' AND k.table_name = e.t AND k.column_name = e.c
 )
+UNION ALL
+-- Isolation coverage. A table with a "restaurantId" column and no FORCEd policy
+-- is one forgotten where-clause away from serving another restaurant's rows.
+-- prisma/rls.sql derives its list from the catalogue so this should stay empty;
+-- it is here because the hand-written list it replaced had drifted by thirteen
+-- tables, and the only way that stays fixed is if drift is visible.
+SELECT 'NO RLS POLICY', c.table_name, NULL
+FROM information_schema.columns c
+JOIN pg_class pc ON pc.relname = c.table_name
+JOIN pg_namespace pn ON pn.oid = pc.relnamespace AND pn.nspname = 'public'
+WHERE c.table_schema = 'public'
+  AND c.column_name = 'restaurantId'
+  AND (
+    NOT pc.relrowsecurity
+    OR NOT pc.relforcerowsecurity
+    OR NOT EXISTS (
+      SELECT 1 FROM pg_policies p
+      WHERE p.schemaname = 'public' AND p.tablename = c.table_name
+    )
+  )
 ORDER BY 1, 2, 3;
 `);

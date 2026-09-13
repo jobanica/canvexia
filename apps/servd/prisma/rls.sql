@@ -69,29 +69,51 @@ exception when others then null; -- already a member / insufficient priv: ignore
 end $$;
 
 -- ----------------------------------------------------------------------------
--- Helper: enable + FORCE rls and add a tenant policy for tables that have a
--- direct restaurant foreign key ("restaurantId" column).
+-- Tenant tables: enable + FORCE rls and add a tenant policy for every table
+-- with a direct restaurant foreign key ("restaurantId" column).
+--
+-- This list used to be written out by hand, and it drifted. Adding a model and
+-- remembering to add it here are two separate acts, and the second one was
+-- missed thirteen times: audit_logs, reservations, gift_cards, gift_card_txns,
+-- cash_movements, delivery_settings, delivery_bookings, cart_leads,
+-- happy_hours, shift_notes, push_subscriptions, menu_item_variants and
+-- menu_item_servings all held tenant data with NO policy at all. Nothing was
+-- leaking them — every read goes through tenantDb()/systemDb() — but the second
+-- layer of isolation, the one that is supposed to hold when the app forgets its
+-- where clause, simply was not there.
+--
+-- Asking the catalogue instead means a new tenant table is covered the moment
+-- it exists, which is the only version of this that stays true.
+--
+-- The exclusion list is the other half. A few tables carry "restaurantId" and
+-- are NOT tenant-owned: platform data that happens to name a restaurant. Those
+-- get a super-admin-only policy further down. The DEFAULT for a restaurantId
+-- table is tenant isolation — anything added to this array needs a reason of
+-- the same kind, in a comment beside it.
 -- ----------------------------------------------------------------------------
 do $$
 declare
   t text;
-  tenant_tables text[] := array[
-    'staff_users', 'subscriptions', 'tables', 'categories', 'menu_items',
-    'modifier_groups', 'orders', 'promotions', 'loyalty_accounts',
-    'loyalty_transactions', 'expenses', 'payroll_settings', 'menu_item_costs', 'storefront_settings',
-    'feedback', 'customer_contacts',
-    'sms_campaigns', 'sms_credit_ledger', 'print_jobs', 'restaurant_invoices',
-    'addon_purchases',
-    'menu_item_translations', 'category_translations',
-    'suppliers', 'inventory_items', 'recipe_components', 'stock_movements',
-    'purchase_orders', 'purchase_order_items',
-    'employees', 'employee_documents', 'shifts', 'availabilities',
-    'shift_swap_requests', 'time_entries', 'leave_types', 'leave_requests',
-    'leave_balances', 'payroll_deductions', 'social_posts', 'feature_subscriptions',
-    'activation_requests', 'cashier_shifts'
+  platform_owned text[] := array[
+    'platform_feedback', -- owners' feedback ABOUT Servd, read by the super-admin
+    'crm_clients',       -- the founder's own sales pipeline
+    'customer_events',   -- bizops funnel events
+    'email_messages',    -- acquisition mail to leads, not a tenant's diners
+    'email_sends'        -- ditto (follow-up tracks)
   ];
 begin
-  foreach t in array tenant_tables loop
+  for t in
+    select c.table_name
+      from information_schema.columns c
+      join information_schema.tables tb
+        on tb.table_schema = c.table_schema
+       and tb.table_name = c.table_name
+     where c.table_schema = 'public'
+       and c.column_name = 'restaurantId'
+       and tb.table_type = 'BASE TABLE'
+       and not (c.table_name = any(platform_owned))
+     order by c.table_name
+  loop
     execute format('alter table %I enable row level security;', t);
     execute format('alter table %I force row level security;', t);
     execute format('drop policy if exists tenant_isolation on %I;', t);
@@ -238,6 +260,30 @@ alter table rate_limits enable row level security;
 alter table rate_limits force row level security;
 drop policy if exists super_only on rate_limits;
 create policy super_only on rate_limits for all
+  using (app.is_super_admin()) with check (app.is_super_admin());
+
+-- platform_feedback / crm_clients / customer_events: the three tables excluded
+-- from the tenant loop above. They carry a "restaurantId" but the row belongs to
+-- the platform, not to the restaurant it names — owners' feedback about Servd
+-- itself, the founder's sales pipeline, and the bizops funnel. All three are
+-- written and read exclusively through systemDb(), so super-admin-only locks out
+-- no caller that exists; before this they had no policy at all.
+alter table platform_feedback enable row level security;
+alter table platform_feedback force row level security;
+drop policy if exists super_only on platform_feedback;
+create policy super_only on platform_feedback for all
+  using (app.is_super_admin()) with check (app.is_super_admin());
+
+alter table crm_clients enable row level security;
+alter table crm_clients force row level security;
+drop policy if exists super_only on crm_clients;
+create policy super_only on crm_clients for all
+  using (app.is_super_admin()) with check (app.is_super_admin());
+
+alter table customer_events enable row level security;
+alter table customer_events force row level security;
+drop policy if exists super_only on customer_events;
+create policy super_only on customer_events for all
   using (app.is_super_admin()) with check (app.is_super_admin());
 
 -- email_campaigns / email_messages: platform-level marketing to the founder's
