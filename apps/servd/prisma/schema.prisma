@@ -493,6 +493,18 @@ model Restaurant {
   // Set when a partner creates this as a DEMO storefront (no login) to pitch a
   // prospect. Null for real tenants + super-admin demos.
   demoPartnerId String?
+  /// The CANVEXIA partner (city operator) this merchant belongs to.
+  ///
+  /// Distinct from demoPartnerId, which only ever meant "a partner built this
+  /// preview". This is ownership: it decides whose brand the merchant renders
+  /// under, whose statement its subscription lands on, and — once the partner
+  /// policies below are live — who the database will let read its rows at all.
+  ///
+  /// Nullable because it is backfilled, not created: every restaurant that
+  /// existed before CANVEXIA is moved under the house partner by
+  /// scripts/backfill-house-partner.mjs. A null here after that point is a bug,
+  /// not a state to design around.
+  partnerId     String?
   // When a partner ran the AI menu scan on this storefront. One scan per demo:
   // it's an AI vision call billed to us, and a partner opens unlimited demos.
   // Nullable with NO default — a static default would be sent by Prisma on
@@ -1168,7 +1180,43 @@ model Partner {
   name             String
   email            String   @unique
   status           String   @default("pending") // pending | approved | suspended | rejected
-  tier             String   @default("reseller") // "affiliate" survives only on old rows
+  /// "reseller" = the legacy zero-cut program. "operator" = a CANVEXIA city
+  /// operator on a revenue share. "affiliate" survives only on old rows.
+  ///
+  /// This column is the grandfather line. The old program took no cut and said
+  /// so in writing; those partners keep those terms, so their tier stays
+  /// "reseller" and their revenueSharePct stays 0. Only "operator" carries a
+  /// share, and an operator with a 0% share is rejected — see
+  /// src/lib/partners/revenue-share.ts, because a silent 0 there is CANVEXIA
+  /// earning nothing on a partner forever and nothing surfacing to say so.
+  tier             String   @default("reseller")
+
+  // --- CANVEXIA operator fields ---------------------------------------------
+  // All nullable or database-defaulted, because every one of them is being
+  // added to a table that already has rows in production. A plain Prisma
+  // default would be written into the INSERT of every partner.create() in the
+  // codebase and break creates on a database that has not yet run
+  // prisma/manual/add-partner-tenancy.sql — the failure mode described at
+  // length on Restaurant.autoPrintReceipt.
+  //
+  /// URL label for the {slug}.canvexia.app fallback domain.
+  slug             String?  @unique
+  /// Display name, logo, colors, support contacts, legal footer. Shape lives in
+  /// packages/core/src/branding. Null = inherit the platform's own brand.
+  brandConfig      Json?
+  /// City or province this operator is licensed for. Free text until HQ
+  /// territory management lands in Phase 2.
+  territory        String?
+  /// The operator's cut of merchant subscription revenue, as a percentage.
+  /// 0 for every legacy partner; 70 for a CANVEXIA operator.
+  revenueSharePct  Int      @default(dbgenerated("0"))
+  /// Who takes the merchant's money: "partner_collects" (the operator's own
+  /// gateway account, the CANVEXIA default) or "hq_collects".
+  collectionMode   String   @default(dbgenerated("'partner_collects'"))
+  /// "powered_by" keeps a CANVEXIA/Servd credit on customer-facing surfaces;
+  /// "full_whitelabel" removes it. Reconciled with the per-merchant white-label
+  /// unlock in Phase 5 — today they are two systems answering one question.
+  brandMode        String   @default(dbgenerated("'powered_by'"))
   // Payout/tax columns from the commission era. Servd pays partners nothing, so
   // new applications never fill these in; they stay only to preserve what was
   // already collected. Nothing reads them.
@@ -1233,7 +1281,17 @@ model Table {
 /// status overrides) records who/what/when with before/after snapshots.
 model AuditLog {
   id           String   @id @default(uuid())
-  restaurantId String
+  /// Nullable since CANVEXIA: an HQ or partner action (approving an operator,
+  /// reassigning a merchant, changing a revenue share) has an actor and a
+  /// subject but no restaurant. Every existing row has one, and every existing
+  /// caller still passes one — writeAudit() takes it as a required argument —
+  /// so this widens what can be recorded without changing what is.
+  restaurantId String?
+  /// Set when the action belongs to a partner rather than to one merchant.
+  partnerId    String?
+  /// "merchant" | "partner" | "hq" | "system". Null on rows written before the
+  /// column existed, which are all merchant actions by construction.
+  actorType    String?
   actorStaffId String? // StaffUser.id of who did it (null = system)
   actorEmail   String? // snapshot of the actor's email for display
   action       String // e.g. "order.void", "order.item_void", "table.status"
@@ -1244,10 +1302,11 @@ model AuditLog {
   after        Json? // snapshot after the change
   createdAt    DateTime @default(now())
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId, createdAt])
   @@index([restaurantId, entityType, entityId])
+  @@index([partnerId, createdAt])
   @@map("audit_logs")
 }
 

@@ -5,6 +5,11 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // @servd/core is published as TypeScript source, not a build artifact — there
+  // is no compile step between editing it and running the app, which is the only
+  // way a shared package stays pleasant to work in. Next has to be told to run
+  // it through the same pipeline as the app's own source.
+  transpilePackages: ["@servd/core"],
   experimental: {
     // Menu-item image uploads (up to 5 MB) flow through a Server Action, whose
     // request body otherwise defaults to just 1 MB. (AI menu import uploads go

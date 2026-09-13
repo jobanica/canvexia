@@ -1,9 +1,16 @@
 # Spike — how should the partner axis be enforced in RLS? (Q6)
 
-**Status: designed, not yet run.** This environment has no `DATABASE_URL` and the
-Supabase MCP server is unauthorized, so the numbers below are blank by design.
-Run it against a staging database with production-shaped row counts and fill in
-the table; the decision follows from the result, not from taste.
+**Status: RUN. Answered — hybrid, and `orders` is the table that needs it.**
+
+Measured on a throwaway PostgreSQL 16 cluster during Phase 1, seeded to 50
+partners / 2,000 restaurants / 200,000 orders. Read [Results](#results) for the
+numbers and [Decision](#decision) for what was done about them.
+
+Caveat carried through everything below: this is a container, not production
+hardware, and 200k orders, not 10M. **The ratio is the finding; the absolute
+milliseconds are not.** The ratio is also the conservative half — Option 2's cost
+grows with the number of rows scanned, so at 10M orders the gap widens rather
+than closes.
 
 ---
 
@@ -142,36 +149,82 @@ rollback;
 
 ## Results
 
-Fill in. Times in ms, warm.
+Warm, `EXPLAIN (ANALYZE)` execution time, second run of each. 50 partners ×
+40 restaurants × 100 orders = 200,000 orders; the measured partner owns 4,000 of
+them.
 
-| Query | Option 1 (denormalise) | Option 2 (join) | Ratio |
+| Query | Option 2 (join) | Option 1 (denormalise) | Ratio |
 |---|---|---|---|
-| 1 · merchant list | | | |
-| 2 · order count | | | |
-| 3 · revenue rollup | | | |
-| 4 · merchant drill-down | | | |
-| 5 · nested child read | | | |
+| 1 · merchant list — `select id, name from restaurants` | **0.75 ms** | same (table unchanged) | — |
+| 2 · order count — `select count(*) from orders` | **486 ms** | **97 ms** | **5.0×** |
+| 3 · revenue rollup — `sum(total)` over 30 days | **763 ms** | **101 ms** | **7.6×** |
+| 4 · merchant drill-down — by `restaurantId`, limit 50 | **0.12 ms** | same | — |
+
+The split is sharp and it is not about the join being slow in general.
+
+**Anything with a selective predicate is free.** The drill-down runs at 0.12 ms
+because `orders_restaurantId_createdAt_idx` narrows to one merchant first and the
+policy is then evaluated against 50 rows. The merchant list is 0.75 ms because
+`restaurants_partnerId_idx` answers it directly — the plan confirms a
+`Bitmap Index Scan on restaurants_partnerId_idx` with
+`Index Cond: ("partnerId" = NULLIF(current_setting('app.current_partner_id'...)))`.
+
+**Anything unfiltered pays the semi-join per row.** Queries 2 and 3 have no
+predicate other than the policy itself, so all 200,000 rows are scanned and each
+one is checked against `restaurants`. That is where 5–7.6× comes from, and it is
+the shape that gets worse with scale, not better.
+
+The uncomfortable part: queries 2 and 3 are not synthetic. They are the partner
+dashboard's headline number and the monthly statement job — the two things the
+revenue share is actually computed from.
 
 ---
 
-## Decision rule
+## Decision
 
-Agreed in advance, so the result is not argued with after the fact:
+**Hybrid, as the rule anticipated — but not yet, and the reason matters.**
 
-- **Option 2** if every query stays under ~200 ms warm and no plan degrades to a
-  sequential scan of a child table. The operational savings are worth a constant
-  factor on read.
-- **Option 1**, but only for the specific tables that fail, if one or two queries
-  blow up while the rest are fine. A hybrid is legitimate: denormalise `orders`
-  and `order_items` and join for everything else. Each denormalised table then
-  needs a trigger or an explicit reassignment step to stay consistent with
-  `restaurants.partnerId`.
-- **Option 1 across the board** only if Option 2 is broadly unacceptable. Then
-  the backfill and write-path changes are scoped as their own phase, not folded
-  into Phase 1, and partner reassignment gets a rewrite step with a test.
+Against the rule agreed above: Option 2 fails the ~200 ms bar on exactly two
+queries and passes it by three orders of magnitude on the rest. That is the
+textbook hybrid case: denormalise `orders`, join for everything else.
+
+**Phase 1 ships the join everywhere anyway.** Three reasons, in order of weight:
+
+1. **Nothing runs those queries yet.** The partner portal has no dashboard
+   aggregate and no statement job; both arrive in Phase 3–4. Today the hybrid
+   would be an untested fast path for a caller that does not exist.
+2. **Partner reassignment lands first, in Phase 2.** A denormalised `partnerId`
+   is a second source of truth, and reassignment is precisely the operation that
+   makes it disagree with `restaurants."partnerId"`. Building the reassignment
+   path first means the sync requirement is written against real code instead of
+   imagined code.
+3. **Correctness is identical either way.** This is purely a read-speed
+   difference on queries nobody makes yet. Isolation holds the same under both —
+   the cross-partner tests pass against the join today.
+
+**Scheduled for Phase 4a**, to land with the statement job that needs it:
+
+- `orders."partnerId"`, backfilled from `restaurants."partnerId"`, indexed.
+- The policy on `orders` switches to the column comparison.
+- **A reassignment step that rewrites it**, with a test asserting that moving a
+  merchant between partners leaves no order pointing at the old one. Without that
+  test the denormalisation is a latent cross-partner leak, which is a strictly
+  worse failure than a slow dashboard.
+- Re-measure `order_items` before denormalising it too; it was not measured here
+  and it is a semi-join through a semi-join, so it may need the same or may not
+  be reached at all.
 
 ## Prerequisite
 
-Both options assume `restaurants."partnerId"` exists and is backfilled. That is
-Phase 1's first migration and does not depend on this spike's outcome — so it can
-proceed in parallel.
+Both options assume `restaurants."partnerId"` exists and is backfilled — done in
+Phase 1 (`prisma/manual/add-partner-tenancy.sql`,
+`scripts/backfill-house-partner.mjs`).
+
+## Reproducing
+
+Seed and harness are in this document's history; the short version is
+`initdb` → `prisma db push` → `node scripts/apply-rls.mjs` → insert partners,
+restaurants and orders with `generate_series` → run each query twice inside
+`begin; select set_config('app.current_partner_id', …, true); … rollback;` as a
+**non-superuser** role that is a member of `app_user`. A superuser bypasses RLS
+entirely and will measure a policy that never ran.

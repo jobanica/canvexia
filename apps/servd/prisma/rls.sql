@@ -40,6 +40,22 @@ create or replace function app.is_super_admin() returns boolean
     select coalesce(current_setting('app.is_super_admin', true) = 'on', false)
 $$;
 
+-- The CANVEXIA partner (city operator) the current request is scoped to, NULL
+-- if unset. Set by partnerDb() the way current_restaurant_id is set by
+-- tenantDb().
+--
+-- Reached through restaurants."partnerId" rather than through a partnerId
+-- denormalised onto every tenant table. One column instead of fifty-odd, one
+-- backfill instead of fifty-odd, and — the part that actually decides it —
+-- exactly one place for a merchant's owner to be recorded. Reassigning a
+-- merchant to a new partner is an HQ feature in Phase 2; with the id copied
+-- across every table it owns, reassignment means rewriting all of them, and
+-- any row missed is a row served to the wrong operator.
+create or replace function app.current_partner_id() returns text
+  language sql stable as $$
+    select nullif(current_setting('app.current_partner_id', true), '')
+$$;
+
 -- ----------------------------------------------------------------------------
 -- app_user: a NON-privileged role (no BYPASSRLS) that tenantDb() switches to,
 -- so Row-Level Security is always enforced even if the pooled connection role
@@ -117,26 +133,106 @@ begin
     execute format('alter table %I enable row level security;', t);
     execute format('alter table %I force row level security;', t);
     execute format('drop policy if exists tenant_isolation on %I;', t);
+    -- Three ways a row is visible: the trusted system context, the merchant it
+    -- belongs to, or the partner that owns that merchant. The partner arm is a
+    -- semi-join through restaurants; with restaurants_partnerId_idx in place it
+    -- is an index lookup per row group, not a scan.
+    --
+    -- %1$I rather than a bare column reference in the sub-select: unqualified
+    -- "restaurantId" happens to resolve to the outer table today only because
+    -- restaurants has no column by that name, which is a coincidence and not a
+    -- guarantee worth resting fifty policies on.
     execute format($f$
-      create policy tenant_isolation on %I
-      using (app.is_super_admin() or "restaurantId" = app.current_restaurant_id())
-      with check (app.is_super_admin() or "restaurantId" = app.current_restaurant_id());
+      create policy tenant_isolation on %1$I
+      using (
+        app.is_super_admin()
+        or "restaurantId" = app.current_restaurant_id()
+        or exists (
+          select 1 from restaurants r
+          where r.id = %1$I."restaurantId"
+            and r."partnerId" = app.current_partner_id()
+        )
+      )
+      with check (
+        app.is_super_admin()
+        or "restaurantId" = app.current_restaurant_id()
+        or exists (
+          select 1 from restaurants r
+          where r.id = %1$I."restaurantId"
+            and r."partnerId" = app.current_partner_id()
+        )
+      );
     $f$, t);
   end loop;
 end $$;
 
 -- ----------------------------------------------------------------------------
--- restaurants: a staff user sees only their own restaurant row.
+-- restaurants: a staff user sees only their own restaurant row; a partner sees
+-- the merchants it owns and nothing else.
+--
+-- The with-check arm is what stops a partner claiming somebody else's merchant:
+-- an update that would set "partnerId" to anything other than the caller's own
+-- fails the check, and the row was already invisible to them under using.
 -- ----------------------------------------------------------------------------
 alter table restaurants enable row level security;
 alter table restaurants force row level security;
 drop policy if exists tenant_isolation on restaurants;
 create policy tenant_isolation on restaurants
-  using (app.is_super_admin() or id = app.current_restaurant_id())
-  with check (app.is_super_admin() or id = app.current_restaurant_id());
+  using (
+    app.is_super_admin()
+    or id = app.current_restaurant_id()
+    or "partnerId" = app.current_partner_id()
+  )
+  with check (
+    app.is_super_admin()
+    or id = app.current_restaurant_id()
+    or "partnerId" = app.current_partner_id()
+  );
+
+-- ----------------------------------------------------------------------------
+-- audit_logs: the one tenant table whose "restaurantId" can be NULL.
+--
+-- An HQ or partner action — approving an operator, reassigning a merchant,
+-- changing a revenue share — has an actor and a subject but no restaurant, so
+-- the generic policy above cannot reach it: the semi-join is against a NULL and
+-- matches nothing. Replaced here with one that also reads audit_logs."partnerId"
+-- directly, so a partner can read its own trail and still not another's.
+--
+-- Runs after the loop deliberately: the loop creates the generic policy on this
+-- table like any other, and this drops and replaces it.
+-- ----------------------------------------------------------------------------
+drop policy if exists tenant_isolation on audit_logs;
+create policy tenant_isolation on audit_logs
+  using (
+    app.is_super_admin()
+    or "restaurantId" = app.current_restaurant_id()
+    or "partnerId" = app.current_partner_id()
+    or exists (
+      select 1 from restaurants r
+      where r.id = audit_logs."restaurantId"
+        and r."partnerId" = app.current_partner_id()
+    )
+  )
+  with check (
+    app.is_super_admin()
+    or "restaurantId" = app.current_restaurant_id()
+    or "partnerId" = app.current_partner_id()
+    or exists (
+      select 1 from restaurants r
+      where r.id = audit_logs."restaurantId"
+        and r."partnerId" = app.current_partner_id()
+    )
+  );
 
 -- ----------------------------------------------------------------------------
 -- Child tables WITHOUT a direct "restaurantId" — isolate via their parent.
+--
+-- These carry NO partner arm on purpose. A partner reading them today gets
+-- nothing rather than getting somebody else's rows: the failure mode is a blank
+-- screen, not a leak. The partner portal has no feature that reads an order's
+-- items or payments yet — that arrives with the statements work in Phase 4 —
+-- and a policy granting access nobody uses is a policy nobody has tested.
+-- Add the arm here when a caller needs it, not before.
 -- ----------------------------------------------------------------------------
 
 -- modifiers -> modifier_groups

@@ -27,6 +27,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",
     "@prisma/client": "^6.2.1",
+    "@servd/core": "workspace:*",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.10",
     "@types/web-push": "^3.6.4",

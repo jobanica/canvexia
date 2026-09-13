@@ -176,3 +176,53 @@ caller that exists.
 
 `scripts/schema-drift.mjs` now also reports coverage gaps, so drift is visible
 rather than discovered.
+
+---
+
+## D8 — The partner axis reaches through `restaurants`, not a denormalised column
+
+**Settled** for Phase 1; revisited in Phase 4a. Answers Q6.
+
+The brief specified a `partner_id` on every tenant table. Measured instead —
+50 partners / 2,000 restaurants / 200,000 orders, full method and numbers in
+`docs/canvexia/rls-partner-spike.md`:
+
+| Query | Join through `restaurants` | Denormalised column | Ratio |
+|---|---|---|---|
+| merchant list | 0.75 ms | same | — |
+| merchant drill-down | 0.12 ms | same | — |
+| order count (no predicate) | 486 ms | 97 ms | 5.0× |
+| revenue rollup, 30 days | 763 ms | 101 ms | 7.6× |
+
+Selective queries are free under the join — the planner narrows by index first
+and evaluates the policy against a handful of rows. Unfiltered aggregates pay the
+semi-join per row, and those two are the partner dashboard's headline number and
+the statement job.
+
+**Phase 1 ships the join regardless**, because nothing runs those queries yet,
+because partner reassignment (Phase 2) is the operation that makes a denormalised
+copy disagree with its source, and because isolation is identical either way —
+this is read speed on callers that do not exist.
+
+`orders."partnerId"` is scheduled for Phase 4a alongside the statement job, and
+carries a hard requirement: reassignment must rewrite it, with a test asserting
+no order is left pointing at the previous partner. A stale denormalised owner is
+a cross-partner leak, which is strictly worse than a slow dashboard.
+
+**Cost of the chosen design so far:** one column, one index, one backfill script.
+
+---
+
+## D9 — `packages/core` is consumed as TypeScript source
+
+**Settled.**
+
+`@servd/core` publishes `src/index.ts` directly; the app lists it as
+`workspace:*` and Next is told `transpilePackages: ["@servd/core"]`. No build
+step sits between editing the package and running the app.
+
+Wired into a real caller in Phase 1 rather than left as a stub —
+`src/server/tenancy/scoped-db.ts` imports the GUC names from it. A shared package
+nothing imports is a package whose wiring is untested, and Phase 6 is the worst
+possible moment to discover the resolution does not work. Verified through
+typecheck, the full vitest suite, and a production `next build`.

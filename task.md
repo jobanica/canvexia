@@ -1,54 +1,68 @@
-# Phase 0 — Decisions, spike, safety net ✅
+# Phase 1 — Partner axis, core package, house-partner backfill ✅
 
-No feature code. Nothing here changes application behaviour; it records decisions,
-sets up Q6 to be answered with a benchmark instead of a guess, and closes an
-isolation gap that predates CANVEXIA.
+The database now enforces partner isolation. Before this, partner scoping existed
+only in application code, and the partner portal read through `systemDb()`, which
+turns every policy off.
 
-- [x] `docs/canvexia/decisions.md` — ADRs for the settled questions (D1–D7)
-- [x] `docs/canvexia/rls-partner-spike.md` — Q6 benchmark design, harness, decision rule
-- [x] `apps/servd/tests/isolation/partner-scope.test.ts` — cross-partner reads, written to fail
-- [x] `apps/servd/prisma/rls.sql` — catalogue-driven tenant table list
-- [x] `apps/servd/scripts/schema-drift.mjs` — report RLS coverage gaps
-- [x] Verify offline: typecheck ✅ · 883 tests ✅ · build ✅ (115 pages)
-- [x] Verify against a real database ✅ (see below)
+- [x] `restaurants."partnerId"` — the ownership column the whole axis hangs on
+- [x] `Partner` operator fields — slug, brandConfig, territory, revenueSharePct,
+      collectionMode, brandMode
+- [x] `audit_logs` — nullable restaurantId, plus partnerId and actorType, so an
+      HQ or partner action can be recorded at all
+- [x] `prisma/manual/add-partner-tenancy.sql` — hand-run migration, idempotent,
+      self-verifying
+- [x] `prisma/rls.sql` — `app.current_partner_id()` and a partner arm on every
+      tenant policy
+- [x] `packages/core` — GUC names, role model, product registry; wired into a
+      real caller
+- [x] `apps/servd/src/server/tenancy/scoped-db.ts` — `partnerDb()`
+- [x] `src/lib/partners/revenue-share.ts` + 17 tests — the grandfather rule
+- [x] `scripts/backfill-house-partner.mjs` — dry-run by default, idempotent
+- [x] Q6 answered with a benchmark, not a guess (see D8)
 
-## Finding that changed this phase
+## Verification
 
-The hand-written `tenant_tables` array in `rls.sql` had drifted. **13 tables holding
-real tenant data had no row-level security at all** — `audit_logs`, `reservations`,
-`gift_cards`, `gift_card_txns`, `cash_movements`, `delivery_settings`,
-`delivery_bookings`, `cart_leads`, `happy_hours`, `shift_notes`,
-`push_subscriptions`, `menu_item_variants`, `menu_item_servings`.
+Offline: typecheck ✅ · 900 tests ✅ (was 883) · build ✅ 115 pages.
 
-Nothing was leaking them — only `src/server/tenancy/scoped-db.ts` imports the
-unscoped Prisma client, so every read already carries a restaurant scope or runs
-super-admin. But the second layer, the one meant to hold when the application
-forgets a where clause, was absent on those tables.
-
-## Verification against a live database
-
-The offline suite skips every RLS test, so `rls.sql` would otherwise have shipped
-untested. Verified on a throwaway PostgreSQL 16 cluster (`initdb` → `prisma db
-push` → `node scripts/apply-rls.mjs`), then torn down:
+Against a live PostgreSQL 16 cluster, following the path production will take —
+push the **pre-CANVEXIA** schema, run the hand-run SQL, then `db:rls`:
 
 | Check | Result |
 |---|---|
-| Modified `rls.sql` applies cleanly | ✅ `✅ RLS policies applied.` |
-| 13 previously-uncovered tables now isolated | ✅ all 13 carry `tenant_isolation` |
-| 3 platform tables locked to super-admin | ✅ `platform_feedback`, `crm_clients`, `customer_events` |
-| `schema-drift.mjs` coverage report | ✅ 0 rows (no drift, no gaps) |
-| Existing `tenant-isolation.test.ts` | ✅ 9/9 pass — no regression |
-| New `partner-scope.test.ts` | ✅ fails with `column "partnerId" of relation "restaurants" does not exist` — the intended gate |
+| `add-partner-tenancy.sql` on a pre-CANVEXIA database | ✅ applies clean, self-check returns 3× true |
+| Column drift afterwards vs the new schema | ✅ none — the migration covers every change |
+| `db:rls` with the partner policies | ✅ applies clean |
+| Drift + RLS coverage after | ✅ 0 rows |
+| Backfill dry run | ✅ printed the plan, wrote nothing (verified: 0 partners, 0 assigned) |
+| Backfill `--apply` | ✅ house partner created, 1 restaurant moved |
+| Backfill re-run ×2 | ✅ "Nothing to do" — idempotent |
+| **`partner-scope.test.ts` — the Phase 1 gate** | ✅ **5/5, was 0/5** |
+| `tenant-isolation.test.ts` — regression check | ✅ 9/9 |
+| Unknown partner sees | ✅ 0 restaurants, 0 orders |
+| No scope at all sees | ✅ 0 restaurants |
 
-**One trap worth recording for whoever runs these next.** Connecting as a
-superuser makes every isolation test fail: superusers bypass RLS regardless of
-`FORCE ROW LEVEL SECURITY`. The first run showed 8 failures that looked like a
-regression and were not — the original `rls.sql` produced the identical 8
-failures on the same database. Run isolation tests as a non-superuser role that
-is a member of `app_user`, the way production connects.
+## Deviations from the plan, with reasons
 
-## Next — Phase 1 is unblocked
+1. **`partnerDb()` lives in the app, not `packages/core`.** Core would have had
+   to depend on `@prisma/client`, which is generated from the app's schema —
+   a dependency pointing the wrong way. Core owns the GUC *names*; the app owns
+   the client that sets them. Moving the schema into `packages/db` is the real
+   fix and is its own migration.
+2. **Child tables (`order_items`, `payments`, `modifiers`, `sms_messages`) got no
+   partner arm.** They fail closed — a partner reads empty, not another partner's
+   rows. Nothing in the portal needs them until Phase 4, and a policy granting
+   access no caller uses is a policy nobody has tested.
+3. **`partnerId` is a bare column, no Prisma relation**, matching the existing
+   `demoPartnerId` precedent. Phase 2 can add the relation when it needs
+   `include`.
 
-Q1 settled (new partners only). Q6 is answered by running the spike; Q3 can take
-its default. Phase 1's first migration — `restaurants."partnerId"` plus the
-backfill — does not depend on the spike's outcome and can start immediately.
+## Next — Phase 2
+
+HQ admin: products and plans with price floors, partner management, merchant
+directory across partners, and reassignment. Reassignment is the one to design
+carefully — D8 makes it the operation that a future denormalised `orders.partnerId`
+depends on.
+
+**Not yet run in production.** The migration, `db:rls` and the backfill are all
+still to be applied to the live database, in that order, with the backfill dry
+run read by a person first.
