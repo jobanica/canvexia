@@ -438,6 +438,17 @@ model Plan {
   id           String   @id @default(uuid())
   name         String
   priceMonthly Int // store money in centavos (integers) to avoid float errors
+  /// The least a partner may charge for this plan, in centavos. HQ sets it;
+  /// partners price at or above it.
+  ///
+  /// It exists because partners set their own prices and merchants talk to each
+  /// other. Without a floor, one operator undercutting another does not just
+  /// start a price war between them — CANVEXIA's 30% is a share of whatever was
+  /// actually charged, so the race to the bottom comes out of HQ's revenue too.
+  ///
+  /// 0 means no floor, which is what every existing plan gets: a floor applied
+  /// retroactively to live plans would invalidate prices already being charged.
+  priceFloor   Int      @default(dbgenerated("0"))
   limits       Json // e.g. { maxTables, maxStaff, smsIncluded }
   features     String[] @default([]) // gateable feature keys this plan grants (super-admin controlled)
   trialDays    Int      @default(30) // free-trial length for new signups

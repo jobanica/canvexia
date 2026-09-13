@@ -14,6 +14,7 @@ import { COMP_FOREVER } from "@/lib/billing/comp";
 import { uniqueSlug } from "@/lib/slug";
 import { addMonths } from "@/lib/billing/period";
 import { ALL_FEATURES, type Feature } from "@/lib/billing/features";
+import { validateFloorAgainstPrice } from "@/lib/billing/price-floor";
 import { migrationHint } from "@/lib/db/migration-hint";
 import { CUSTOM_DOMAIN_ADDON, CUSTOM_DOMAIN_PRICE } from "@/server/billing/addons";
 
@@ -102,6 +103,22 @@ async function syncModules(tx: Prisma.TransactionClient, planId: string, modules
   }
 }
 
+/**
+ * The plan's price floor, in centavos, from the form.
+ *
+ * Read straight off the FormData rather than through parsePlan's schema so a
+ * database that has not run prisma/manual/add-plan-price-floor.sql yet still
+ * saves plans: a blank or absent field is 0, which means "no floor", which is
+ * what every plan had before the column existed.
+ */
+function floorFromForm(formData: FormData): number {
+  const raw = String(formData.get("priceFloor") ?? "").trim();
+  if (raw === "") return 0;
+  const pesos = Number(raw);
+  if (!Number.isFinite(pesos) || pesos < 0) return 0;
+  return Math.round(pesos * 100);
+}
+
 function buildLimits(d: { maxTables?: number; maxStaff?: number; smsIncluded?: number }): Prisma.InputJsonValue {
   // Only include defined keys — Prisma rejects `undefined` inside a Json value,
   // and an omitted key means "unlimited" to the entitlements helper.
@@ -118,12 +135,15 @@ export async function createPlan(_prev: ActionState, formData: FormData): Promis
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const { name, price, trialDays, maxTables, maxStaff, smsIncluded } = parsed.data;
   const priceMonthly = Math.round(price * 100);
+  const priceFloor = floorFromForm(formData);
+  const floor = validateFloorAgainstPrice({ priceFloor, priceMonthly });
+  if (!floor.ok) return { error: floor.error };
   const limits = buildLimits({ maxTables, maxStaff, smsIncluded });
   let planId: string;
   try {
     planId = await systemDb(async (tx) => {
       const plan = await tx.plan.create({
-        data: { name, priceMonthly, trialDays, limits, isActive: true },
+        data: { name, priceMonthly, priceFloor, trialDays, limits, isActive: true },
         select: { id: true },
       });
       await syncModules(tx, plan.id, modulesFromForm(formData));
@@ -145,6 +165,9 @@ export async function updatePlan(_prev: ActionState, formData: FormData): Promis
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const { name, price, trialDays, maxTables, maxStaff, smsIncluded } = parsed.data;
   const priceMonthly = Math.round(price * 100);
+  const priceFloor = floorFromForm(formData);
+  const floor = validateFloorAgainstPrice({ priceFloor, priceMonthly });
+  if (!floor.ok) return { error: floor.error };
   const limits = buildLimits({ maxTables, maxStaff, smsIncluded });
   try {
     await systemDb(async (tx) => {
@@ -153,6 +176,7 @@ export async function updatePlan(_prev: ActionState, formData: FormData): Promis
         data: {
           name,
           priceMonthly,
+          priceFloor,
           trialDays,
           limits,
         },

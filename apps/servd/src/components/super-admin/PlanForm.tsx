@@ -36,7 +36,7 @@ export function PlanForm({ plan }: { plan?: PlanRow }) {
   return (
     <form action={formAction} className="space-y-3 rounded-tile border border-plum-ink/10 bg-white p-4">
       {plan && <input type="hidden" name="id" value={plan.id} />}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div>
           <label className={label}>Name</label>
           <input name="name" defaultValue={plan?.name} required className={field} />
@@ -52,6 +52,20 @@ export function PlanForm({ plan }: { plan?: PlanRow }) {
             required
             className={field}
           />
+        </div>
+        <div>
+          <label className={label}>Floor (₱ / month)</label>
+          <input
+            name="priceFloor"
+            type="number"
+            min="0"
+            step="1"
+            defaultValue={plan?.priceFloor ? plan.priceFloor / 100 : ""}
+            className={field}
+          />
+          <p className="mt-1 text-[11px] text-plum-ink/40">
+            The least a partner may charge for this plan. Blank or 0 = no floor.
+          </p>
         </div>
       </div>
 

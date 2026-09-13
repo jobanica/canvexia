@@ -302,6 +302,15 @@ export interface PlanRow {
   id: string;
   name: string;
   priceMonthly: number;
+  /**
+   * The least a partner may charge for this plan, in centavos. 0 = no floor.
+   *
+   * Read in the newer-columns branch of listAllPlans only, and defaulted to 0 in
+   * the fallback — same shape as `features`, and for the same reason: this ships
+   * as a hand-run migration, and the plans page has to keep rendering on a
+   * database that is one migration behind.
+   */
+  priceFloor: number;
   trialDays: number;
   isActive: boolean;
   limits: { maxTables?: number; maxStaff?: number; smsIncluded?: number };
@@ -329,13 +338,14 @@ export async function listAllPlans(): Promise<PlanRow[]> {
     const plans = await systemDb((tx) =>
       tx.plan.findMany({
         orderBy: { priceMonthly: "asc" },
-        select: { ...PLAN_SELECT, features: true },
+        select: { ...PLAN_SELECT, features: true, priceFloor: true },
       }),
     );
     return plans.map((p) => ({
       id: p.id,
       name: p.name,
       priceMonthly: p.priceMonthly,
+      priceFloor: p.priceFloor ?? 0,
       trialDays: p.trialDays,
       isActive: p.isActive,
       limits: (p.limits as PlanRow["limits"] | null) ?? {},
@@ -351,6 +361,7 @@ export async function listAllPlans(): Promise<PlanRow[]> {
       id: p.id,
       name: p.name,
       priceMonthly: p.priceMonthly,
+      priceFloor: 0, // column not migrated yet — no floor
       trialDays: p.trialDays,
       isActive: p.isActive,
       limits: (p.limits as PlanRow["limits"] | null) ?? {},

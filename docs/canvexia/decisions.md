@@ -226,3 +226,70 @@ Wired into a real caller in Phase 1 rather than left as a stub —
 nothing imports is a package whose wiring is untested, and Phase 6 is the worst
 possible moment to discover the resolution does not work. Verified through
 typecheck, the full vitest suite, and a production `next build`.
+
+---
+
+## D10 — Price floors default to zero, and HQ raises them deliberately
+
+**Settled.** Phase 2.
+
+`Plan.priceFloor` ships at 0, meaning "no floor". A floor applied retroactively
+would make prices that are already being charged invalid under the platform's own
+rule, and the first anyone would know is a plan edit refusing to save over a
+number they had not touched.
+
+Both directions are checked, because people get both wrong:
+`validatePriceAgainstFloor` (a partner pricing under HQ's floor, used from
+Phase 3) and `validateFloorAgainstPrice` (HQ raising a floor above the plan's own
+price, used now). A free plan is allowed under any floor — giving something away
+is not undercutting.
+
+The rule lives in `src/lib/billing/price-floor.ts` and is pure, so the partner
+portal picks up the same one rather than growing a second implementation with a
+different rounding habit.
+
+---
+
+## D11 — Reassignment: approved targets only, never unassignment
+
+**Settled.** Phase 2. The rule is in `src/lib/partners/reassign.ts`.
+
+- **Target must be `approved`.** Moving a merchant onto a suspended partner hands
+  it to someone who cannot sign in to support it, and the merchant would be the
+  one to find out.
+- **Blank target is rejected, not treated as unassignment.** Clearing `partnerId`
+  makes a merchant invisible to every partner scope and absent from every
+  statement. If that is ever wanted it needs its own deliberate action.
+- **Repeating a move is a no-op, not an error.** Double-submits and re-run bulk
+  moves both land there.
+- **The audit row names the incoming partner only.** The outgoing partner has
+  just lost access to that merchant entirely; a row naming a merchant they can no
+  longer read is a worse answer than asking HQ, who sees the whole trail.
+
+The update and the audit row are one transaction. A merchant half-reassigned is
+worse than one not reassigned, because the next person to look cannot tell which
+happened.
+
+**D8 lands here.** `src/server/partners/reassign.ts` carries the marked extension
+point where a future `orders."partnerId"` must be rewritten. A copy left pointing
+at the previous partner is not a stale dashboard — the policy on that table reads
+the copy, so the previous partner keeps reading those rows, with an audit trail
+saying the move succeeded.
+
+---
+
+## D12 — The product registry is code, not a table
+
+**Settled.** Phase 2.
+
+`/super-admin/products` renders `packages/core/src/products/registry.ts` and has
+no editor. A product exists once something can provision a merchant into it, and
+that is an adapter someone writes, not a row someone inserts. An editable
+registry would let HQ list a product the platform cannot create an account in,
+and the partner who tried would be the one to find out.
+
+**Deferred with it:** platform analytics (the plan listed it for Phase 2).
+`/super-admin` already has analytics, bizops and funnel screens, and there is no
+partner-shaped number worth adding until statements exist in Phase 4. And
+per-partner plan pricing, which needs the portal (Phase 3) to write it — the
+floor lands now and is enforced against `Plan.priceMonthly`.
