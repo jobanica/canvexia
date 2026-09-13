@@ -3,6 +3,7 @@ import "server-only";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { addMonths } from "@/lib/billing/period";
 import type { Feature } from "@/lib/billing/features";
+import { restaurantInScope, type SettlementScope } from "@/server/billing/settlement-scope";
 
 /**
  * Features sold as their OWN monthly subscription rather than with the plan or
@@ -107,15 +108,19 @@ export async function listActiveMonthlyFeatures(restaurantId: string): Promise<S
  * the period out a month. Returns false when the ref isn't one of these, so the
  * caller can fall through to add-ons / plan subscriptions. Idempotent.
  */
-export async function activateFeatureSubByProviderRef(providerRef: string): Promise<boolean> {
+export async function activateFeatureSubByProviderRef(
+  providerRef: string,
+  scope: SettlementScope,
+): Promise<boolean> {
   if (!providerRef) return false;
   try {
     return await systemDb(async (tx) => {
       const row = await tx.featureSubscription.findFirst({
         where: { providerRef },
-        select: { id: true, currentPeriodEnd: true },
+        select: { id: true, currentPeriodEnd: true, restaurantId: true },
       });
       if (!row) return false;
+      if (!(await restaurantInScope(tx, row.restaurantId, scope))) return false;
       const now = new Date();
       // Extend from the existing period if it's still running, else from now.
       const base =

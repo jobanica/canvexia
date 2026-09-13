@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { tenantDb } from "@/server/tenancy/scoped-db";
 import { requireAdminAction } from "@/server/tenancy/require-admin";
-import { getBillingProvider } from "@/server/billing";
+import { getBillingProviderForMerchant } from "@/server/billing/merchant-provider";
 import { startPlan, cancelAtPeriodEnd, PLAN_FIELDS } from "@/server/billing/subscription";
 import { addMonths } from "@/lib/billing/period";
 
@@ -15,8 +15,13 @@ import { addMonths } from "@/lib/billing/period";
  */
 export async function payNow(): Promise<{ ok?: boolean; checkoutUrl?: string; error?: string }> {
   const { restaurantId } = await requireAdminAction();
-  const provider = await getBillingProvider();
-  if (!provider) return { error: "Billing isn't configured on the platform yet." };
+  // Resolved through the merchant's OWNING PARTNER, so the money lands in the
+  // account that is supposed to receive it (D5). For a merchant under the house
+  // partner — which is every merchant today — that is CANVEXIA's own account and
+  // nothing about this call changes.
+  const resolved = await getBillingProviderForMerchant(restaurantId);
+  if (!resolved.ok) return { error: resolved.message };
+  const provider = resolved.provider;
 
   const info = await tenantDb(restaurantId, async (tx) => {
     const sub = await tx.subscription.findFirst({

@@ -444,3 +444,111 @@ issued an invoice every month whether or not they pay it.
 - A partner cannot write to it. This is the answer to revenue leakage in the
   original brief: the statement is computed from what the gateway told us, so
   under-reporting is not a thing a partner can do.
+
+---
+
+## D16 — Settlement carries an explicit scope
+
+**Settled.** Phase 4a. `src/server/billing/settlement-scope.ts`.
+
+Six handlers settled a payment by gateway reference **alone** —
+`activateByProviderRef`, `markAddonPaidByProviderRef`,
+`activateFeatureSubByProviderRef`, `activatePreviewByProviderRef`,
+`abandonPreviewByProviderRef`, `activateBranchByProviderRef`. Sound with one
+trusted gateway: possessing a reference proved it came from us. Not sound with N
+sub-accounts, where a reference unique inside one account need not be unique
+across them.
+
+Every one now takes a `SettlementScope` — a tagged union, not an optional
+`partnerId`, because an optional parameter is one a caller forgets and the
+compiler forgives. `PLATFORM_SCOPE` has to be written out, so a reviewer can ask
+why it is there.
+
+**What it actually buys, stated honestly.** Under D5 Option B a partner never
+holds a callback token — CANVEXIA holds the only credential — so this is not
+mainly defence against a malicious partner. It defends against the likelier
+thing: a reference collision between sub-accounts, or a webhook URL configured
+against the wrong partner. Both settle the wrong merchant's invoice and neither
+announces itself. Under Option A the same code would also be the defence against
+malice, which is why it is built identically either way.
+
+**The platform webhook stays live.** An earlier plan had `/api/webhooks/billing`
+return 410 once the per-partner route existed. That was wrong: the URL is
+configured in the gateway dashboard and is how subscriptions settle today.
+Retiring it before every partner is on a sub-account and the dashboards are
+reconfigured would stop live payments settling, the only symptom being customers
+who paid and did not get access.
+
+---
+
+## D17 — Suspension no longer depends on `failedCharges`
+
+**Settled.** Phase 4b. Closes the hole D3 identified.
+
+`failedCharges` only rises when a saved-card charge is attempted and fails. A
+gateway with no off-session charging never attempts one, so it stays 0 and the
+count-based suspension arm is unreachable — a merchant could sit `past_due`
+indefinitely while still using the product.
+
+`MAX_PAST_DUE_DAYS = 14` adds a second, provider-independent arm keyed on the age
+of the oldest unpaid invoice. Fourteen days is two missed weekly reminders, and
+long enough that a card expiring over a holiday is not an outage.
+
+**A second bug surfaced on the same path.** The cron created a new invoice on
+*every* run for a past-due subscriber, and it runs daily — so thirty days late
+meant thirty open invoices for one month of service, each with its own checkout,
+and any "what do I owe" total summing all of them. It now raises one only when
+nothing is outstanding.
+
+---
+
+## D18 — The ledger records settlements, and merchants cannot read it
+
+**Settled.** Phase 4c. Implements D15.
+
+`PartnerLedgerEntry`: one row per settled payment, written in the same
+transaction that grants the access it paid for. A payment that granted access
+without being recorded is revenue nobody can see; a row recorded for access that
+rolled back is revenue nobody received.
+
+- **`providerRef` is unique** — gateways replay webhooks as a matter of course,
+  and without it a replay would credit a partner twice.
+- **`sharePct` is snapshotted**, not looked up at statement time. Renegotiating a
+  partner's percentage must not silently rewrite every statement already issued.
+  Same reasoning as the `*AtTime` columns on orders.
+- **Append-only.** A refund will be another row, never an edit, so a past month
+  recomputes to the same number instead of drifting as adjustments land.
+- **Excluded from the tenant RLS loop**, with a partner-and-HQ-only policy. Each
+  row holds the partner/HQ split — a commercial term between CANVEXIA and the
+  operator. Under the generic tenant policy a restaurant could read its own rows
+  and learn exactly what its partner keeps, and it would be discovered by a
+  merchant rather than by us.
+
+**Written outside a try/catch, deliberately.** Postgres aborts a transaction on a
+failed statement, so swallowing an error inside one would roll back the
+activation too — turning "the ledger table is one migration behind" into "nobody's
+payment settles". The table's existence is checked once per process instead.
+
+---
+
+## D19 — Outbound checkout resolves through the owning partner
+
+**Settled.** Phase 4a. `src/server/billing/merchant-provider.ts`.
+
+A merchant's subscription checkout is now created on their partner's gateway when
+that partner has a sub-account, and on CANVEXIA's own when they do not. The
+second is not a fallback that loses money — there is no other account for it to
+go to, and it is where it goes today.
+
+The reverse is the dangerous case and is the one branch that never falls through:
+a partner *with* a sub-account being quietly charged on the platform account would
+route their revenue to CANVEXIA while every statement said otherwise. That
+returns an error rather than a charge.
+
+**Only the subscription path is wired.** The five other checkout sites (add-ons,
+feature subscriptions, branch activation, DIY activation) still resolve to the
+platform account. That is correct today — every merchant belongs to the house
+partner, whose money is CANVEXIA's — and those are one-off platform charges
+rather than the partner-shared subscription revenue this phase is about. They
+follow when the first external operator onboards, which is also when
+`SUB_ACCOUNT_MECHANISM_CONFIRMED` has to become true.

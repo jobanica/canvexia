@@ -13,6 +13,7 @@ import { suppressOnActivation } from "@/server/email/followup";
 import { ACTIVATION_PRICE } from "./queries";
 import { BRANCH_NOTE } from "@/server/tenancy/branch-activation";
 import { logEvent } from "@/server/bizops/events";
+import { restaurantInScope, type SettlementScope } from "@/server/billing/settlement-scope";
 
 /**
  * Turning a paid DIY preview into a real account.
@@ -294,12 +295,20 @@ async function activateRequest(requestId: string): Promise<boolean> {
  * Webhook entry point. Returns false when the ref isn't a DIY activation, so
  * the shared webhook route can fall through to the other payment kinds.
  */
-export async function activatePreviewByProviderRef(providerRef: string): Promise<boolean> {
+export async function activatePreviewByProviderRef(
+  providerRef: string,
+  scope: SettlementScope,
+): Promise<boolean> {
   if (!providerRef) return false;
   try {
-    const request = await systemDb((tx) =>
-      tx.activationRequest.findFirst({ where: { providerRef }, select: { id: true } }),
-    );
+    const request = await systemDb(async (tx) => {
+      const row = await tx.activationRequest.findFirst({
+        where: { providerRef },
+        select: { id: true, restaurantId: true },
+      });
+      if (!row) return null;
+      return (await restaurantInScope(tx, row.restaurantId, scope)) ? row : null;
+    });
     if (!request) return false;
     await activateRequest(request.id);
     return true; // ours either way — never fall through to plan activation
@@ -309,15 +318,27 @@ export async function activatePreviewByProviderRef(providerRef: string): Promise
 }
 
 /** Webhook: the invoice expired or failed. The preview survives as a warm lead. */
-export async function abandonPreviewByProviderRef(providerRef: string): Promise<boolean> {
+export async function abandonPreviewByProviderRef(
+  providerRef: string,
+  scope: SettlementScope,
+): Promise<boolean> {
   if (!providerRef) return false;
   try {
-    const res = await systemDb((tx) =>
-      tx.activationRequest.updateMany({
+    const res = await systemDb(async (tx) => {
+      // Scoped the same way as activation. Abandoning somebody else's pending
+      // request is a smaller harm than settling their invoice, but it is the
+      // same unauthorised write and there is no reason to leave it open.
+      const row = await tx.activationRequest.findFirst({
         where: { providerRef, status: "pending" },
+        select: { id: true, restaurantId: true },
+      });
+      if (!row) return { count: 0 };
+      if (!(await restaurantInScope(tx, row.restaurantId, scope))) return { count: 0 };
+      return tx.activationRequest.updateMany({
+        where: { id: row.id, status: "pending" },
         data: { status: "abandoned" },
-      }),
-    );
+      });
+    });
     if (res.count > 0) return true;
     // Already settled? Still ours — don't let it reach plan activation.
     const hit = await systemDb((tx) =>

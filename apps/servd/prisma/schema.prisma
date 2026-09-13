@@ -1228,6 +1228,19 @@ model Partner {
   /// "full_whitelabel" removes it. Reconciled with the per-merchant white-label
   /// unlock in Phase 5 — today they are two systems answering one question.
   brandMode        String   @default(dbgenerated("'powered_by'"))
+  /// This operator's sub-account under CANVEXIA's own gateway platform.
+  ///
+  /// An IDENTIFIER, not a secret — which is the whole point of D5 Option B. The
+  /// only gateway credential on the platform stays the one in
+  /// PlatformSetting.xenditCredsEnc; a call on a partner's behalf is made with
+  /// that key and names this sub-account. So a partner never hands over an API
+  /// key, CANVEXIA never stores N of them, and a leak here exposes an account
+  /// number rather than the ability to move money.
+  ///
+  /// Null until the partner is onboarded with the gateway. A partner without one
+  /// cannot take merchant payments yet, which is a state the portal has to show
+  /// rather than a state to crash on.
+  gatewaySubAccountId String?
   // Payout/tax columns from the commission era. Servd pays partners nothing, so
   // new applications never fill these in; they stay only to preserve what was
   // already collected. Nothing reads them.
@@ -1238,6 +1251,49 @@ model Partner {
   updatedAt        DateTime @updatedAt
 
   @@map("partners")
+}
+
+/// One settled payment, recorded against the partner that owns the merchant.
+///
+/// D15: the platform's record of what was actually COLLECTED. Not what was
+/// invoiced — on a gateway with no auto-charge every merchant is issued an
+/// invoice every month whether or not they pay it, so a ledger of issuances
+/// would bill partners for money nobody received.
+///
+/// IMMUTABLE. Rows are appended and never edited; a refund is another row, not a
+/// correction to this one. That is what lets a statement for a past month be
+/// recomputed and come out the same, instead of drifting as adjustments land.
+///
+/// NOT MERCHANT-READABLE. It carries the partner/HQ split, which is a commercial
+/// term between CANVEXIA and the operator and none of the restaurant's business.
+/// prisma/rls.sql excludes it from the tenant loop and gives it a partner-only
+/// policy — see the comment there.
+model PartnerLedgerEntry {
+  id            String   @id @default(uuid())
+  partnerId     String
+  restaurantId  String
+  /// "subscription" | "addon" | "feature" | "activation"
+  kind          String
+  /// The gateway reference this settlement came from. UNIQUE, which is what
+  /// makes recording idempotent: a replayed webhook — and gateways do replay —
+  /// cannot pay a partner twice for one payment.
+  providerRef   String   @unique
+  /// Centavos actually settled.
+  grossAmount   Int
+  partnerAmount Int
+  hqAmount      Int
+  /// The split in force AT THE TIME, snapshotted.
+  ///
+  /// Load-bearing: without it, renegotiating a partner's percentage would
+  /// silently rewrite every statement they have ever been issued. Same reasoning
+  /// as the *AtTime columns on orders.
+  sharePct      Int
+  currency      String   @default(dbgenerated("'PHP'"))
+  occurredAt    DateTime @default(now())
+
+  @@index([partnerId, occurredAt])
+  @@index([restaurantId])
+  @@map("partner_ledger_entries")
 }
 
 /// Program-wide settings (singleton row id="program").

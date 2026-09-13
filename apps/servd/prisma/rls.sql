@@ -115,7 +115,8 @@ declare
     'crm_clients',       -- the founder's own sales pipeline
     'customer_events',   -- bizops funnel events
     'email_messages',    -- acquisition mail to leads, not a tenant's diners
-    'email_sends'        -- ditto (follow-up tracks)
+    'email_sends',       -- ditto (follow-up tracks)
+    'partner_ledger_entries' -- see the policy below: partner + HQ only
   ];
 begin
   for t in
@@ -378,6 +379,29 @@ drop policy if exists partner_self on partners;
 create policy partner_self on partners
   using (app.is_super_admin() or id = app.current_partner_id())
   with check (app.is_super_admin() or id = app.current_partner_id());
+
+-- ----------------------------------------------------------------------------
+-- partner_ledger_entries: the partner who earned it, and HQ. NOT the merchant.
+--
+-- Excluded from the tenant loop even though it carries a "restaurantId", and the
+-- reason is not tidiness. Each row holds the partner/HQ split of that payment —
+-- a commercial term between CANVEXIA and the operator. Under the generic tenant
+-- policy a restaurant could read its own rows and learn exactly what its partner
+-- keeps and what CANVEXIA takes, which is nobody's business but theirs and would
+-- be discovered by a merchant, not by us.
+--
+-- Read-only to partners as well. Entries are written by the settlement path
+-- running as the system; a partner being able to insert one would be a partner
+-- writing their own statement.
+-- ----------------------------------------------------------------------------
+alter table partner_ledger_entries enable row level security;
+alter table partner_ledger_entries force row level security;
+drop policy if exists ledger_read on partner_ledger_entries;
+drop policy if exists ledger_write on partner_ledger_entries;
+create policy ledger_read on partner_ledger_entries for select
+  using (app.is_super_admin() or "partnerId" = app.current_partner_id());
+create policy ledger_write on partner_ledger_entries for all
+  using (app.is_super_admin()) with check (app.is_super_admin());
 
 -- platform_feedback / crm_clients / customer_events: the three tables excluded
 -- from the tenant loop above. They carry a "restaurantId" but the row belongs to

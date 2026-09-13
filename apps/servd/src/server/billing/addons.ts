@@ -2,6 +2,7 @@ import "server-only";
 
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { getPlanAccess } from "@/server/billing/feature-gate";
+import { restaurantInScope, type SettlementScope } from "@/server/billing/settlement-scope";
 
 /** One-time price to unlock a custom domain on Free / during a trial (centavos). */
 export const CUSTOM_DOMAIN_PRICE = 50_000; // ₱500.00
@@ -66,12 +67,16 @@ export async function getCustomDomainAccess(restaurantId: string): Promise<Custo
  * isn't an add-on (so the caller can fall through to subscription activation).
  * Idempotent — a replayed webhook is a no-op.
  */
-export async function markAddonPaidByProviderRef(providerRef: string): Promise<boolean> {
+export async function markAddonPaidByProviderRef(
+  providerRef: string,
+  scope: SettlementScope,
+): Promise<boolean> {
   if (!providerRef) return false;
   try {
     return await systemDb(async (tx) => {
       const row = await tx.addonPurchase.findFirst({ where: { providerRef } });
       if (!row) return false;
+      if (!(await restaurantInScope(tx, row.restaurantId, scope))) return false;
       if (row.status !== "paid") {
         await tx.addonPurchase.update({
           where: { id: row.id },

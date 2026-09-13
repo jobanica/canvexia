@@ -6,6 +6,7 @@ import { XenditBillingProvider } from "@/server/billing/xendit";
 import { provisionFreePlan } from "@/server/billing/subscription";
 import { addonKeyFor } from "@/server/billing/owned-features";
 import { ACTIVATION_PRICE } from "@/server/build/queries";
+import { restaurantInScope, type SettlementScope } from "@/server/billing/settlement-scope";
 
 /**
  * Paying the ₱499 to switch a branch on.
@@ -111,15 +112,20 @@ export async function createBranchActivationCheckout(
  * through to the other handlers. Idempotent — Xendit retries, and a replay must
  * not grant the unlock twice or re-activate something already live.
  */
-export async function activateBranchByProviderRef(providerRef: string): Promise<boolean> {
+export async function activateBranchByProviderRef(
+  providerRef: string,
+  scope: SettlementScope,
+): Promise<boolean> {
   if (!providerRef) return false;
 
-  const request = await systemDb((tx) =>
-    tx.activationRequest.findFirst({
+  const request = await systemDb(async (tx) => {
+    const row = await tx.activationRequest.findFirst({
       where: { providerRef, note: BRANCH_NOTE },
       select: { id: true, status: true, restaurantId: true },
-    }),
-  ).catch(() => null);
+    });
+    if (!row) return null;
+    return (await restaurantInScope(tx, row.restaurantId, scope)) ? row : null;
+  }).catch(() => null);
   if (!request) return false;
   if (request.status === "activated") return true; // replayed webhook — no-op
 

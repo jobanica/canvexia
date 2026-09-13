@@ -15,6 +15,7 @@ import {
   getFeatureSubscription,
   activateFeatureSubByProviderRef,
 } from "@/server/billing/feature-subscriptions";
+import { PLATFORM_SCOPE } from "@/server/billing/settlement-scope";
 
 export type UnlockResult = { checkoutUrl: string } | { error: string };
 export type VerifyResult = { unlocked: true } | { unlocked: false; message: string };
@@ -289,7 +290,10 @@ export async function verifyFeatureSubscription(featureKey: string): Promise<Ver
     };
   }
 
-  await activateFeatureSubByProviderRef(ref);
+  // PLATFORM_SCOPE: this is not a webhook. An authenticated owner is checking
+  // on a checkout they opened themselves, so the reference is theirs by
+  // construction and there is no second gateway to confuse it with.
+  await activateFeatureSubByProviderRef(ref, PLATFORM_SCOPE);
   revalidatePath("/admin/content");
   return { unlocked: true };
 }

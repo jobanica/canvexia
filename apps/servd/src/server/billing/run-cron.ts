@@ -27,7 +27,7 @@ export interface CronSummary {
  */
 export async function runBillingCron(now: Date = new Date()): Promise<CronSummary> {
   const provider = await getBillingProvider();
-  const [subs, freePlan] = await systemDb(async (tx) => [
+  const [subs, freePlan, openInvoices] = await systemDb(async (tx) => [
     await tx.subscription.findMany({
       where: { status: { in: ["trialing", "active", "past_due"] } },
       include: { plan: { select: PLAN_FIELDS } },
@@ -37,7 +37,23 @@ export async function runBillingCron(now: Date = new Date()): Promise<CronSummar
       orderBy: { priceMonthly: "asc" },
       select: { id: true },
     }),
+    // Every unpaid invoice, oldest first. Two jobs: it is the age signal the
+    // suspension arm reads, and it is how this run knows an invoice has already
+    // been raised — see the await_payment branch below.
+    await tx.restaurantInvoice.findMany({
+      where: { status: "open" },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, restaurantId: true, createdAt: true },
+    }),
   ]);
+
+  // Oldest-first ordering means the first row wins, so this keeps the oldest.
+  const oldestOpenByRestaurant = new Map<string, { id: string; createdAt: Date }>();
+  for (const inv of openInvoices) {
+    if (!oldestOpenByRestaurant.has(inv.restaurantId)) {
+      oldestOpenByRestaurant.set(inv.restaurantId, { id: inv.id, createdAt: inv.createdAt });
+    }
+  }
 
   const s: CronSummary = {
     processed: subs.length, charged: 0, failed: 0, awaiting: 0, suspended: 0, cancelled: 0,
@@ -53,6 +69,7 @@ export async function runBillingCron(now: Date = new Date()): Promise<CronSummar
         failedCharges: sub.failedCharges,
         cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
         hasSavedCard: !!sub.providerPaymentMethodId,
+        oldestOpenInvoiceAt: oldestOpenByRestaurant.get(sub.restaurantId)?.createdAt ?? null,
       },
       now,
     );
@@ -119,10 +136,20 @@ export async function runBillingCron(now: Date = new Date()): Promise<CronSummar
     const canCharge = decision.action === "charge" && provider && sub.providerPaymentMethodId;
 
     if (decision.action === "await_payment" || !canCharge) {
+      // Raise an invoice only if there isn't one outstanding already.
+      //
+      // This ran unconditionally, and this job runs DAILY over every past_due
+      // subscription — so a merchant who did not pay was handed a fresh invoice
+      // every twenty-four hours, forever. Thirty days late meant thirty open
+      // invoices for one month of service, each with its own gateway checkout,
+      // and any "what do I owe" total summing all of them.
+      const outstanding = oldestOpenByRestaurant.get(sub.restaurantId);
       await systemDb(async (tx) => {
-        await tx.restaurantInvoice.create({
-          data: { restaurantId: sub.restaurantId, amount, status: "open", periodStart: now, periodEnd: addMonths(now, 1) },
-        });
+        if (!outstanding) {
+          await tx.restaurantInvoice.create({
+            data: { restaurantId: sub.restaurantId, amount, status: "open", periodStart: now, periodEnd: addMonths(now, 1) },
+          });
+        }
         await tx.subscription.update({ where: { id: sub.id }, data: { status: "past_due" } });
       });
       s.awaiting++;
