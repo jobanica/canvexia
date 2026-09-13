@@ -1,12 +1,23 @@
 # dependencies
-/node_modules
+node_modules/
+.pnpm-store/
 
 # next.js
-/.next/
-/out/
+.next/
 
-# production
-/build
+# build output
+#
+# These are ANCHORED on purpose. The app has real source directories named
+# "build" (src/app/build, src/server/build, tests/build, ...), so a bare
+# "build/" here would silently ignore new files added under any of them.
+/build/
+/out/
+apps/*/build/
+apps/*/out/
+packages/*/dist/
+
+# turborepo
+.turbo/
 
 # misc
 .DS_Store
@@ -14,6 +25,8 @@
 
 # debug
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # local env files — NEVER commit secrets
 .env
@@ -25,10 +38,12 @@ next-env.d.ts
 *.tsbuildinfo
 
 # prisma
-/prisma/*.db
+**/prisma/*.db
 
 # test
-/coverage
+/coverage/
+apps/*/coverage/
+packages/*/coverage/
 
 # supabase CLI scratch
-/supabase/.temp
+**/supabase/.temp/

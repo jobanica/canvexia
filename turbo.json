@@ -1,0 +1,44 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["**/.env"],
+  "globalEnv": ["CI", "NEXT_TELEMETRY_DISABLED", "NODE_ENV", "VERCEL", "VERCEL_ENV"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": [
+        "ANTHROPIC_API_KEY",
+        "CREDENTIALS_ENCRYPTION_KEY",
+        "CRON_SECRET",
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "NEXT_PUBLIC_APP_URL",
+        "NEXT_PUBLIC_ROOT_DOMAIN",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "OPENAI_API_KEY",
+        "OPENAI_IMAGE_MODEL",
+        "OPENAI_IMAGE_QUALITY",
+        "PAYMONGO_SECRET_KEY",
+        "PAYMONGO_WEBHOOK_SECRET",
+        "SEMAPHORE_API_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "VERCEL_PROJECT_ID",
+        "VERCEL_TEAM_ID",
+        "VERCEL_TOKEN"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {},
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    }
+  }
+}
