@@ -14,7 +14,7 @@ premises the brief is built on, and two of them change the shape of the work.
 | **A2** | Billing provider: **Xendit**. | ✅ Settled — but see A2 below, it is not a config flip |
 | **A2b** | **Each partner connects their own Xendit account**, under their own brand. Merchants pay the partner; CANVEXIA never holds the money. | ✅ Settled — reshapes Phase 4, see A2b |
 | **Q1** | 70/30 applies to **new partners only**. Existing approved partners keep the zero-cut arrangement. | ✅ Settled — Phase 0 and 1 unblocked, see A1 |
-| **Q8** | Independent partner Xendit accounts vs CANVEXIA-platform sub-accounts. | ⛔ **Blocks Phase 4 schema** |
+| **Q8** | Topology: **Option B — CANVEXIA as the Xendit platform**, partners as sub-accounts, 30% split at settlement. | ✅ Decided, contingent — see D5 |
 | Q3, Q6 | Naming collision; RLS shape. | Open — needed for Phase 1 |
 | Q4, Q5, Q7 | Brand precedence; brand-mode conflict; vertical scope. | Open — defaultable for now |
 
@@ -278,7 +278,7 @@ opposite.
 | **Q5** | Brand mode is currently a per-merchant paid unlock with a grandfathering date (A5). The brief makes it a per-partner contract term. Which governs? | A merchant who already bought white-label under a `powered_by` partner is a live contradiction. |
 | **Q6** | `partner_id` denormalised onto 43+ tables, or one `restaurants.partnerId` + subquery policies? (A6) | Determines migration size: 1 column vs 43, and a backfill on a live DB either way. |
 | **Q7** | Is `implementation_plan.md` scope **Servd only**, or does it include migrating laundry/Pharmacy/print-new into this monorepo? (A9) | Phase 6 is either a 1-week interface or a 3-repo migration. |
-| **Q8** | Independent partner Xendit accounts (Option A) or CANVEXIA-platform sub-accounts with a settlement-time split (Option B)? (A2b) | Decides whether `Partner` stores full gateway credentials or a sub-account id, and whether the 30% is an arrears receivable or automatic. Needs a conversation with Xendit first. |
+| ~~Q8~~ | ✅ **Option B.** Partners are sub-accounts under CANVEXIA's Xendit platform; the 30% comes off at settlement, so there is nothing to collect. `Partner` stores a sub-account id, not credentials. | Two facts still to confirm with Xendit (D5) — a "no" on either reopens it. |
 
 Answers to Part 4's other questions (territory, collection mode, onboarding fee) are needed
 before Phase 2/3 but do not block Phase 0–1.
@@ -371,7 +371,7 @@ has plans, subscriptions, invoices, partners and feature-pricing screens.
 
 Reshaped by A2 and A2b. Depends on **Q8**. This is now the largest phase, not the smallest.
 
-**4a — Per-partner gateway (blocked on Q8)**
+**4a — Per-partner gateway (Option B)**
 - [MODIFY] `schema.prisma` — `Partner.gatewayCredsEnc` (`{ secretKey, callbackToken }`, reusing
   `src/lib/crypto/secrets.ts` verbatim) under Option A, or `Partner.gatewaySubAccountId` under
   Option B.
@@ -456,7 +456,7 @@ Still open, in the order they bite:
 |---|---|---|
 | **Q3** naming collision (`Partner` legacy vs operator) | Phase 1 | Yes — legacy rows keep `tier: reseller`, no rename |
 | **Q6** `partner_id` on 43 tables vs join-based policies | Phase 1 | No — Phase 0's spike answers it with a benchmark |
-| **Q8** independent Xendit accounts vs platform sub-accounts | Phase 4 | No — needs a call with Xendit |
+| ~~Q8~~ topology | — | ✅ Decided: Option B (D5), contingent on two answers |
 | Q4, Q5, Q7 brand precedence · brand-mode conflict · vertical scope | Phases 5, 5, 6 | Yes, for now |
 
 No application files have been modified. The only file written is this plan.

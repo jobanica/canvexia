@@ -92,12 +92,26 @@ scheduled, and not a blocker.
 
 ---
 
-## D4 — Each partner connects their own Xendit account
+## D4 — Each partner has their own Xendit account
 
-**Settled** in principle; the shape is Open (see D5).
+**Settled in principle. Money flow superseded by D5 — read that first.**
+
+The principle holds: a merchant pays into *their partner's* account, under the
+partner's own brand, and CANVEXIA never holds the merchant's money.
+
+What has changed since this was written is how the account exists and how
+CANVEXIA is paid. D5 settled on **Option B**: the account is a sub-account
+beneath CANVEXIA's Xendit platform rather than one the partner brings, and the
+30% comes off **at settlement** rather than being invoiced in arrears. So the
+"invoices its 30% after the fact" line below is no longer the plan, and `Partner`
+stores a sub-account id rather than encrypted credentials.
+
+The three breakages this entry identified are unaffected — they follow from there
+being N gateway identities instead of one, which is true under either option, and
+they remain Phase 4a's scope.
 
 Merchants pay into the partner's own account, under the partner's own brand.
-CANVEXIA never holds the money and invoices its 30% after the fact.
+~~CANVEXIA never holds the money and invoices its 30% after the fact.~~
 
 The pattern already exists one level down: Servd runs connected accounts for
 *diner* payments via `Restaurant.paymentGateway` + `paymentCredentialsEnc`
@@ -123,22 +137,53 @@ Three things break, all in Phase 4a:
 
 ---
 
-## D5 — Xendit account topology
+## D5 — Xendit account topology: **Option B**, CANVEXIA as the platform
 
-**Open.** Blocks Phase 4 schema. Needs a conversation with Xendit, not a code
-decision.
+**Decided, contingent.** The direction is settled; two facts it rests on are not
+yet confirmed with Xendit.
 
-- **Option A — independent accounts.** Each partner connects a standalone Xendit
-  account. `Partner` stores full encrypted credentials. CANVEXIA's 30% is an
-  arrears receivable, and CANVEXIA carries the whole collection risk on revenue
-  it has already earned — stacked on top of D3's weak collection tooling.
-- **Option B — CANVEXIA as the Xendit platform.** Partners onboard as
-  sub-accounts; the 30% splits at settlement. `Partner` stores a sub-account id
-  instead of credentials. Collection risk disappears. Partner onboarding gets
-  heavier (KYC through CANVEXIA).
+Partners onboard as **sub-accounts beneath CANVEXIA's own Xendit platform
+relationship**. A merchant's payment settles to their partner, and CANVEXIA's 30%
+comes off at settlement rather than being invoiced in arrears.
 
-Option B is strictly better for CANVEXIA's cash position if Xendit supports it
-for this account type. That has **not** been verified.
+Chosen over Option A (each partner connecting a standalone account, CANVEXIA
+invoicing the 30% afterwards) for one reason that outweighs the rest: **it
+removes the collection risk entirely.** Under A, CANVEXIA earns its share the
+moment a merchant pays and then has to go and collect it from a partner whose own
+collection tooling is weak — D3 means their merchants are paying manual invoices
+with no auto-charge and no auto-suspension. Two layers of collection risk stacked
+on revenue already earned. Under B there is nothing to collect.
+
+**What it costs:** partner onboarding gets heavier. A partner cannot simply
+connect an account they already have — they are KYC'd through CANVEXIA, and how
+long that takes is Xendit's answer, not ours.
+
+### Still contingent — confirm before Phase 4a's schema lands
+
+1. **That Xendit offers this at all** for a PH company at CANVEXIA's stage, with
+   a percentage platform fee that can differ per sub-account (legacy partners sit
+   at 0%, operators at 70% — see D2).
+2. **That recurring / card-on-file charging works inside it.** D3 is already a
+   live problem: `chargeSavedCard()` is a no-op, so every merchant pays a manual
+   invoice every month and non-payment never escalates. If tokenised recurring
+   turns out to work only on standalone accounts, that is a genuine argument back
+   towards Option A and should reopen this decision rather than be worked around.
+
+`docs/canvexia/xendit-questions.md` carries the full list to put to them.
+
+### Build consequence
+
+`Partner` stores a **sub-account id**, not encrypted credentials — the platform
+key in `PlatformSetting.xenditCredsEnc` stays the only secret, and API calls name
+the sub-account they act for. How that naming works is the one mechanism nobody
+here has verified, so it is isolated behind a single seam in the provider rather
+than spread through the billing code: if Xendit's answer differs, one file
+changes.
+
+Everything else in Phase 4a holds under **either** option and is not blocked:
+`getBillingProviderForPartner()`, per-partner webhook routing, partner-scoping
+every `*ByProviderRef` lookup (the security fix from D4), and the invoice-age
+suspension arm from D3.
 
 ---
 
@@ -359,3 +404,43 @@ view (the ledger it reads does not exist until Phase 4, so it would render zero
 rows by construction), and partner custom domains (`src/server/domains/*` already
 provisions them, but host → *partner* resolution is Phase 5 — wiring the button
 first would ship a setting that silently does nothing).
+
+---
+
+## D15 — Every successful recurring payment is recorded against the partner in CANVEXIA
+
+**Settled.** Shapes Phase 4c.
+
+A merchant's successful recurring payment is recorded on the CANVEXIA platform,
+against the partner that owns that merchant. The platform's ledger — not a
+partner's own bookkeeping, and not a number a partner types in — is the record of
+what was collected.
+
+**"Recorded in CANVEXIA" is not "paid into CANVEXIA."** Under D5 (Option B) the
+money settles into the partner's sub-account and CANVEXIA's 30% is taken at
+settlement. CANVEXIA never holds the merchant's payment. What it holds is the
+*record* of it. Worth stating plainly because the two readings of that sentence
+lead to completely different builds, and only one of them is what was decided.
+
+**"Successful" means settled, not issued.** An invoice going out is not revenue;
+a webhook saying it was paid is. The ledger records settlement events, and
+statements compute from those — which is what makes a statement the same number
+whether you ask the platform or the gateway. Recording issuance instead would
+produce statements that look right and bill for money nobody received, and D3
+makes that failure likely rather than theoretical: on Xendit every merchant is
+issued an invoice every month whether or not they pay it.
+
+**Consequences for Phase 4:**
+
+- The ledger learns about payments from the **webhook**, so webhook identity is
+  load-bearing, not a detail. Which sub-account an event belongs to has to be
+  unambiguous — see `xendit-questions.md` §3.3, where it is also the security
+  question behind partner-scoping `activateByProviderRef()`.
+- Ledger rows are **immutable events**, and a refund is another event rather than
+  an edit to the first. Statements are then reproducible for any past month
+  instead of drifting as corrections land (xendit-questions.md §4.2 asks whether
+  a refund reverses the platform fee automatically; if it does not, the reversal
+  is ours to model).
+- A partner cannot write to it. This is the answer to revenue leakage in the
+  original brief: the statement is computed from what the gateway told us, so
+  under-reporting is not a thing a partner can do.
