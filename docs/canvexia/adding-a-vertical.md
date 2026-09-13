@@ -16,8 +16,10 @@ the partner portal.** If you find yourself opening a file under
 3. Register the adapter from a module the app imports.
 4. Flip `live: true` once provisioning works against a real database.
 
-Steps 1 and 4 are one line each. Step 2 is the work, and how much work depends
-entirely on whether the vertical already has multi-tenancy and a partner column.
+Steps 1 and 4 are one line each. Step 2 is the work — and for a vertical written
+here from scratch (D24) it is small, because the partner axis exists before the
+first row. The three MUSTs under step 2 are written against Servd's adapter,
+which had to retrofit all of this; read them as requirements, not as difficulty.
 
 ---
 
@@ -113,14 +115,29 @@ list of requirements than this document.
 
 ---
 
-## The part nobody has done yet
+## This is the primary path now
 
-Servd is the only product in this monorepo. `jobanica/laundry`,
-`jobanica/Pharmacy` and `jobanica/print-new` are separate repositories that share
-no code with it — so for those, step 2 is not "write an adapter", it is "give
-that codebase partner-aware multi-tenancy first", which is the work of Phase 1
-repeated per repo.
+**D24: new verticals are built from scratch in this monorepo**, not migrated.
+`jobanica/laundry`, `jobanica/Pharmacy` and `jobanica/print-new` are
+specification — read them for what the product must do — rather than code to move
+across.
 
-That is **Q7**, still open. The adapter interface is deliberately the half that
-does not depend on the answer: it is the same interface whether those apps move
-into this repo or consume `@servd/core` as a published package from their own.
+That makes step 2 easier than it reads above. Servd's adapter wraps an existing
+creation path because Servd had one before CANVEXIA existed; a vertical written
+here writes creation **once**, with the partner axis already in place. No
+backfill, no grandfathering, no reconciling an identity model that predates
+tenancy — the whole class of problem that produced the Phase 1 and Phase 3
+ownership bugs simply does not arise when `partnerId` exists before the first row.
+
+Two things to settle before the first new vertical, not after:
+
+- **One Prisma schema or one per product.** Everything so far assumes one
+  database: the RLS policies, `restaurants."partnerId"`, `partner_ledger_entries`.
+  A second app either adds its domain tables beside Servd's or needs its own
+  database, in which case the partner and ledger tables need a home both can
+  reach. Sharing is lighter and is what the current design implies — but decide
+  it rather than discover it.
+- **What goes in `packages/db` and `packages/ui`.** They are empty stubs today.
+  The moment there are two apps here, the shared tenancy and billing models and
+  the shared components belong in them rather than in whichever app was written
+  first.

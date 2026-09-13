@@ -16,7 +16,8 @@ premises the brief is built on, and two of them change the shape of the work.
 | **Q1** | 70/30 applies to **new partners only**. Existing approved partners keep the zero-cut arrangement. | ✅ Settled — Phase 0 and 1 unblocked, see A1 |
 | **Q8** | Topology: **Option B — CANVEXIA as the Xendit platform**, partners as sub-accounts, 30% split at settlement. | ✅ Decided, contingent — see D5 |
 | Q3, Q6 | Naming collision; RLS shape. | Open — needed for Phase 1 |
-| Q4, Q5, Q7 | Brand precedence; brand-mode conflict; vertical scope. | Open — defaultable for now |
+| Q4, Q5 | Brand precedence; brand-mode conflict. | ✅ Settled in Phase 5 — D20, D21 |
+| **Q7** | New verticals are **built from scratch in this monorepo**, not migrated. | ✅ Settled — see D24 |
 
 ---
 
@@ -277,7 +278,7 @@ opposite.
 | **Q4** | On a diner-facing page, when a merchant's brand colors and its partner's brand config disagree, who wins? (A4) | The brief says customer-facing surfaces render partner brand; the product currently renders *merchant* brand, which is what restaurants pay for. |
 | **Q5** | Brand mode is currently a per-merchant paid unlock with a grandfathering date (A5). The brief makes it a per-partner contract term. Which governs? | A merchant who already bought white-label under a `powered_by` partner is a live contradiction. |
 | **Q6** | `partner_id` denormalised onto 43+ tables, or one `restaurants.partnerId` + subquery policies? (A6) | Determines migration size: 1 column vs 43, and a backfill on a live DB either way. |
-| **Q7** | Is `implementation_plan.md` scope **Servd only**, or does it include migrating laundry/Pharmacy/print-new into this monorepo? (A9) | Phase 6 is either a 1-week interface or a 3-repo migration. |
+| ~~Q7~~ | ✅ **Neither.** New verticals are built from scratch as `apps/*` in this monorepo, on `packages/core` from day one. The existing laundry / Pharmacy / print-new repositories become specification, not code to migrate. | Removes the 3-repo migration entirely; see D24 for what it costs instead. |
 | ~~Q8~~ | ✅ **Option B.** Partners are sub-accounts under CANVEXIA's Xendit platform; the 30% comes off at settlement, so there is nothing to collect. `Partner` stores a sub-account id, not credentials. | Two facts still to confirm with Xendit (D5) — a "no" on either reopens it. |
 
 Answers to Part 4's other questions (territory, collection mode, onboarding fee) are needed
@@ -412,7 +413,8 @@ Reshaped by A2 and A2b. Depends on **Q8**. This is now the largest phase, not th
 
 ### Phase 6 — Product adapter
 
-Scope depends entirely on Q7. As an interface only: `provisionMerchant(productId, partnerId,
+Q7 settled: new verticals are built from scratch here (D24), so this phase is the
+interface and nothing else. Originally: `provisionMerchant(productId, partnerId,
 payload)` + a reference adapter. As a migration of laundry/Pharmacy/print-new: separate plan.
 
 ---
@@ -457,6 +459,7 @@ Still open, in the order they bite:
 | **Q3** naming collision (`Partner` legacy vs operator) | Phase 1 | Yes — legacy rows keep `tier: reseller`, no rename |
 | **Q6** `partner_id` on 43 tables vs join-based policies | Phase 1 | No — Phase 0's spike answers it with a benchmark |
 | ~~Q8~~ topology | — | ✅ Decided: Option B (D5), contingent on two answers |
-| Q4, Q5, Q7 brand precedence · brand-mode conflict · vertical scope | Phases 5, 5, 6 | Yes, for now |
+| ~~Q4, Q5~~ brand precedence · brand-mode conflict | — | ✅ Settled (D20, D21) |
+| ~~Q7~~ vertical scope | — | ✅ Settled: built from scratch here (D24) |
 
 No application files have been modified. The only file written is this plan.

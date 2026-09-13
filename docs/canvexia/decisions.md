@@ -693,3 +693,68 @@ partner-aware multi-tenancy", which is Phase 1 repeated per repo.
 `docs/canvexia/adding-a-vertical.md` is the scaffold — written from having done
 it for Servd rather than imagined, because a code scaffold for repositories
 nobody here has read would be fiction.
+
+---
+
+## D24 — New verticals are built from scratch here, not migrated
+
+**Settled.** Answers Q7, and with a third option neither of the two offered.
+
+Q7 was framed as "adapter interface only, or migrate `jobanica/laundry`,
+`jobanica/Pharmacy` and `jobanica/print-new` into this monorepo". The answer is
+neither: **new verticals are written from scratch as `apps/*` in this repository,
+on `packages/core` from day one.** Those three repositories become
+specification — a description of what to build — rather than code to move.
+
+### Why this is the better shape
+
+Migration would have meant, per repo, giving an existing codebase partner-aware
+multi-tenancy after the fact: adding an owner column, backfilling it, writing RLS
+policies around a schema that was not designed for them, and reconciling its
+identity model with the platform's. That is Phase 1 repeated three times, and
+Phase 1 was the phase that turned up two ownership bugs — in a codebase this
+session had traced in detail.
+
+Built from scratch, a vertical has the partner axis before it has a first row.
+There is no backfill, no grandfathering, no "which of these tables predate
+tenancy". The whole class of problem D13 and the Phase 1/3 bugs came from simply
+does not arise.
+
+### What it costs, and it is not nothing
+
+Those repositories contain real work. The brief describes PrintOSph as *"fully
+specced (22-phase build, 33-table schema)"*, and `jobanica/laundry` was pushed
+2026-09-12 — the day before this session. Choosing to rebuild means that code is
+reference material, not a head start, and whoever writes the new version has to
+actually read it or the specification is lost with it.
+
+**Worth confirming before the first line of a new vertical:** that this is a
+deliberate trade and not an underestimate of what is already in those repos.
+
+### What it changes here
+
+- Phase 6 is finished as built. The `ProductAdapter` interface is the same either
+  way; from-scratch verticals simply implement it natively instead of having it
+  retrofitted.
+- `docs/canvexia/adding-a-vertical.md` is now the primary path rather than a
+  secondary one, and its advice to "wrap the product's existing creation path"
+  becomes "write creation once, correctly".
+- `packages/db` and `packages/ui` stop being speculative. A second app written
+  here will want shared tenancy/billing models and shared components on day one,
+  which is precisely what those empty packages were reserved for.
+- The registry entries stay `live: false` until each vertical exists.
+
+### The question this forces, not yet answered
+
+**One database and one Prisma schema for all products, or one per product?**
+
+Everything built so far assumes one: the RLS policies, `restaurants."partnerId"`,
+`partner_ledger_entries`, `partners` — all in a single Postgres database and a
+single schema. A second app in this monorepo either shares that schema (adding
+its own domain tables beside Servd's) or gets its own database, in which case the
+partner, ledger and billing tables need a home that both can reach.
+
+Sharing is the lighter answer and the one the current design already implies.
+It is worth deciding deliberately rather than discovering, because it is the kind
+of choice that is cheap now and structural later — which is exactly what D8 said
+about the partner axis.
