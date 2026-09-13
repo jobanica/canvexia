@@ -131,13 +131,18 @@ ownership bugs simply does not arise when `partnerId` exists before the first ro
 
 Two things to settle before the first new vertical, not after:
 
-- **One Prisma schema or one per product.** Everything so far assumes one
-  database: the RLS policies, `restaurants."partnerId"`, `partner_ledger_entries`.
-  A second app either adds its domain tables beside Servd's or needs its own
-  database, in which case the partner and ledger tables need a home both can
-  reach. Sharing is lighter and is what the current design implies — but decide
-  it rather than discover it.
-- **What goes in `packages/db` and `packages/ui`.** They are empty stubs today.
-  The moment there are two apps here, the shared tenancy and billing models and
-  the shared components belong in them rather than in whichever app was written
-  first.
+- **Move the schema to `packages/db` first.** D25: one Prisma schema and one
+  database for every product. It sits at `apps/servd/prisma/schema.prisma` today,
+  which is fine while Servd is the only app and wrong the moment there is a
+  second — one product would own the tables every product depends on. The move is
+  mechanical but discrete: schema, `rls.sql`, `manual/`, `seed.mjs`, the `db:*`
+  scripts, three script files, CI, and the ~20 error strings that tell an
+  operator to "run prisma/manual/add-X.sql".
+
+  **Apply the pending migrations before moving**, or the runbook and those error
+  messages point somewhere that no longer exists — and they are read exactly when
+  something is already broken.
+- **Then decide what else belongs in `packages/db` and `packages/ui`.** Shared
+  tenancy and billing models, shared components. They are empty stubs today, and
+  the moment there are two apps they should not live in whichever app happened to
+  be written first.

@@ -758,3 +758,58 @@ Sharing is the lighter answer and the one the current design already implies.
 It is worth deciding deliberately rather than discovering, because it is the kind
 of choice that is cheap now and structural later — which is exactly what D8 said
 about the partner axis.
+
+---
+
+## D25 — One Prisma schema and one database for every product
+
+**Settled.** Follows from D24.
+
+All CANVEXIA products share a single Postgres database and a single Prisma
+schema. A new vertical adds its own domain tables beside Servd's; it does not get
+its own database.
+
+### Why this is the right default
+
+Everything already built assumes it, and unpicking that is the expensive
+direction:
+
+- **The partner axis is one join.** D8 chose to reach the partner through
+  `restaurants."partnerId"` rather than denormalise it. That works because the
+  policy's sub-select can see `restaurants`. Across databases it cannot, and the
+  partner axis becomes a denormalised copy per product — the exact design D8
+  rejected, now with no single source of truth to reconcile against.
+- **`partner_ledger_entries` is one table.** A partner's statement is
+  "everything this partner earned", across products. One database makes that a
+  query; separate ones make it a distributed join that has to be right every
+  month for money.
+- **RLS is per-database.** `app.current_partner_id()`, `app_user`, the catalogue
+  loop — all of it would be duplicated and would drift, and drift in RLS is a
+  leak rather than a bug.
+
+The cost is the usual one: a noisy-neighbour product can affect the others, and
+the schema gets large (88 models today). Both are real and both are cheaper than
+splitting the partner and ledger tables across boundaries.
+
+### Where the schema should live — and when to move it
+
+It is at `apps/servd/prisma/schema.prisma` today, which is fine while Servd is
+the only app and wrong the moment there is a second: one product would own the
+tables every product depends on.
+
+The destination is `packages/db` — which is empty and was reserved for exactly
+this. **The move should happen before the first new vertical, and after the
+pending migrations are applied.**
+
+That ordering is not fussiness. There are **seven un-applied hand-run migrations**
+in `apps/servd/prisma/manual/`, and roughly twenty user-facing error strings that
+tell an operator to *"run prisma/manual/add-X.sql"* when a column is missing.
+Moving the directory mid-flight makes both the runbook and those messages point
+somewhere that no longer exists — and they are read precisely when something is
+already broken.
+
+So: **apply the migrations, then move the schema, then build the first new
+vertical.** The move itself is mechanical (schema, `rls.sql`, `manual/`, `seed.mjs`,
+the `db:*` scripts, three script files, CI, and those error strings) but it is a
+discrete piece of work with its own verification, not something to fold into
+another change.

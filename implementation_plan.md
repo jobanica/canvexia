@@ -18,6 +18,7 @@ premises the brief is built on, and two of them change the shape of the work.
 | Q3, Q6 | Naming collision; RLS shape. | Open — needed for Phase 1 |
 | Q4, Q5 | Brand precedence; brand-mode conflict. | ✅ Settled in Phase 5 — D20, D21 |
 | **Q7** | New verticals are **built from scratch in this monorepo**, not migrated. | ✅ Settled — see D24 |
+| **Q9** | **One Prisma schema and one database** for every product. | ✅ Settled — see D25 |
 
 ---
 
