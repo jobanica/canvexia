@@ -27,10 +27,18 @@ async function requireApprovedPartner() {
   return p;
 }
 
-/** Confirm a demo belongs to this partner before mutating it. */
+/**
+ * Confirm a storefront belongs to this partner before mutating it.
+ *
+ * Checks `partnerId` — ownership — and NOT `demoPartnerId`, which records who
+ * built the storefront and never changes. Since Phase 2, HQ can reassign a
+ * merchant to a different partner; `demoPartnerId` still names the original
+ * builder afterwards, so a check against it would let the previous partner keep
+ * editing and deleting a merchant that is no longer theirs.
+ */
 async function ownDemo(restaurantId: string, partnerId: string): Promise<boolean> {
   const hit = await systemDb((tx) =>
-    tx.restaurant.findFirst({ where: { id: restaurantId, demoPartnerId: partnerId }, select: { id: true } }),
+    tx.restaurant.findFirst({ where: { id: restaurantId, partnerId }, select: { id: true } }),
   );
   return !!hit;
 }
@@ -184,8 +192,8 @@ export async function convertPartnerDemo(
  * Partner: delete one of their own demo storefronts.
  *
  * Only while it's still a demo. Once it has a login it's somebody's real shop,
- * with real orders in it, and `demoPartnerId` still points here — so without
- * the `staff: { none: {} }` guard this button would let a partner wipe a live
+ * with real orders in it, and it still belongs to this partner — so without the
+ * `staff: { none: {} }` guard this button would let a partner wipe a live
  * restaurant and its entire history.
  */
 export async function deletePartnerDemo(formData: FormData): Promise<void> {
@@ -194,7 +202,7 @@ export async function deletePartnerDemo(formData: FormData): Promise<void> {
   if (!id) return;
   // Ownership enforced in the where clause — a partner can't delete another's.
   await systemDb((tx) =>
-    tx.restaurant.deleteMany({ where: { id, demoPartnerId: partner.id, staff: { none: {} } } }),
+    tx.restaurant.deleteMany({ where: { id, partnerId: partner.id, staff: { none: {} } } }),
   );
   revalidatePath(PATH);
   redirect(PATH);

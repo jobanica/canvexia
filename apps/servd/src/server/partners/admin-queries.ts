@@ -4,11 +4,12 @@ import { systemDb } from "@/server/tenancy/scoped-db";
 /**
  * The partner list, for super-admin.
  *
- * It used to carry each partner's payable and paid commission, and a list of
- * payout batches waiting to be approved. There is no commission now — a partner
- * sets restaurants up and bills them directly — so what's left is who they are,
- * whether they're approved, and how many restaurants they've actually set up,
- * which is the only number that says whether a partner is working out.
+ * It once carried each partner's payable and paid commission, and a list of
+ * payout batches waiting to be approved; that went when the commission did.
+ * CANVEXIA brings a share back for `operator`-tier partners only, so this list
+ * now carries the terms alongside the counts — who they are, whether they are
+ * approved, what they keep, and how many merchants they own, which is still the
+ * number that says whether a partner is working out.
  */
 
 export interface PartnerOverviewRow {
@@ -75,27 +76,32 @@ export async function getPartnersOverview(): Promise<{ partners: PartnerOverview
       }
 
       // How many restaurants each partner has set up, and how many went live.
-      // Best-effort: demoPartnerId ships in a manual migration, and a partner
-      // list with no counts beats no partner list.
+      // Counted by partnerId — ownership — not demoPartnerId, which records who
+      // built the storefront. Since Phase 2 those differ the moment HQ reassigns
+      // a merchant, and counting by the builder would credit a partner for
+      // accounts they no longer own (and are no longer paid for).
+      //
+      // Best-effort: partnerId ships in a manual migration, and a partner list
+      // with no counts beats no partner list.
       let accountsBy = new Map<string, number>();
       let liveBy = new Map<string, number>();
       try {
         const rows = await tx.restaurant.findMany({
-          where: { demoPartnerId: { not: null } },
-          select: { demoPartnerId: true, _count: { select: { staff: true } } },
+          where: { partnerId: { not: null } },
+          select: { partnerId: true, _count: { select: { staff: true } } },
         });
         accountsBy = rows.reduce((m, r) => {
-          const k = r.demoPartnerId!;
+          const k = r.partnerId!;
           return m.set(k, (m.get(k) ?? 0) + 1);
         }, new Map<string, number>());
         liveBy = rows
           .filter((r) => r._count.staff > 0)
           .reduce((m, r) => {
-            const k = r.demoPartnerId!;
+            const k = r.partnerId!;
             return m.set(k, (m.get(k) ?? 0) + 1);
           }, new Map<string, number>());
       } catch {
-        /* demoPartnerId not migrated yet */
+        /* partnerId not migrated yet */
       }
 
       return {

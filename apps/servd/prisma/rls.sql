@@ -358,6 +358,27 @@ drop policy if exists super_only on rate_limits;
 create policy super_only on rate_limits for all
   using (app.is_super_admin()) with check (app.is_super_admin());
 
+-- ----------------------------------------------------------------------------
+-- partners: an operator may read and edit its OWN row and no other.
+--
+-- The table has no "restaurantId", so the tenant loop never reached it and until
+-- now it carried no policy at all. That was survivable while every caller went
+-- through systemDb (HQ screens, login, the public application form — all of
+-- which bypass and still do). It stopped being survivable when the partner
+-- portal started writing here under partnerDb: brand settings are the first
+-- thing a partner edits about themselves, and without this the only thing
+-- stopping one partner rebranding another is a `where` clause being right.
+--
+-- Insert is deliberately not granted to a partner scope: a new partner row is
+-- created by the public application form, which runs as the system.
+-- ----------------------------------------------------------------------------
+alter table partners enable row level security;
+alter table partners force row level security;
+drop policy if exists partner_self on partners;
+create policy partner_self on partners
+  using (app.is_super_admin() or id = app.current_partner_id())
+  with check (app.is_super_admin() or id = app.current_partner_id());
+
 -- platform_feedback / crm_clients / customer_events: the three tables excluded
 -- from the tenant loop above. They carry a "restaurantId" but the row belongs to
 -- the platform, not to the restaurant it names — owners' feedback about Servd

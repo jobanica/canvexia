@@ -98,18 +98,28 @@ async function main() {
       select count(*)::int as unassigned from restaurants where "partnerId" is null`;
     const [{ assigned }] = await tx.$queryRaw`
       select count(*)::int as assigned from restaurants where "partnerId" is not null`;
+    // Restaurants a partner built. These belong to THAT partner, not to the
+    // house — see the comment on claimByCreator() below.
+    const [{ byCreator }] = await tx.$queryRaw`
+      select count(*)::int as "byCreator" from restaurants r
+       where r."partnerId" is null
+         and r."demoPartnerId" is not null
+         and exists (select 1 from partners p where p.id = r."demoPartnerId")`;
 
-    return { existing, unassigned, assigned };
+    return { existing, unassigned, assigned, byCreator };
   });
 
-  const { existing, unassigned, assigned } = result;
+  const { existing, unassigned, assigned, byCreator } = result;
+  const toHouse = unassigned - byCreator;
 
   console.log("");
   console.log("  House partner   :", HOUSE.name, `(${HOUSE.slug})`);
   console.log("  Already exists  :", existing ? `yes — ${existing.id}` : "no, will be created");
   console.log("  Split           :", `partner ${HOUSE.revenueSharePct}% / HQ ${100 - HOUSE.revenueSharePct}%`);
   console.log("");
-  console.log("  Restaurants with no partner :", unassigned, "→ would move to the house partner");
+  console.log("  Unassigned restaurants      :", unassigned);
+  console.log("    → to the partner who built them:", byCreator);
+  console.log("    → to the house partner         :", toHouse);
   console.log("  Restaurants already assigned:", assigned, "→ left alone");
   console.log("");
 
@@ -124,7 +134,7 @@ async function main() {
     return;
   }
 
-  const { partnerId, moved } = await asSuper(async (tx) => {
+  const { partnerId, claimedByCreator, claimedByHouse } = await asSuper(async (tx) => {
     let partner = existing;
     if (!partner) {
       partner = await tx.partner.create({
@@ -143,16 +153,36 @@ async function main() {
       });
     }
 
-    // Only ever fills a NULL. A restaurant that already belongs to a partner is
-    // not touched, which is what makes re-running this safe.
-    const moved = await tx.$executeRaw`
+    // ORDER MATTERS. Restaurants a partner built belong to that partner, and
+    // they are claimed FIRST — otherwise the sweep below would hand every
+    // partner's accounts to the house partner, which is what the first version
+    // of this script did.
+    //
+    // provisionDemo() records the creator in demoPartnerId and, before Phase 3,
+    // never set partnerId at all. So every restaurant any partner has ever
+    // opened looks exactly like a pre-CANVEXIA direct customer to a query that
+    // only checks for NULL. It isn't: it has an owner, and that owner is owed
+    // the revenue share on it.
+    //
+    // The `exists` guard skips rows whose creator has since been deleted; those
+    // genuinely have nobody and fall through to the house partner.
+    const claimedByCreator = await tx.$executeRaw`
+      update restaurants r
+         set "partnerId" = r."demoPartnerId"
+       where r."partnerId" is null
+         and r."demoPartnerId" is not null
+         and exists (select 1 from partners p where p.id = r."demoPartnerId")`;
+
+    // Everything genuinely unowned — the direct customers this script is for.
+    const claimedByHouse = await tx.$executeRaw`
       update restaurants set "partnerId" = ${partner.id} where "partnerId" is null`;
 
-    return { partnerId: partner.id, moved };
+    return { partnerId: partner.id, claimedByCreator, claimedByHouse };
   });
 
   console.log("  ✅ House partner:", partnerId);
-  console.log("  ✅ Restaurants moved:", moved);
+  console.log("  ✅ Kept with the partner who built them:", claimedByCreator);
+  console.log("  ✅ Moved to the house partner:", claimedByHouse);
   console.log("");
   console.log("  Next: npm run db:rls — install the partner policies.");
 }

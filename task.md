@@ -1,49 +1,82 @@
-# Phase 2 — HQ admin: floors, operator terms, directory, reassignment ✅
+# Phase 3 — Partner portal onto `partnerDb` ✅
 
-- [x] `Plan.priceFloor` + `prisma/manual/add-plan-price-floor.sql`
-- [x] `src/lib/billing/price-floor.ts` — both directions of the rule, 14 tests
-- [x] Floor enforced in `createPlan` / `updatePlan`; field added to the plan editor
-- [x] `src/lib/partners/reassign.ts` — the decision, 8 tests
-- [x] `src/server/partners/reassign.ts` — the move, audit-logged, one transaction
-- [x] `src/server/partners/operator-actions.ts` — terms + reassign, owner-only
-- [x] `src/server/partners/directory.ts` — merchants across every partner
-- [x] HQ pages: `/super-admin/merchants`, `/super-admin/products`; partners page
-      gains an operator-terms panel; both added to the nav
-- [x] Fixed the stale "Servd takes no share" line — true for legacy tiers only
-- [x] Dropped a duplicate `formatPeso`; `price-floor.ts` uses `@/lib/money`
+Two bugs found while tracing, both blocking the portal move, both fixed.
+
+## Bug 1 — the Phase 1 backfill gave partner merchants to HQ *(mine)*
+
+`provisionDemo` set `demoPartnerId` and never `partnerId`, so every restaurant
+any partner had ever created had `partnerId IS NULL` — and the Phase 1 backfill
+swept every NULL to the house partner. That would have handed every partner's
+book of business to CANVEXIA Davao: invisible to them under the Phase 1 policies,
+and paid to HQ under Phase 4 statements.
+
+**Reproduced side by side before fixing**, on a scratch database seeded with
+pre-Phase-3 shaped rows:
+
+| Backfill | `Cebu Diner`, built by Cebu Partner |
+|---|---|
+| Phase 1, as committed | → **CANVEXIA Davao** ❌ |
+| Phase 3, fixed | → **Cebu Partner** ✅ |
+
+Not yet run in production, so this was fixable in place rather than as a data
+repair.
+
+## Bug 2 — reassignment left the previous partner in control
+
+`deletePartnerDemo`, `ownDemo` and the demo queries gated on `demoPartnerId`.
+Phase 2 added reassignment, which moves `partnerId` and leaves `demoPartnerId`
+naming the original builder — so after a merchant moved from A to B, **A could
+still edit and delete it**.
+
+The fix is a rule, now written down as D13: `demoPartnerId` is *provenance* and
+is never an access check; `partnerId` is *ownership* and is the only thing
+authorisation reads. HQ's per-partner counts moved too — counting by builder
+credits a partner for merchants they no longer own or get paid for.
+
+## Work
+
+- [x] Backfill claims by creator first, sweeps to the house partner second
+- [x] `provisionDemo` sets both columns at creation
+- [x] Every ownership check moved from `demoPartnerId` to `partnerId`
+- [x] `portal.ts` reads through `partnerDb()`; `where` clause kept for migration lag
+- [x] `partners` gained a `partner_self` policy — it had none at all
+- [x] Partner brand settings: `packages/core/src/branding/config.ts` + portal page
+- [x] Three stale doc comments describing the removed commission program
 
 ## Verification
 
-Offline: typecheck ✅ · **918 tests** ✅ (was 900) · build ✅ **117 pages** (was 115,
-both new routes present).
+Offline: typecheck ✅ · **933 tests** ✅ (was 918) · build ✅ **118 pages** (was 117).
 
-Against a live PostgreSQL 16 cluster, along the upgrade path production takes —
-push the **Phase 1** schema, then the Phase 2 hand-run SQL:
+Live PostgreSQL 16: **DB-backed suite 25/25 across 4 files** — tenant isolation,
+partner isolation, reassignment audit, and the new portal test. That last one
+asserts a partner's dashboard shows only its own merchants, that a raw
+`select id from restaurants` under a partner scope still cannot see another's,
+and that one partner cannot write another's `partners` row.
 
-| Check | Result |
-|---|---|
-| `add-plan-price-floor.sql` on a Phase 1 database | ✅ applies clean, self-check true |
-| Column drift afterwards vs the new schema | ✅ none |
-| `db:rls` | ✅ applies clean |
-| **DB-backed suite** (tenant · partner · reassignment) | ✅ **19/19 across 3 files** |
-| Reassignment moves the column and writes the audit row | ✅ actor, reason, before/after all recorded |
-| Repeating a move | ✅ no-op, no second audit row |
-| Suspended target | ✅ refused, nothing changed |
-| **Access follows ownership** | ✅ new partner reads the merchant, **old partner no longer can** |
+## Caught in my own Phase 2 work
 
-That last row is the one worth keeping: reassignment is enforced by the database,
-not by the portal remembering to filter.
+`tests/isolation/reassign-audit.test.ts` had six type errors. I added it *after*
+my last typecheck run in Phase 2 and verified only with vitest, so it went in
+broken. Fixed here. The lesson is mechanical: run typecheck **after** the last
+file is written, not before.
 
-## Notes for whoever runs this
+## Deferred, with reasons
 
-`prisma/manual/add-plan-price-floor.sql` is additive and safe to run any time —
-it defaults every existing plan to "no floor", so no price already being charged
-becomes invalid. Floors are raised per plan, deliberately, in the plan editor.
+**Partner staff management.** `Partner` has a single `authUserId`; real staff
+needs a `PartnerStaff` table with its own invite and role model — a schema and
+auth change, not a screen. Nothing in Phase 4 depends on it.
 
-## Next — Phase 3
+**Statements view.** The ledger it reads does not exist until Phase 4. It would
+render zero rows by construction.
 
-Partner portal. The first job there is the one Phase 1 flagged:
-`src/server/partners/portal.ts` still reads through `systemDb()`, which bypasses
-RLS entirely. Moving it onto `partnerDb()` is what makes the isolation built in
-Phase 1 actually load-bearing for the portal — until then the policies protect
-everything except the screen most likely to need them.
+**Partner custom domains.** `src/server/domains/*` already provisions domains,
+but host → *partner* resolution is Phase 5. Wiring the button first ships a
+setting that silently does nothing.
+
+## Next — Phase 4
+
+Per-partner Xendit, the ledger, statements. **Still blocked on Q8** (independent
+partner accounts vs CANVEXIA-platform sub-accounts) — that needs a conversation
+with Xendit, and it decides whether `Partner` stores gateway credentials or a
+sub-account id. Phase 4b (the invoice-age suspension arm, D3) is not blocked and
+can start regardless.

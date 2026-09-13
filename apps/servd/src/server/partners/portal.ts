@@ -1,15 +1,20 @@
 import "server-only";
-import { systemDb } from "@/server/tenancy/scoped-db";
+import { partnerDb, systemDb } from "@/server/tenancy/scoped-db";
 
 /**
  * What a partner sees when they log in.
  *
- * The program used to be an affiliate scheme: a referral link, a commission
- * accruing on somebody else's invoices, a payout waiting to be approved. All of
- * that is gone. A partner now gets one thing — they can set up as many
- * restaurants as they like — and what they charge those restaurants is entirely
- * between them and the restaurant. Servd never sees it and never takes a cut,
- * so there is nothing to accrue and nothing to pay out.
+ * The program was once an affiliate scheme — a referral link, a commission
+ * accruing on somebody else's invoices, a payout waiting to be approved — and
+ * then a flat arrangement where a partner set up as many restaurants as they
+ * liked, billed them whatever they wanted, and the platform took no cut.
+ *
+ * CANVEXIA reintroduces a share, but only forward: partners on the `reseller`
+ * and `affiliate` tiers keep the zero-cut terms they signed, and only an
+ * `operator` carries a percentage. The dashboard therefore cannot assume either
+ * story — `Partner.revenueSharePct` is the answer for a given partner, and 0 is
+ * a legitimate value rather than a missing one. See docs/canvexia/decisions.md
+ * (D2) for why that line exists and where it falls.
  *
  * Which means the dashboard is a work list, not an earnings statement: the
  * previews they've built and the accounts they've set up.
@@ -37,14 +42,31 @@ export interface PartnerDashboard {
 }
 
 /**
- * Partner portal data — strictly filtered by partnerId (app-level isolation),
- * exactly as the old dashboard was.
+ * Partner portal data.
+ *
+ * Reads through partnerDb(), not systemDb(). That is the whole point of the
+ * change: systemDb sets app.is_super_admin, which switches every tenant policy
+ * OFF, so the old version's isolation was one `where` clause in this file. Lose
+ * that clause — in a refactor, in a new query added next to it — and a partner
+ * is reading every restaurant on the platform. Now the database refuses
+ * regardless.
+ *
+ * The `where` clause is still here, and deliberately. Belt and braces: if
+ * prisma/rls.sql has not been run on a database, partnerDb sets a session
+ * variable no policy reads, and without this clause the query would return
+ * everything. Migration lag is a real state in this codebase, and the failure
+ * mode of guessing wrong here is "one partner sees every merchant on the
+ * platform". RLS is the guarantee; this line is what holds while a database is
+ * catching up.
+ *
+ * Keyed on partnerId — ownership — not demoPartnerId, which records who built
+ * the storefront and does not move when HQ reassigns a merchant.
  */
 export async function getPartnerDashboard(partnerId: string): Promise<PartnerDashboard> {
   try {
-    const rows = await systemDb((tx) =>
+    const rows = await partnerDb(partnerId, (tx) =>
       tx.restaurant.findMany({
-        where: { demoPartnerId: partnerId },
+        where: { partnerId },
         orderBy: { createdAt: "desc" },
         take: 200,
         select: {
@@ -67,7 +89,7 @@ export async function getPartnerDashboard(partnerId: string): Promise<PartnerDas
       })),
     };
   } catch {
-    // demoPartnerId column not migrated yet — an empty list, not a broken page.
+    // partnerId column not migrated yet — an empty list, not a broken page.
     return { accounts: [] };
   }
 }

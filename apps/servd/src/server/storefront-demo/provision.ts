@@ -18,7 +18,15 @@ export interface DemoInput {
   logoUrl: string;
   /** Storefront hero, and the picture that shows when the link is shared. */
   coverImageUrl?: string;
-  /** Set when a partner creates the demo (attribution). */
+  /**
+   * Set when a partner creates the demo.
+   *
+   * PROVENANCE, not ownership — who built this storefront, which never changes.
+   * Ownership is `partnerId` below and can move (HQ reassignment, Phase 2).
+   * Nothing may authorise on this field: after a merchant is reassigned it still
+   * names the original builder, so a permission check against it would let the
+   * previous partner act on somebody else's merchant.
+   */
   demoPartnerId?: string | null;
 }
 
@@ -42,7 +50,14 @@ export async function provisionDemo(d: DemoInput): Promise<string> {
         logoUrl: d.logoUrl || null,
         coverImageUrl: d.coverImageUrl || null,
         tagline: d.tagline || null,
-        ...(d.demoPartnerId ? { demoPartnerId: d.demoPartnerId } : {}),
+        // Both, and they mean different things. demoPartnerId records who built
+        // it; partnerId records who owns it, which is what every access check
+        // and every statement reads. Setting only the first — which is what
+        // this did before Phase 3 — left the merchant owned by nobody, so the
+        // house-partner backfill would have claimed it for HQ.
+        ...(d.demoPartnerId
+          ? { demoPartnerId: d.demoPartnerId, partnerId: d.demoPartnerId }
+          : {}),
         printerConfig: receiptJson(d.address, d.phone),
       },
       select: { id: true },

@@ -288,8 +288,74 @@ that is an adapter someone writes, not a row someone inserts. An editable
 registry would let HQ list a product the platform cannot create an account in,
 and the partner who tried would be the one to find out.
 
-**Deferred with it:** platform analytics (the plan listed it for Phase 2).
+**Deferred with it (Phase 2):** platform analytics (the plan listed it for Phase 2).
 `/super-admin` already has analytics, bizops and funnel screens, and there is no
 partner-shaped number worth adding until statements exist in Phase 4. And
 per-partner plan pricing, which needs the portal (Phase 3) to write it — the
 floor lands now and is enforced against `Plan.priceMonthly`.
+
+---
+
+## D13 — `demoPartnerId` is provenance; `partnerId` is ownership
+
+**Settled.** Phase 3. This distinction is a security rule, not a naming
+preference, and two live bugs came from not having it written down.
+
+- **`demoPartnerId`** — who *built* a storefront. Set once at creation, never
+  changes, useful for attribution. **Never an authorisation check.**
+- **`partnerId`** — who *owns* it. Moves when HQ reassigns (Phase 2). The only
+  thing any permission check, portal query or statement may read.
+
+### Bug 1 — the Phase 1 backfill gave partner merchants to HQ
+
+`provisionDemo` set `demoPartnerId` and never `partnerId`, so every restaurant
+any partner had ever created had `partnerId IS NULL`. The Phase 1 backfill swept
+every NULL to the house partner, which would have handed every partner's book of
+business to CANVEXIA Davao — invisible to the partner under the Phase 1 policies,
+and paid to HQ under Phase 4 statements.
+
+Reproduced side by side on a scratch database before fixing: the Phase 1 script
+put a partner-built storefront under CANVEXIA Davao; the fixed one leaves it with
+its partner. The backfill now claims by creator first and sweeps to the house
+second, and `provisionDemo` sets both columns at creation.
+
+### Bug 2 — reassignment left the previous partner in control
+
+`deletePartnerDemo`, `ownDemo` and the demo queries all gated on
+`demoPartnerId`. Phase 2 added reassignment, which moves `partnerId` and leaves
+`demoPartnerId` naming the original builder — so after a merchant moved from A to
+B, **A could still edit and delete it**. Every ownership check now reads
+`partnerId`. HQ's per-partner account counts moved too, since counting by builder
+would credit a partner for merchants they no longer own or get paid for.
+
+---
+
+## D14 — The partner portal reads through `partnerDb`, and `partners` has a policy
+
+**Settled.** Phase 3.
+
+`getPartnerDashboard` read through `systemDb()`, which sets
+`app.is_super_admin` and switches every tenant policy off. Its isolation was one
+`where` clause; losing that clause in any future refactor meant a partner reading
+every merchant on the platform. It now reads through `partnerDb()`.
+
+**The `where` clause stays anyway.** If `prisma/rls.sql` has not been run on a
+database, `partnerDb` sets a session variable no policy reads, and the query
+would return everything. Migration lag is a real state in this repo. RLS is the
+guarantee; the clause is what holds while a database catches up.
+
+**`partners` gained `partner_self`.** The table has no `restaurantId`, so the
+catalogue loop never reached it and it carried no policy at all. Survivable while
+every caller went through `systemDb` — HQ screens, login, the public application
+form, all of which still do. Not survivable once the portal started *writing*
+there under `partnerDb` for brand settings. A partner may now read and update
+only its own row; inserts stay with the system, because a new partner row comes
+from the public application form.
+
+**Deferred from Phase 3, with reasons:** partner staff management (`Partner` has
+a single `authUserId`; real staff needs a `PartnerStaff` table with its own
+invite and role model — a schema and auth change, not a screen), the statements
+view (the ledger it reads does not exist until Phase 4, so it would render zero
+rows by construction), and partner custom domains (`src/server/domains/*` already
+provisions them, but host → *partner* resolution is Phase 5 — wiring the button
+first would ship a setting that silently does nothing).

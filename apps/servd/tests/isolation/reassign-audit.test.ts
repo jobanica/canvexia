@@ -93,13 +93,21 @@ d("merchant reassignment (database)", () => {
     )) as { partnerId: string }[];
     expect(row.partnerId).toBe(partnerB);
 
-    const audit = await asSuper((tx) =>
+    const audit = (await asSuper((tx) =>
       tx.auditLog.findFirst({
         where: { entityId: merchant, action: "merchant.reassigned" },
         orderBy: { createdAt: "desc" },
       }),
-    );
+    )) as {
+      actorType: string | null;
+      actorEmail: string | null;
+      reason: string | null;
+      partnerId: string | null;
+      before: unknown;
+      after: unknown;
+    } | null;
     expect(audit).toBeTruthy();
+    if (!audit) return;
     expect(audit.actorType).toBe("hq");
     expect(audit.actorEmail).toBe("founder@example.test");
     expect(audit.reason).toBe("Partner A stopped supporting the city");

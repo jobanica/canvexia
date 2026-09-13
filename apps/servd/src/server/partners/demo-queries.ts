@@ -2,11 +2,16 @@ import "server-only";
 
 import { systemDb } from "@/server/tenancy/scoped-db";
 
-/** True if a demo storefront belongs to this partner (ownership gate). */
+/**
+ * True if a storefront belongs to this partner.
+ *
+ * `partnerId`, not `demoPartnerId`: ownership moves when HQ reassigns a
+ * merchant, provenance does not.
+ */
 export async function partnerOwnsDemo(id: string, partnerId: string): Promise<boolean> {
   try {
     const hit = await systemDb((tx) =>
-      tx.restaurant.findFirst({ where: { id, demoPartnerId: partnerId }, select: { id: true } }),
+      tx.restaurant.findFirst({ where: { id, partnerId }, select: { id: true } }),
     );
     return !!hit;
   } catch {
@@ -119,7 +124,7 @@ export async function listPartnerDemos(partnerId: string): Promise<PartnerDemoRo
   try {
     const rows = await systemDb((tx) =>
       tx.restaurant.findMany({
-        where: { demoPartnerId: partnerId },
+        where: { partnerId },
         orderBy: { createdAt: "desc" },
         take: 100,
         select: {
@@ -164,6 +169,6 @@ export async function listPartnerDemos(partnerId: string): Promise<PartnerDemoRo
       username: usernames.get(r.id) ?? null,
     }));
   } catch {
-    return []; // demoPartnerId column not migrated yet
+    return []; // partnerId column not migrated yet
   }
 }
