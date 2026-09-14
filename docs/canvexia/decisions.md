@@ -801,8 +801,9 @@ The destination is `packages/db` — which is empty and was reserved for exactly
 this. **The move should happen before the first new vertical, and after the
 pending migrations are applied.**
 
-That ordering is not fussiness. There are **seven un-applied hand-run migrations**
-in `apps/servd/prisma/manual/`, and roughly twenty user-facing error strings that
+That ordering is not fussiness. There are **four un-applied hand-run migrations**
+in `apps/servd/prisma/manual/` — `add-partner-tenancy`, `add-plan-price-floor`,
+`add-partner-subaccount`, `add-partner-ledger` — and roughly twenty user-facing error strings that
 tell an operator to *"run prisma/manual/add-X.sql"* when a column is missing.
 Moving the directory mid-flight makes both the runbook and those messages point
 somewhere that no longer exists — and they are read precisely when something is
@@ -813,3 +814,93 @@ vertical.** The move itself is mechanical (schema, `rls.sql`, `manual/`, `seed.m
 the `db:*` scripts, three script files, CI, and those error strings) but it is a
 discrete piece of work with its own verification, not something to fold into
 another change.
+
+---
+
+## D26 — A new database is built from the schema, not by replaying `manual/`
+
+The CANVEXIA database (Supabase project `Canvexia`, ap-southeast-1) was empty —
+no application tables at all, only Supabase's own `auth`, `storage` and `vault`
+schemas, zero auth users, zero storage objects. So the "remove all content"
+half of the request had nothing to remove, and the interesting question was how
+to put the system in.
+
+Two routes existed. Replay all ~100 files in `prisma/manual/` in the order they
+were originally written, or generate the whole schema in one pass from
+`schema.prisma`:
+
+```
+prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script
+```
+
+**The second, and it is not a close call.** `manual/` is a *history* — it records
+how Servd's live database got from nothing to today, including the false starts
+(`fix-orderitem-menuitem-setnull`, `restore-storefront-settings`,
+`drop-referral-program`). Replaying a history to reach a state you can state
+directly buys nothing and inherits every ordering hazard in it. The diff is
+derived from the schema, so by construction it cannot drift from it.
+
+This is why the four pending migrations in the runbook do **not** apply here.
+They exist to move an *already-populated* Servd database forward. A database
+built from `schema.prisma` is already past them: `plans."priceFloor"`,
+`restaurants."partnerId"`, `partners."gatewaySubAccountId"` and
+`partner_ledger_entries` are all in the schema, so they are all in the output.
+The runbook is still the right document for servdph.com. It is the wrong one for
+a new database, which is what this decision records.
+
+Verified after applying: 89 tables, 22 enums, 85 foreign keys, 154 indexes plus
+89 primary keys, 873 columns — each count matching the generated script exactly.
+
+## D27 — RLS defaults to locked, enforced by a sweep
+
+Provisioning the new database surfaced a hole that predates CANVEXIA and is live
+on servdph.com right now.
+
+Supabase grants the `anon` role full `select, insert, update, delete` on every
+table in `public` by default, and the anon key is published in the browser —
+that is what it is for. For a table with RLS this is harmless: the policies
+decide and `anon` satisfies none of them. For a table **without** RLS it means
+the table is readable and writable by anyone who views source.
+
+`rls.sql` covered 77 of the 89 tables. The twelve it did not:
+
+    ad_spend, announcement_reads, announcements, content_brand_profiles,
+    content_generation_logs, content_pillars, content_scripts, crm_touches,
+    outreach_videos, platform_settings, program_settings, prospect_leads
+
+`prospect_leads` holds the names, phone numbers, email addresses and street
+addresses of scraped sales leads. `platform_settings` holds
+`xenditCredsEnc`, `emailCredsEnc`, `uploadPostKeyEnc` — encrypted, but there is
+no reason for the ciphertext to be world-readable either, and the row is
+world-*writable*, which is worse.
+
+Confirmed rather than assumed: a canary row inserted into `prospect_leads` was
+read back under `set role anon`. Before the fix it returned. After, zero.
+
+**The fix is a sweep, not a list.** The final block of `rls.sql` now enables and
+forces RLS with a super-admin-only policy on every `public` base table that has
+no policy by the time it runs. The tenant loop above it is written the same way
+and for the same reason: this exact list had been missed twelve times, and a
+list that has to be remembered is a list that drifts. A table added tomorrow
+arrives locked, and someone has to open it on purpose.
+
+Safe because all twelve are reached exclusively through `systemDb()` — checked
+per model against its callers, not assumed: zero `tenantDb`, zero `partnerDb`.
+Super-admin-only locks out no caller that exists.
+
+And the direction of failure is the one to want. If some future table *should*
+be tenant-readable and this sweep catches it first, the symptom is a blank
+screen in a feature nobody shipped yet. The other default's symptom is a leak
+nobody notices.
+
+The same block pins `search_path` on the three `app.*` helper functions. They
+decide every policy in the file, which makes them the worst possible place for a
+resolution the caller can influence; they reference only built-ins, so the empty
+path costs nothing.
+
+Result on the new database: 89 of 89 tables with RLS enabled *and* forced, 92
+policies, and the Supabase security advisor returning an empty list.
+
+**This is also a fix Servd needs.** It ships in `rls.sql`, so servdph.com picks
+it up the next time `npm run db:rls` runs — which the deploy runbook already
+calls for as step 2.

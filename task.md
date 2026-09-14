@@ -1,48 +1,80 @@
-# Next: apply the migrations to the live database
+# Next: point the app at the CANVEXIA database, then move the schema
 
-**I cannot do this step.** No `DATABASE_URL`, no `.env`, and the Supabase MCP
-server needs authorization that a non-interactive session cannot do. Applying
-migrations to a live database is also not something to run unattended.
+The CANVEXIA database is **provisioned and verified**. Supabase project
+`Canvexia` (`vqiwfemnmxrzsmyncwrf`, ap-southeast-1).
 
-What is ready instead: **`docs/canvexia/deploy-runbook.md`**, rehearsed end to end
-on a throwaway PostgreSQL 16 database seeded to production's shape, from the
-pre-CANVEXIA schema. Not a list written from memory.
+There was nothing to wipe — the project was empty when I opened it. No
+application tables, no auth users, no storage objects, only Supabase's own
+`auth` / `storage` / `vault` schemas.
 
-## Correction
+## What is in it
 
-It is **four** migrations, not seven. I had been repeating that number without
-checking it; verified against `main`:
+Schema generated in one pass from `schema.prisma`, not by replaying
+`prisma/manual/` (D26 — the four pending migrations are for *servdph.com*, which
+is already-populated; a database built from the schema is past them).
 
-1. `add-partner-tenancy.sql`
-2. `add-plan-price-floor.sql`
-3. `add-partner-subaccount.sql`
-4. `add-partner-ledger.sql`
+| | |
+|---|---|
+| Tables / enums / FKs | 89 · 22 · 85 |
+| Indexes | 154 + 89 primary keys |
+| Columns | 873 |
+| RLS enabled **and forced** | 89 of 89 |
+| Policies | 92 |
+| Supabase security advisor | **0 findings** |
 
-Then `db:rls`, then the backfill. Six steps, four of them SQL files.
+Reference data only — three plans, their `plan_modules`, the two singleton
+settings rows, and the house partner **CANVEXIA Davao** (`canvexia-davao`,
+`hq_collects`, 70%). **No demo restaurants.** `prisma/seed.mjs` would have
+created Mango Grill and Guava Cafe; those are test fixtures, not a live system.
+Say the word if you want them for smoke-testing.
 
-## The rule the rehearsal proved
+## Isolation was proved, not assumed
 
-**Migrate before deploying the new code.** With the new code against the old
-database the rehearsal produced, verbatim:
+Two partners and two merchants, then read back under `set role app_user` with
+**no where clause anywhere**:
 
-    The column `plans.priceFloor` does not exist in the current database.
+- partner Alpha → its own merchant, its own orders, its own partner row · nothing else
+- merchant Beta → its own row and orders; `partner_ledger_entries` returns **nothing** (the split is not the merchant's business)
+- Alpha updating Beta's merchant to claim it → **0 rows**
 
-Prisma returns every scalar column when a query has no `select`, so one
-un-migrated column breaks writes that never mention it — the same failure the
-codebase already documents on `Restaurant.autoPrintReceipt`.
+Fixture deleted afterwards; the tables are back to empty.
 
-## What the rehearsal covered
+## One thing I found and fixed — it affects Servd too
 
-Seeded as production is shaped — two direct customers, one partner-built
-storefront — then run in order: four migrations ✅ · no column drift ✅ ·
-`db:rls` ✅ · drift + RLS coverage 0 rows ✅ · backfill dry run wrote nothing ✅ ·
-`--apply` kept 1 with its builder and moved 2 to the house partner ✅ ·
-house partner sees only its two, Cebu Partner only its one ✅ ·
-**DB-backed suite 38/38 across 6 files** ✅.
+Supabase grants `anon` full read/write on every table in `public`, and the anon
+key ships in the browser. `rls.sql` covered 77 of 89 tables. The twelve it
+missed included **`prospect_leads`** — names, phones, emails and addresses of
+sales leads — and `platform_settings`, which is world-*writable*.
 
-## Queued behind it
+Confirmed rather than assumed: a canary row read back under `set role anon`
+before the fix, and returned nothing after.
 
-1. **Move the schema to `packages/db`** (D25) — sequenced after, because ~20
-   user-facing error strings and this runbook all point at
-   `prisma/manual/add-X.sql`.
-2. **Build the first vertical** (D24).
+`rls.sql` now ends with a **sweep** — any `public` table with no policy by that
+point gets RLS forced and a super-admin-only policy — plus `search_path` pinned
+on the three `app.*` helpers. Written as a sweep because this exact list drifted
+twelve times; a new table now arrives locked. Safe because all twelve are
+reached only through `systemDb()`, checked per model against its callers.
+
+**servdph.com has this hole right now.** It closes the next time `npm run db:rls`
+runs, which is step 2 of the deploy runbook. See D27.
+
+## What is left for you
+
+1. **Set `DATABASE_URL` / `DIRECT_URL`** to this project (Supabase dashboard →
+   Connect). I do not have the database password and did not want it.
+2. **Create the super-admin auth user** and its `platform_admins` row — that
+   needs Supabase Auth, not SQL.
+3. **`CREDENTIALS_ENCRYPTION_KEY`** must be set before any partner or merchant
+   gateway credentials are written.
+
+## Then, in order
+
+1. **Apply the four migrations to servdph.com** — `docs/canvexia/deploy-runbook.md`,
+   unchanged and still correct. This database being ready does not advance that
+   one; they are separate databases with separate histories.
+2. **Move the schema to `packages/db`** (D25) — still sequenced *after* step 1,
+   for the reason D25 gives: ~20 user-facing error strings tell a Servd operator
+   to run `prisma/manual/add-X.sql`, and they are read exactly when something is
+   already broken. Moving the directory while those migrations are still pending
+   points them at a path that no longer exists.
+3. **Build the first vertical** (D24).

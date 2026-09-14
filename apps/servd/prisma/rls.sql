@@ -462,3 +462,60 @@ alter table landing_stats force row level security;
 drop policy if exists super_only on landing_stats;
 create policy super_only on landing_stats for all
   using (app.is_super_admin()) with check (app.is_super_admin());
+
+-- ----------------------------------------------------------------------------
+-- Harden the helper functions: pin search_path.
+--
+-- A SECURITY INVOKER function with a mutable search_path can be made to resolve
+-- a different `current_setting` if a caller puts a shadowing schema ahead of
+-- pg_catalog. These three decide every policy in this file, so they are the
+-- worst possible place for that. They reference only built-ins, so the empty
+-- path costs nothing.
+-- ----------------------------------------------------------------------------
+alter function app.current_restaurant_id() set search_path = '';
+alter function app.is_super_admin() set search_path = '';
+alter function app.current_partner_id() set search_path = '';
+
+-- ----------------------------------------------------------------------------
+-- Backstop: lock down every remaining table.
+--
+-- Supabase grants `anon` full DML on the whole public schema by default, and the
+-- anon key ships in the browser. For a table with RLS that is harmless — the
+-- policies decide. For a table WITHOUT RLS it means the table is readable and
+-- writable by anyone who views source. On this schema that was twelve tables,
+-- among them prospect_leads: names, emails, phone numbers and addresses of
+-- sales leads.
+--
+-- Every one of them is reached exclusively through systemDb() — verified by
+-- grepping each Prisma model for its callers — so super-admin-only locks out no
+-- caller that exists.
+--
+-- Written as a sweep rather than a list for the same reason the tenant loop
+-- above is: a list has to be remembered, and this one had been missed twelve
+-- times. A new table now arrives locked and someone has to open it deliberately.
+-- That is the right direction to fail in: a blank screen, not a leak.
+-- ----------------------------------------------------------------------------
+do $$
+declare
+  t text;
+begin
+  for t in
+    select tb.table_name
+      from information_schema.tables tb
+     where tb.table_schema = 'public'
+       and tb.table_type = 'BASE TABLE'
+       and not exists (
+         select 1 from pg_policies p
+          where p.schemaname = 'public' and p.tablename = tb.table_name
+       )
+     order by tb.table_name
+  loop
+    execute format('alter table %I enable row level security;', t);
+    execute format('alter table %I force row level security;', t);
+    execute format('drop policy if exists super_only on %I;', t);
+    execute format($f$
+      create policy super_only on %1$I for all
+        using (app.is_super_admin()) with check (app.is_super_admin());
+    $f$, t);
+  end loop;
+end $$;

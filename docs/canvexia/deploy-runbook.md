@@ -7,6 +7,15 @@ the pre-CANVEXIA schema — not a list written from memory.
 Nothing here has been run against your live database. I have no credentials to it
 and would not use them unattended if I did.
 
+> **This is for servdph.com — an already-populated database.** For an *empty*
+> one, none of it applies: see `fresh-database-setup.md`, which is what was run
+> against the CANVEXIA project. A database built from `schema.prisma` is already
+> past all four migrations below (D26).
+>
+> Step 2 also now closes a hole that is live on servdph.com today: twelve tables
+> had no RLS policy at all, and Supabase grants the browser-side `anon` key full
+> read/write on anything unprotected. `prospect_leads` is one of them. See D27.
+
 ---
 
 ## The one rule that matters most
