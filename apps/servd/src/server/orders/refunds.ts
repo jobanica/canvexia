@@ -173,7 +173,7 @@ export async function refundItems(
     return {
       ok: false,
       error:
-        "Refunds need one database update. Run prisma/manual/add-item-prepared-and-refunds.sql, then try again.",
+        "Refunds need one database update. Run packages/db/prisma/manual/add-item-prepared-and-refunds.sql, then try again.",
     };
   }
   if (ticket.collected <= 0) {

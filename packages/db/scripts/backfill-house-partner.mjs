@@ -11,7 +11,7 @@
  * legitimately signed five minutes later. So the plan is printed first, read by
  * a person, and only then applied.
  *
- * Run AFTER prisma/manual/add-partner-tenancy.sql and BEFORE `npm run db:rls`.
+ * Run AFTER packages/db/prisma/manual/add-partner-tenancy.sql and BEFORE `npm run db:rls`.
  * That order matters: once the partner policies are live, a restaurant with a
  * null partnerId belongs to nobody, and a partner-scoped query will correctly
  * refuse to return it.
@@ -78,7 +78,7 @@ async function assertMigrated() {
   if (!present) {
     console.error(
       'restaurants."partnerId" does not exist.\n' +
-        "Run prisma/manual/add-partner-tenancy.sql first — this script assigns the\n" +
+        "Run packages/db/prisma/manual/add-partner-tenancy.sql first — this script assigns the\n" +
         "column, it does not create it.",
     );
     process.exit(1);

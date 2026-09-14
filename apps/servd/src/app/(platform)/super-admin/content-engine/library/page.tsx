@@ -25,7 +25,7 @@ export default async function LibraryPage() {
       {!brand ? (
         <div className="rounded-tile border border-mango/40 bg-mango/10 p-4 text-sm text-plum-ink">
           The Content Engine tables aren&apos;t set up yet. Run{" "}
-          <code className="rounded bg-white px-1">prisma/manual/add-content-engine.sql</code> first.
+          <code className="rounded bg-white px-1">packages/db/prisma/manual/add-content-engine.sql</code> first.
         </div>
       ) : scripts.length === 0 ? (
         <div className="rounded-tile border border-dashed border-plum-ink/15 bg-white p-6 text-sm text-plum-ink/50">

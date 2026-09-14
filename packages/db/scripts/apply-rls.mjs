@@ -1,4 +1,4 @@
-// Applies prisma/rls.sql to the database. Run after `prisma db push`/`migrate`.
+// Applies packages/db/prisma/rls.sql to the database. Run after `prisma db push`/`migrate`.
 // Uses DIRECT_URL (non-pooled) because we run DDL + multi-statement DO blocks.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

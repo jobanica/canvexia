@@ -165,7 +165,7 @@ export async function createPreviewLogin(restaurantId: string): Promise<PreviewL
     return {
       ok: false,
       error: /previewExpiresAt|column/i.test(msg)
-        ? "Run prisma/manual/add-preview-login.sql, then try again."
+        ? "Run packages/db/prisma/manual/add-preview-login.sql, then try again."
         : msg,
     };
   }

@@ -52,7 +52,7 @@ export async function createOutreachVideo(crmClientId: string): Promise<CreateRe
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (/outreach_videos|relation|column/i.test(msg)) {
-      return { ok: false, error: "Run prisma/manual/add-outreach-videos.sql in Supabase first." };
+      return { ok: false, error: "Run packages/db/prisma/manual/add-outreach-videos.sql in Supabase first." };
     }
     return { ok: false, error: "Couldn't start the outreach video." };
   }

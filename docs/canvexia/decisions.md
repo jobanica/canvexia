@@ -201,7 +201,7 @@ Whether they move in here is Q7, still open.
 
 **Settled.** Implemented in Phase 0.
 
-`prisma/rls.sql` used a hand-written array of 43 table names. It had drifted:
+`packages/db/prisma/rls.sql` used a hand-written array of 43 table names. It had drifted:
 **13 tables holding real tenant data had no policy at all** — `audit_logs`,
 `reservations`, `gift_cards`, `gift_card_txns`, `cash_movements`,
 `delivery_settings`, `delivery_bookings`, `cart_leads`, `happy_hours`,
@@ -384,7 +384,7 @@ would credit a partner for merchants they no longer own or get paid for.
 `where` clause; losing that clause in any future refactor meant a partner reading
 every merchant on the platform. It now reads through `partnerDb()`.
 
-**The `where` clause stays anyway.** If `prisma/rls.sql` has not been run on a
+**The `where` clause stays anyway.** If `packages/db/prisma/rls.sql` has not been run on a
 database, `partnerDb` sets a session variable no policy reads, and the query
 would return everything. Migration lag is a real state in this repo. RLS is the
 guarantee; the clause is what holds while a database catches up.
@@ -804,7 +804,7 @@ pending migrations are applied.**
 That ordering is not fussiness. There are **four un-applied hand-run migrations**
 in `apps/servd/prisma/manual/` — `add-partner-tenancy`, `add-plan-price-floor`,
 `add-partner-subaccount`, `add-partner-ledger` — and roughly twenty user-facing error strings that
-tell an operator to *"run prisma/manual/add-X.sql"* when a column is missing.
+tell an operator to *"run packages/db/prisma/manual/add-X.sql"* when a column is missing.
 Moving the directory mid-flight makes both the runbook and those messages point
 somewhere that no longer exists — and they are read precisely when something is
 already broken.
@@ -825,12 +825,12 @@ schemas, zero auth users, zero storage objects. So the "remove all content"
 half of the request had nothing to remove, and the interesting question was how
 to put the system in.
 
-Two routes existed. Replay all ~100 files in `prisma/manual/` in the order they
+Two routes existed. Replay all ~100 files in `packages/db/prisma/manual/` in the order they
 were originally written, or generate the whole schema in one pass from
 `schema.prisma`:
 
 ```
-prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script
+prisma migrate diff --from-empty --to-schema-datamodel packages/db/prisma/schema.prisma --script
 ```
 
 **The second, and it is not a close call.** `manual/` is a *history* — it records

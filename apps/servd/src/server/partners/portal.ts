@@ -52,7 +52,7 @@ export interface PartnerDashboard {
  * regardless.
  *
  * The `where` clause is still here, and deliberately. Belt and braces: if
- * prisma/rls.sql has not been run on a database, partnerDb sets a session
+ * packages/db/prisma/rls.sql has not been run on a database, partnerDb sets a session
  * variable no policy reads, and without this clause the query would return
  * everything. Migration lag is a real state in this codebase, and the failure
  * mode of guessing wrong here is "one partner sees every merchant on the

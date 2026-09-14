@@ -11,7 +11,7 @@ describe("migrationHint", () => {
 
   it("names the file to run", () => {
     expect(migrationHint(missing, "add-qr-grandfather.sql")).toContain(
-      "prisma/manual/add-qr-grandfather.sql",
+      "packages/db/prisma/manual/add-qr-grandfather.sql",
     );
   });
 
@@ -45,7 +45,7 @@ describe("migrationHint", () => {
  * applied everywhere.
  */
 describe("Restaurant schema defaults", () => {
-  const schema = readFileSync(join(process.cwd(), "prisma/schema.prisma"), "utf8");
+  const schema = readFileSync(join(process.cwd(), "../../packages/db/prisma/schema.prisma"), "utf8");
   const restaurantModel = schema.slice(
     schema.indexOf("model Restaurant {"),
     schema.indexOf("@@map(\"restaurants\")"),
@@ -67,7 +67,7 @@ describe("Restaurant schema defaults", () => {
     ["add-drawer-receipt-settings.sql", '"autoPrintReceipt" BOOLEAN NOT NULL DEFAULT true'],
     ["add-drawer-receipt-settings.sql", `"openDrawerOn" TEXT NOT NULL DEFAULT 'cash'`],
   ])("%s actually supplies the default dbgenerated relies on", (file, clause) => {
-    const sql = readFileSync(join(process.cwd(), "prisma/manual", file), "utf8");
+    const sql = readFileSync(join(process.cwd(), "../../packages/db/prisma/manual", file), "utf8");
     expect(sql).toContain(clause);
   });
 });

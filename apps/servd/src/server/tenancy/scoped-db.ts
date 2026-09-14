@@ -6,7 +6,7 @@ import { prisma } from "@/server/db";
  * TENANT-SCOPED DATABASE ACCESS
  *
  * Each of these wraps your queries in a transaction that first sets a Postgres
- * session variable. The RLS policies in prisma/rls.sql read that variable and
+ * session variable. The RLS policies in packages/db/prisma/rls.sql read that variable and
  * filter every row accordingly. This is layer #2 of isolation — the database
  * enforces the boundary even if the app forgets to.
  *

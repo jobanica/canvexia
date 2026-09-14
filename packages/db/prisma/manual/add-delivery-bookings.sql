@@ -56,7 +56,7 @@ DO $$ BEGIN
     FOREIGN KEY ("orderId") REFERENCES "orders"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- RLS + app_user grants (matches prisma/rls.sql).
+-- RLS + app_user grants (matches packages/db/prisma/rls.sql).
 ALTER TABLE "delivery_settings" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "delivery_settings" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "delivery_settings";

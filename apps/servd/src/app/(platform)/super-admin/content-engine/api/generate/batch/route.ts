@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   const brand = await getOrCreateBrand();
   if (!brand) {
     return NextResponse.json(
-      { error: "Content Engine isn't set up yet. Run prisma/manual/add-content-engine.sql." },
+      { error: "Content Engine isn't set up yet. Run packages/db/prisma/manual/add-content-engine.sql." },
       { status: 503 },
     );
   }

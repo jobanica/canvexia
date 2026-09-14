@@ -10,7 +10,7 @@ application tables, no auth users, no storage objects, only Supabase's own
 ## What is in it
 
 Schema generated in one pass from `schema.prisma`, not by replaying
-`prisma/manual/` (D26 — the four pending migrations are for *servdph.com*, which
+`packages/db/prisma/manual/` (D26 — the four pending migrations are for *servdph.com*, which
 is already-populated; a database built from the schema is past them).
 
 | | |
@@ -24,7 +24,7 @@ is already-populated; a database built from the schema is past them).
 
 Reference data only — three plans, their `plan_modules`, the two singleton
 settings rows, and the house partner **CANVEXIA Davao** (`canvexia-davao`,
-`hq_collects`, 70%). **No demo restaurants.** `prisma/seed.mjs` would have
+`hq_collects`, 70%). **No demo restaurants.** `packages/db/prisma/seed.mjs` would have
 created Mango Grill and Guava Cafe; those are test fixtures, not a live system.
 Say the word if you want them for smoke-testing.
 
@@ -72,9 +72,8 @@ runs, which is step 2 of the deploy runbook. See D27.
 1. **Apply the four migrations to servdph.com** — `docs/canvexia/deploy-runbook.md`,
    unchanged and still correct. This database being ready does not advance that
    one; they are separate databases with separate histories.
-2. **Move the schema to `packages/db`** (D25) — still sequenced *after* step 1,
-   for the reason D25 gives: ~20 user-facing error strings tell a Servd operator
-   to run `prisma/manual/add-X.sql`, and they are read exactly when something is
-   already broken. Moving the directory while those migrations are still pending
-   points them at a path that no longer exists.
-3. **Build the first vertical** (D24).
+2. ~~Move the schema to `packages/db`~~ — **done.** D25's objection was that ~20
+   user-facing error strings name `prisma/manual/add-X.sql` and are read exactly
+   when something is already broken. That is an argument for moving them
+   *atomically with the directory*, which is what happened, not for waiting.
+3. **Build the first vertical** (D24) — in progress.

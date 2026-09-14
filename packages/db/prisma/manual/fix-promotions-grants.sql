@@ -1,6 +1,6 @@
 -- Fixes "42501: permission denied for table promotions".
 --
--- The app connects as the non-privileged `app_user` role (see prisma/rls.sql)
+-- The app connects as the non-privileged `app_user` role (see packages/db/prisma/rls.sql)
 -- that tenantDb() switches to. `grant ... on all tables` only covers tables
 -- that existed when rls.sql was last run, so any table created afterwards
 -- (here: promotions) is missing the grant. This re-grants it and re-asserts

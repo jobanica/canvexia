@@ -46,12 +46,11 @@ Do this first. These migrations are hand-run, so the live schema may already be
 behind in ways unrelated to CANVEXIA.
 
 ```bash
-cd apps/servd
-node scripts/schema-drift.mjs          # prints SQL; paste into the Supabase editor
+pnpm --filter @servd/db db:drift       # prints SQL; paste into the Supabase editor
 ```
 
 Zero rows means the database matches the code. Anything under `missing column` or
-`MISSING TABLE` is an older migration in `prisma/manual/` that never ran — **sort
+`MISSING TABLE` is an older migration in `packages/db/prisma/manual/` that never ran — **sort
 that out before starting**, or you will not be able to tell CANVEXIA's failures
 from the backlog's.
 
@@ -64,10 +63,10 @@ verification select; each should return `true`.
 
 | # | File | What it adds |
 |---|---|---|
-| 1 | `prisma/manual/add-partner-tenancy.sql` | `restaurants."partnerId"`, the `Partner` operator fields, nullable `audit_logs."restaurantId"` + `partnerId` + `actorType` |
-| 2 | `prisma/manual/add-plan-price-floor.sql` | `plans."priceFloor"`, defaulting to 0 = no floor |
-| 3 | `prisma/manual/add-partner-subaccount.sql` | `partners."gatewaySubAccountId"` |
-| 4 | `prisma/manual/add-partner-ledger.sql` | `partner_ledger_entries` + its unique index on `providerRef` |
+| 1 | `packages/db/prisma/manual/add-partner-tenancy.sql` | `restaurants."partnerId"`, the `Partner` operator fields, nullable `audit_logs."restaurantId"` + `partnerId` + `actorType` |
+| 2 | `packages/db/prisma/manual/add-plan-price-floor.sql` | `plans."priceFloor"`, defaulting to 0 = no floor |
+| 3 | `packages/db/prisma/manual/add-partner-subaccount.sql` | `partners."gatewaySubAccountId"` |
+| 4 | `packages/db/prisma/manual/add-partner-ledger.sql` | `partner_ledger_entries` + its unique index on `providerRef` |
 
 Order is only load-bearing for #1 — everything else reads `partnerId`. Running
 them in this order is simply how it was rehearsed.
@@ -75,7 +74,7 @@ them in this order is simply how it was rehearsed.
 ## Step 2 — install the policies
 
 ```bash
-DIRECT_URL=... node scripts/apply-rls.mjs        # or: npm run db:rls
+DIRECT_URL=... pnpm --filter @servd/db db:rls
 ```
 
 Expect `✅ RLS policies applied.`
@@ -89,7 +88,7 @@ data had no policy at all (D7).
 ## Step 3 — the backfill, dry run
 
 ```bash
-node scripts/backfill-house-partner.mjs
+node packages/db/scripts/backfill-house-partner.mjs
 ```
 
 Writes nothing. It prints a plan:
@@ -114,7 +113,7 @@ afterwards.
 ## Step 4 — the backfill, for real
 
 ```bash
-node scripts/backfill-house-partner.mjs --apply
+node packages/db/scripts/backfill-house-partner.mjs --apply
 ```
 
 **Take a database snapshot first.** This is the one step with no clean undo: once
@@ -179,9 +178,8 @@ storefront — from the pre-CANVEXIA schema:
 
 ## After this is done
 
-Two things are queued behind it:
-
-1. **Move the schema to `packages/db`** (D25). Deliberately sequenced after this,
-   because ~20 user-facing error strings tell an operator to *"run
-   prisma/manual/add-X.sql"* and this runbook points at the same paths.
-2. **Build the first new vertical** (D24).
+**The schema has since moved to `packages/db`** (D25), which is why every path
+above reads `packages/db/prisma/manual/...`. The move was done atomically with
+the ~20 user-facing error strings that name those files, so an operator who hits
+one is told the path that exists. Nothing about the four migrations changed —
+same files, same order, same contents.

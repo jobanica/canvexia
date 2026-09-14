@@ -268,7 +268,7 @@ export async function saveCrmSequence(
     return {
       error:
         e instanceof Error && /crmSequence|column/i.test(e.message)
-          ? "Add the crmSequence column first (run prisma/manual/add-crm-sequence.sql)."
+          ? "Add the crmSequence column first (run packages/db/prisma/manual/add-crm-sequence.sql)."
           : e instanceof Error
             ? e.message
             : "Couldn't save the messages.",

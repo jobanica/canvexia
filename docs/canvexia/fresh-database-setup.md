@@ -8,7 +8,7 @@ This is what was actually run against Supabase project `Canvexia`
 
 ---
 
-## Do not replay `prisma/manual/`
+## Do not replay `packages/db/prisma/manual/`
 
 `manual/` is a *history* — how servdph.com got from nothing to today, false
 starts included (`fix-orderitem-menuitem-setnull`, `restore-storefront-settings`,
@@ -18,10 +18,9 @@ state directly buys nothing and inherits every ordering hazard in it.
 Generate the whole schema in one pass instead:
 
 ```bash
-cd apps/servd
 npx prisma migrate diff \
   --from-empty \
-  --to-schema-datamodel prisma/schema.prisma \
+  --to-schema-datamodel packages/db/prisma/schema.prisma \
   --script > /tmp/full-schema.sql
 ```
 
@@ -61,7 +60,7 @@ select
 ## Step 2 — the policies
 
 ```bash
-DIRECT_URL=... node scripts/apply-rls.mjs      # or: npm run db:rls
+DIRECT_URL=... pnpm --filter @servd/db db:rls
 ```
 
 Then confirm **zero** tables are left open:
@@ -84,16 +83,16 @@ Prisma connects as — bypasses every policy, and the isolation guarantee is a l
 
 ## Step 3 — reference data, and only reference data
 
-`prisma/seed.mjs` seeds the three plans **and** two demo restaurants (Mango
+`packages/db/prisma/seed.mjs` seeds the three plans **and** two demo restaurants (Mango
 Grill, Guava Cafe). Those are isolation-test fixtures. On a real database seed
 the plans by hand and leave the demos out:
 
 - `plans` ×3 with their `plan_modules`
 - `platform_settings` (`id='platform'`) and `program_settings` (`id='program'`)
 - the house partner: `canvexia-davao`, tier `operator`, `hq_collects`, 70% —
-  same shape as `HOUSE` in `scripts/backfill-house-partner.mjs`
+  same shape as `HOUSE` in `packages/db/scripts/backfill-house-partner.mjs`
 
-**No backfill.** `backfill-house-partner.mjs` exists to give owners to merchants
+**No backfill.** `packages/db/scripts/backfill-house-partner.mjs` exists to give owners to merchants
 that predate the partner column. On an empty database there are none, and it
 prints `Nothing to do.`
 

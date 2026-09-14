@@ -231,7 +231,7 @@ export async function setOrdersPaused(
   } catch {
     return {
       error:
-        "Couldn't save that — run prisma/manual/add-orders-paused.sql, then try again.",
+        "Couldn't save that — run packages/db/prisma/manual/add-orders-paused.sql, then try again.",
     };
   }
 
@@ -282,7 +282,7 @@ export async function setAutoAccept(
     });
   } catch {
     return {
-      error: "Couldn't save that — run prisma/manual/add-auto-accept.sql, then try again.",
+      error: "Couldn't save that — run packages/db/prisma/manual/add-auto-accept.sql, then try again.",
     };
   }
 

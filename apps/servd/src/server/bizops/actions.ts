@@ -105,7 +105,7 @@ export async function addAdSpend(_prev: SpendState, formData: FormData): Promise
       }),
     );
   } catch {
-    return { error: "Couldn't save it — run prisma/manual/add-business-ops.sql, then try again." };
+    return { error: "Couldn't save it — run packages/db/prisma/manual/add-business-ops.sql, then try again." };
   }
   revalidatePath("/super-admin/bizops/analytics");
   revalidatePath("/super-admin/bizops");

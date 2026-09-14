@@ -2,5 +2,21 @@
   "name": "@servd/db",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "description": "The one Prisma schema, the RLS policies, and the scripts that apply them. D25.",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:rls": "node scripts/apply-rls.mjs",
+    "db:seed": "node prisma/seed.mjs",
+    "db:drift": "node scripts/schema-drift.mjs",
+    "db:setup": "prisma db push && node scripts/apply-rls.mjs && node prisma/seed.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.1"
+  },
+  "devDependencies": {
+    "prisma": "^6.2.1"
+  }
 }

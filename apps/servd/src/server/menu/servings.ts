@@ -76,7 +76,7 @@ export async function setDailyLimit(
     return null;
   } catch (e) {
     console.error("setDailyLimit failed", e);
-    return "Everything else saved, but the daily limit couldn't be. Run prisma/manual/fix-table-grants.sql, then try again.";
+    return "Everything else saved, but the daily limit couldn't be. Run packages/db/prisma/manual/fix-table-grants.sql, then try again.";
   }
 }
 

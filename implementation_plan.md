@@ -26,7 +26,7 @@ premises the brief is built on, and two of them change the shape of the work.
 
 ### A1. The `Partner` model already exists, and it encodes the *opposite* business model ⚠️
 
-`prisma/schema.prisma:1165` defines `Partner`, and there is a live partner portal
+`packages/db/prisma/schema.prisma:1165` defines `Partner`, and there is a live partner portal
 (`src/app/(platform)/partner/*`, `src/server/partners/*`) with apply → approve → login →
 create demo → convert flows already shipped.
 
@@ -208,7 +208,7 @@ under the brief, its partner's contract requires. Needs reconciling — see Q5.
 
 ### A6. RLS is single-axis, and its table list is hand-maintained
 
-`prisma/rls.sql` enforces isolation on one GUC, `app.current_restaurant_id`, plus an
+`packages/db/prisma/rls.sql` enforces isolation on one GUC, `app.current_restaurant_id`, plus an
 `app.is_super_admin` bypass (`rls.sql:32-41`). `tenantDb()` / `systemDb()`
 (`src/server/tenancy/scoped-db.ts`) set them.
 
@@ -335,7 +335,7 @@ Depends on Q1, Q3, Q6.
   untouched. This is the guard against the silent-zero trap; it lands with the column.
 - [MODIFY] `apps/servd/prisma/rls.sql` — partner-axis policies; `app.current_partner_id()` helper.
 - [NEW] `apps/servd/prisma/manual/add-partner-tenancy.sql` — hand-run migration matching the
-  repo's existing convention (`prisma/manual/*.sql`, applied out-of-band on the live DB).
+  repo's existing convention (`packages/db/prisma/manual/*.sql`, applied out-of-band on the live DB).
 - [NEW] `apps/servd/scripts/backfill-house-partner.mjs` — idempotent, dry-run by default:
   creates CANVEXIA Davao and points every existing `Restaurant.partnerId` at it.
 - [MODIFY] `AuditLog` — make `restaurantId` nullable, add `partnerId`, `actorType`, so HQ and
@@ -423,7 +423,7 @@ payload)` + a reference adapter. As a migration of laundry/Pharmacy/print-new: s
 ## Part D — Risks
 
 1. **Live customers throughout.** Davao restaurants are trading. Every schema change goes
-   through `prisma/manual/*.sql` hand-run migrations, and the codebase has scar tissue about
+   through `packages/db/prisma/manual/*.sql` hand-run migrations, and the codebase has scar tissue about
    this — see `schema.prisma:538-548`, where a plain Prisma `@default` broke restaurant
    creation on a DB that hadn't run the SQL yet. New columns must use `dbgenerated()` defaults
    for the same reason.

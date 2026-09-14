@@ -71,7 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ res
  *
  * Deliberately its own transaction, and deliberately allowed to fail. These
  * three columns are new; a deployment that reaches production before the SQL
- * in prisma/manual does would otherwise take the whole callback down with them
+ * in packages/db/prisma/manual does would otherwise take the whole callback down with them
  * — and that callback is what marks an order out-for-delivery and delivered.
  * A missing doorbell is worth nothing next to an order that never closes.
  *

@@ -27,7 +27,7 @@ it as a subscription to many restaurants.
 
 1. **Application layer** — every request derives `restaurantId` from the trusted
    session (`src/server/tenancy/current-user.ts`), never from the URL/body.
-2. **Database layer (the real guarantee)** — `prisma/rls.sql` defines RLS
+2. **Database layer (the real guarantee)** — `packages/db/prisma/rls.sql` defines RLS
    policies on every tenant table. Queries run through `tenantDb(restaurantId,
    …)` (`src/server/tenancy/scoped-db.ts`), which sets a Postgres session
    variable the policies filter on. We use `FORCE ROW LEVEL SECURITY` so even
@@ -115,7 +115,7 @@ cp .env.example .env.local      # fill in Supabase + DB URLs
 npm install
 npx prisma db push              # create tables
 npm run db:rls                  # apply Row-Level Security policies
-node prisma/seed.mjs            # two demo restaurants (mango-grill, guava-cafe)
+node packages/db/prisma/seed.mjs            # two demo restaurants (mango-grill, guava-cafe)
 npm run dev
 ```
 

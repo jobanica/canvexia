@@ -137,7 +137,7 @@ Two things to settle before the first new vertical, not after:
   second — one product would own the tables every product depends on. The move is
   mechanical but discrete: schema, `rls.sql`, `manual/`, `seed.mjs`, the `db:*`
   scripts, three script files, CI, and the ~20 error strings that tell an
-  operator to "run prisma/manual/add-X.sql".
+  operator to "run packages/db/prisma/manual/add-X.sql".
 
   **Apply the pending migrations before moving**, or the runbook and those error
   messages point somewhere that no longer exists — and they are read exactly when

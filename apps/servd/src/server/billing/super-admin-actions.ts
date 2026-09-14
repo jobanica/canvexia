@@ -107,7 +107,7 @@ async function syncModules(tx: Prisma.TransactionClient, planId: string, modules
  * The plan's price floor, in centavos, from the form.
  *
  * Read straight off the FormData rather than through parsePlan's schema so a
- * database that has not run prisma/manual/add-plan-price-floor.sql yet still
+ * database that has not run packages/db/prisma/manual/add-plan-price-floor.sql yet still
  * saves plans: a blank or absent field is 0, which means "no floor", which is
  * what every plan had before the column existed.
  */

@@ -85,7 +85,7 @@ create policy partner_isolation on orders
 
 Option 2's shape is not new to this codebase — `modifiers`, `order_items`,
 `payments` and `sms_messages` already isolate through a parent exactly this way
-(`prisma/rls.sql`). The question is only whether it holds up one level wider.
+(`packages/db/prisma/rls.sql`). The question is only whether it holds up one level wider.
 
 Index required either way:
 
@@ -217,7 +217,7 @@ textbook hybrid case: denormalise `orders`, join for everything else.
 ## Prerequisite
 
 Both options assume `restaurants."partnerId"` exists and is backfilled — done in
-Phase 1 (`prisma/manual/add-partner-tenancy.sql`,
+Phase 1 (`packages/db/prisma/manual/add-partner-tenancy.sql`,
 `scripts/backfill-house-partner.mjs`).
 
 ## Reproducing

@@ -45,7 +45,7 @@ async function ledgerTableExists(tx: Prisma.TransactionClient): Promise<boolean>
   if (!tableExists) {
     console.error(
       "partner_ledger_entries is missing — settlements are NOT being recorded. " +
-        "Run prisma/manual/add-partner-ledger.sql.",
+        "Run packages/db/prisma/manual/add-partner-ledger.sql.",
     );
   }
   return tableExists;

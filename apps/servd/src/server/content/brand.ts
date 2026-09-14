@@ -65,7 +65,7 @@ export async function getOrCreateBrand(): Promise<BrandProfile | null> {
       return { ...created, pillars };
     });
   } catch {
-    // Tables not migrated yet (run prisma/manual/add-content-engine.sql).
+    // Tables not migrated yet (run packages/db/prisma/manual/add-content-engine.sql).
     return null;
   }
 }

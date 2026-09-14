@@ -66,7 +66,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "staff_users_username_key" ON "staff_users" ("
 -- them. Partner-portal isolation is enforced in the app layer (every query
 -- filtered by partnerId through systemDb), as with other platform data.
 --
--- Guarded on app.is_super_admin() existing — it's created by prisma/rls.sql. If
+-- Guarded on app.is_super_admin() existing — it's created by packages/db/prisma/rls.sql. If
 -- that hasn't been run, RLS is still enabled (the service role bypasses it, so
 -- the app keeps working) and the policy can be added later by re-running this.
 DO $$

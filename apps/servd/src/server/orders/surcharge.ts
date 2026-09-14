@@ -57,7 +57,7 @@ export async function applyCardSurcharge(
       if (res.count === 0) throw new Error("Order not found");
     });
   } catch {
-    // Column missing (see prisma/manual/add-pos-only-and-surcharge.sql) — the
+    // Column missing (see packages/db/prisma/manual/add-pos-only-and-surcharge.sql) — the
     // sale still goes through, at the price on the menu.
     return { fee: 0, label: null };
   }

@@ -101,7 +101,7 @@ describe("every screen knows the method", () => {
 
   // If a method is added to the enum, every one of these needs it too.
   it.each(MAPS)("%s labels every method the enum has", (file) => {
-    const schema = read("prisma/schema.prisma");
+    const schema = read("../../packages/db/prisma/schema.prisma");
     const block = schema.slice(
       schema.indexOf("enum PaymentMethod {"),
       schema.indexOf("}", schema.indexOf("enum PaymentMethod {")),

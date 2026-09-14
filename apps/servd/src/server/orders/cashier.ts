@@ -698,7 +698,7 @@ export async function settleThirdParty(
     return {
       ok: false,
       error: missing
-        ? "Settling a third-party order needs one database update. Run prisma/manual/add-third-party-tender.sql, then try again."
+        ? "Settling a third-party order needs one database update. Run packages/db/prisma/manual/add-third-party-tender.sql, then try again."
         : settled.error,
     };
   }

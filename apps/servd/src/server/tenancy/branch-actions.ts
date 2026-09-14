@@ -117,7 +117,7 @@ export async function addBranch(
     if (/authUserId/i.test(msg) || /unique/i.test(msg)) {
       return {
         error:
-          "Branches aren't switched on for this database yet — run prisma/manual/add-multi-branch.sql, then try again.",
+          "Branches aren't switched on for this database yet — run packages/db/prisma/manual/add-multi-branch.sql, then try again.",
       };
     }
     return { error: "Couldn't create the branch. Please try again." };

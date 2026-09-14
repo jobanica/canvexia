@@ -234,7 +234,7 @@ export async function toggleItemPrepared(
     return {
       ok: false,
       error:
-        "Ticking items off needs one database update. Run prisma/manual/add-item-prepared-and-refunds.sql, then try again.",
+        "Ticking items off needs one database update. Run packages/db/prisma/manual/add-item-prepared-and-refunds.sql, then try again.",
     };
   }
   await notifyOrdersChanged(staff.restaurantId);

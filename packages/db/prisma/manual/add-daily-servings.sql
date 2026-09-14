@@ -26,7 +26,7 @@ DO $$ BEGIN
     FOREIGN KEY ("restaurantId") REFERENCES "restaurants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- RLS + app_user grants (matches prisma/rls.sql).
+-- RLS + app_user grants (matches packages/db/prisma/rls.sql).
 ALTER TABLE "menu_item_servings" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "menu_item_servings" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "menu_item_servings";

@@ -2,7 +2,7 @@
 // Servd — data model
 //
 // MULTI-TENANCY: every tenant-owned table carries `restaurantId`. That column
-// is the key that Row-Level Security policies (see prisma/rls.sql) filter on,
+// is the key that Row-Level Security policies (see packages/db/prisma/rls.sql) filter on,
 // so the database itself refuses to return another restaurant's rows.
 //
 // MONEY SNAPSHOTTING: orders copy the name + price of items/modifiers AT THE
@@ -562,7 +562,7 @@ model Restaurant {
   // is load-bearing for every column added after this line too. A plain default
   // is applied by PRISMA: it puts the column into the INSERT of every
   // restaurant.create() in the codebase, whether or not the caller mentioned
-  // it. On a live database that hasn't run the matching file in prisma/manual
+  // it. On a live database that hasn't run the matching file in packages/db/prisma/manual
   // yet, that turns a brand-new column into "cannot create a restaurant at
   // all" — creating a storefront died on `qrGrandfathered` exactly this way.
   // Handing the default to the database instead means Prisma never names the
@@ -1180,7 +1180,7 @@ model LandingStat {
 // partner_bonuses and account_credits.
 //
 // Dropping the tables themselves is optional and destructive — see
-// prisma/manual/drop-referral-program.sql. Nothing reads them, so leaving them
+// packages/db/prisma/manual/drop-referral-program.sql. Nothing reads them, so leaving them
 // in place is harmless.
 
 /// A platform partner. Has its own login (Supabase auth) and can set up an
@@ -1207,7 +1207,7 @@ model Partner {
   // added to a table that already has rows in production. A plain Prisma
   // default would be written into the INSERT of every partner.create() in the
   // codebase and break creates on a database that has not yet run
-  // prisma/manual/add-partner-tenancy.sql — the failure mode described at
+  // packages/db/prisma/manual/add-partner-tenancy.sql — the failure mode described at
   // length on Restaurant.autoPrintReceipt.
   //
   /// URL label for the {slug}.canvexia.app fallback domain.
@@ -1266,7 +1266,7 @@ model Partner {
 ///
 /// NOT MERCHANT-READABLE. It carries the partner/HQ split, which is a commercial
 /// term between CANVEXIA and the operator and none of the restaurant's business.
-/// prisma/rls.sql excludes it from the tenant loop and gives it a partner-only
+/// packages/db/prisma/rls.sql excludes it from the tenant loop and gives it a partner-only
 /// policy — see the comment there.
 model PartnerLedgerEntry {
   id            String   @id @default(uuid())
@@ -1998,7 +1998,7 @@ model Order {
 
 /// Per-restaurant third-party delivery provider config. Standalone (no Prisma
 /// relation) so existing restaurant reads stay safe on a lagging DB; the FK is
-/// enforced in prisma/manual/add-delivery-bookings.sql.
+/// enforced in packages/db/prisma/manual/add-delivery-bookings.sql.
 model DeliverySettings {
   id               String   @id @default(uuid())
   restaurantId     String   @unique

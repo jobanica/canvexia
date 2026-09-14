@@ -90,7 +90,7 @@ export function EmailFollowUp({
       {unavailable && (
         <p className="mt-3 rounded-lg bg-mango/10 px-3 py-2 text-sm text-plum-ink/70">
           The follow-up tables aren&apos;t there yet. Run{" "}
-          <span className="font-mono text-xs">prisma/manual/add-acquisition-followup.sql</span> in
+          <span className="font-mono text-xs">packages/db/prisma/manual/add-acquisition-followup.sql</span> in
           Supabase — until then nothing is scheduled and nothing sends.
         </p>
       )}

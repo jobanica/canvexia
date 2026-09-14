@@ -54,7 +54,7 @@ export async function publishAnnouncement(
     );
   } catch {
     return {
-      error: "Couldn't save it — run prisma/manual/add-announcements.sql, then try again.",
+      error: "Couldn't save it — run packages/db/prisma/manual/add-announcements.sql, then try again.",
     };
   }
 

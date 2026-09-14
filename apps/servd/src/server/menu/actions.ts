@@ -349,7 +349,7 @@ export async function updateItem(
 /**
  * Counter-only, written on its own and best-effort.
  *
- * It ships as a hand-run migration (prisma/manual/add-pos-only-and-surcharge.sql),
+ * It ships as a hand-run migration (packages/db/prisma/manual/add-pos-only-and-surcharge.sql),
  * so writing it inline with the rest of the item would mean a database that
  * hasn't run the file yet can't save a menu item at all. Failing quietly here
  * costs one checkbox; failing loudly costs the whole menu editor.
@@ -417,7 +417,7 @@ async function saveFoodCost(
     return null;
   } catch (e) {
     console.error("saveFoodCost failed", e);
-    return "Everything else saved, but the food cost couldn't be. Run prisma/manual/fix-table-grants.sql, then try again.";
+    return "Everything else saved, but the food cost couldn't be. Run packages/db/prisma/manual/fix-table-grants.sql, then try again.";
   }
 }
 
@@ -529,7 +529,7 @@ export async function reorderModifierGroups(orderedIds: string[]): Promise<void>
       ),
     );
   } catch {
-    /* sortOrder not migrated yet — see prisma/manual/add-modifier-group-order.sql */
+    /* sortOrder not migrated yet — see packages/db/prisma/manual/add-modifier-group-order.sql */
   }
   await refresh();
 }

@@ -24,7 +24,7 @@ export default async function GeneratePage() {
       {!brand ? (
         <div className="rounded-tile border border-mango/40 bg-mango/10 p-4 text-sm text-plum-ink">
           The Content Engine tables aren&apos;t set up yet. Run{" "}
-          <code className="rounded bg-white px-1">prisma/manual/add-content-engine.sql</code> in the
+          <code className="rounded bg-white px-1">packages/db/prisma/manual/add-content-engine.sql</code> in the
           Supabase SQL editor, then refresh.
         </div>
       ) : (

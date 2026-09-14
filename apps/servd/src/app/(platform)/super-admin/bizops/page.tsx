@@ -262,7 +262,7 @@ function Unavailable({ what }: { what: string }) {
       <p className="text-sm font-semibold text-plum-ink">{what}</p>
       <p className="mt-1 text-xs text-plum-ink/60">
         Showing nothing rather than zeroes. If this persists, run{" "}
-        <code className="font-mono">prisma/manual/add-business-ops.sql</code>.
+        <code className="font-mono">packages/db/prisma/manual/add-business-ops.sql</code>.
       </p>
     </div>
   );

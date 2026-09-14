@@ -1,7 +1,7 @@
 /**
  * Turn a raw database error into something the person reading it can act on.
  *
- * Schema changes land here as idempotent files in prisma/manual that somebody
+ * Schema changes land here as idempotent files in packages/db/prisma/manual that somebody
  * runs by hand, so there is always a window where the code knows about a column
  * the live database doesn't have yet. What surfaces in that window is a Prisma
  * string — "The column `qrGrandfathered` does not exist in the current
@@ -20,7 +20,7 @@ export function isMissingSchemaError(e: unknown): boolean {
 }
 
 /**
- * @param sqlFile bare filename inside prisma/manual, e.g. "add-qr-grandfather.sql"
+ * @param sqlFile bare filename inside packages/db/prisma/manual, e.g. "add-qr-grandfather.sql"
  * @param fallback shown when the error is an ordinary failure, not a missing column
  */
 export function migrationHint(e: unknown, sqlFile: string, fallback?: string): string {
@@ -28,7 +28,7 @@ export function migrationHint(e: unknown, sqlFile: string, fallback?: string): s
   if (isMissingSchemaError(e)) {
     // The raw text is kept, trimmed, because it names the actual column — which
     // is the one detail that says whether the right file is being run.
-    return `This database is missing a column. Run prisma/manual/${sqlFile} in the Supabase SQL editor, then try again. (${msg.slice(0, 120)})`;
+    return `This database is missing a column. Run packages/db/prisma/manual/${sqlFile} in the Supabase SQL editor, then try again. (${msg.slice(0, 120)})`;
   }
   return fallback || msg || "Something went wrong.";
 }

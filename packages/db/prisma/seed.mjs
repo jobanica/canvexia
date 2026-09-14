@@ -1,7 +1,7 @@
 // Seeds reference data + two demo restaurants so tenant isolation can be tested.
 // Run in the trusted super-admin context so RLS lets us write across tenants.
 //
-//   node prisma/seed.mjs
+//   node packages/db/prisma/seed.mjs
 //
 // NOTE: this seeds Servd's own tables only. Linking staff logins requires
 // creating Supabase auth users (separate step, documented in README).

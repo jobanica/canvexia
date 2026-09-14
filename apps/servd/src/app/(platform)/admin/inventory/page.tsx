@@ -127,7 +127,7 @@ export default async function InventoryPage() {
               <p className="mt-1 text-sm text-plum-ink/70">
                 Counting stock per product needs a column this database doesn&apos;t have yet. Run{" "}
                 <code className="rounded bg-white px-1.5 py-0.5 text-xs">
-                  prisma/manual/add-product-stock.sql
+                  packages/db/prisma/manual/add-product-stock.sql
                 </code>{" "}
                 in the Supabase SQL editor, then reload this page. Ingredients keep working in the
                 meantime.

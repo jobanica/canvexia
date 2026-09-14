@@ -108,7 +108,7 @@ export async function replyToFeedback(
     );
   } catch {
     return {
-      error: "Couldn't save the reply — run prisma/manual/add-feedback-reply.sql, then try again.",
+      error: "Couldn't save the reply — run packages/db/prisma/manual/add-feedback-reply.sql, then try again.",
     };
   }
 

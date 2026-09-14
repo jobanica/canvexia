@@ -25,7 +25,7 @@ DO $$ BEGIN
     FOREIGN KEY ("employeeId") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- RLS + app_user grants (matches prisma/rls.sql).
+-- RLS + app_user grants (matches packages/db/prisma/rls.sql).
 ALTER TABLE "payroll_deductions" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "payroll_deductions" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "payroll_deductions";

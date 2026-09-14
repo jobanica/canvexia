@@ -153,7 +153,7 @@ export async function updatePrintSettings(
       }),
     );
   } catch {
-    /* columns not migrated yet — see prisma/manual/add-drawer-receipt-settings.sql */
+    /* columns not migrated yet — see packages/db/prisma/manual/add-drawer-receipt-settings.sql */
   }
 
   revalidatePath("/admin/printing");

@@ -3,7 +3,7 @@
 -- Two additions, both nullable, both safe to run on a live database while it is
 -- serving: nothing reads these columns until the code that writes them ships.
 --
---   psql "$DATABASE_URL" -f prisma/manual/delivery-arrival-and-diner-push.sql
+--   psql "$DATABASE_URL" -f packages/db/prisma/manual/delivery-arrival-and-diner-push.sql
 
 alter table delivery_bookings
   add column if not exists "arrivedAt"       timestamp(3),

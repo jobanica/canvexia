@@ -43,7 +43,7 @@ DO $$ BEGIN
     FOREIGN KEY ("giftCardId") REFERENCES "gift_cards"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- RLS + app_user grants (matches prisma/rls.sql).
+-- RLS + app_user grants (matches packages/db/prisma/rls.sql).
 ALTER TABLE "gift_cards" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "gift_cards" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON "gift_cards";
