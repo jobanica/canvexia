@@ -98,8 +98,8 @@ remove themselves.
 |---|---|
 | Tables | 9, all `pharmacy*`, all keyed on `pharmacyId` |
 | Policies | `tenant_isolation` on all 9, created by the axis loop without naming any of them |
-| Routes | `/login`, `/` (dashboard), `/pos` (counter), `/receiving`, `/staff`, `/logout` |
-| Tests | 78 offline, 21 DB-backed |
+| Routes | `/login`, `/` (dashboard), `/pos`, `/receipts`, `/receiving`, `/staff`, `/logout` |
+| Tests | 101 offline, 34 DB-backed |
 
 **Catalogue · batches · suppliers · stock movements · POS · expiry and low-stock
 reporting.** Not in this pass: HRIS, loyalty, prescriptions as records, stock
@@ -234,6 +234,57 @@ A pharmacist has `manageStock` but not `manageCatalogue`, so they can receive
 into products that already exist and cannot add a new one. That is not
 awkwardness for its own sake: creating a product means **pricing** it, and the
 price is what the till charges. Manager or owner. The screen says so.
+
+## Undoing a sale
+
+Two operations, and the difference is not paperwork.
+
+**Void** — the sale never really happened. Rung up twice, wrong customer,
+cashier error. Every unit goes back to the **exact batch it left**, and the
+receipt is marked voided. **Same business day only.**
+
+**Return** — the sale happened and is being partly undone. Its own document with
+its own number (`CN00000001`), any time. Stock does **not** go back on the shelf
+by default.
+
+### Why the void window
+
+A receipt is a reported figure. Voiding one from a day already closed off
+changes a number that has been filed — which is exactly what a credit note
+exists to avoid: you do not edit history, you post a correction against it. So a
+void is available while the day is open and a return afterwards. That is a
+signpost rather than a block; it routes you to the instrument that fits instead
+of inviting a workaround.
+
+A sale that already has a credit note cannot be voided either. It has been
+partly undone, and voiding as well gives the money back twice.
+
+### Returned medicine does not go back on the shelf
+
+`disposition` defaults to `destroyed`, and that is a pharmacy fact rather than a
+preference. Once a medicine has left the premises nobody can verify how it was
+stored or whether the pack was tampered with. A shop can restock a returned
+kettle; a pharmacy cannot restock a returned box of antibiotics.
+
+`restocked` exists for the case that genuinely happens — a sealed item handed
+back across the counter before the customer left — and it is a per-line choice
+that needs `manageStock`, not merely the permission to take the money back.
+
+**When it is restocked, it goes into the lot it CAME from.** A return points at
+the original sale *line*, which names the batch. The system this was derived
+from points at the product and restocks the newest batch, which puts a unit from
+one lot into another and makes both counts wrong. A recall names a lot.
+
+Either way a movement is written. Destroyed stock still moved — it left the
+customer and did not come back to the shelf — and a ledger that only records
+what it kept cannot explain what it did not.
+
+### The refund is prorated
+
+Priced from the original line, never today's price, and then scaled by what the
+customer actually paid. A ₱1,000 sale discounted to ₱800 refunds 80% of list.
+Skipping this would overpay on **every** SC/PWD return, because every SC/PWD
+sale is discounted — ₱112 of shelf price against ₱80 actually taken.
 
 ## What it still needs
 

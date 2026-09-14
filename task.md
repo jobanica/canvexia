@@ -1,12 +1,8 @@
 # Where CANVEXIA is, and what to do next
 
-CANVEXIA is **separate from servdph.com** — its own database, its own merchants,
-its own domains, and no connection between them (D31). Servd runs here as one
-product among several, starting from zero merchants.
-
-Two products are live: **Servd** (restaurants) and **Reseta** (pharmacy). Both
-are provisioned by a partner through the portal. The database is up, policies
-hold, and 1,163 tests pass.
+CANVEXIA is separate from servdph.com — its own database, its own merchants, its
+own domains (D31). Two products live: **Servd** (restaurants) and **Reseta**
+(pharmacy). 1,199 tests pass.
 
 | Domain | Serves | Deployment |
 |---|---|---|
@@ -16,123 +12,118 @@ hold, and 1,163 tests pass.
 
 ---
 
-# What to do next
+# Your pharmacy account
 
-## 1. Point the DNS and set the env
+Created in the CANVEXIA database and verified — the password hash actually
+verifies, the identity row is there, and the membership resolves.
 
-The domains are wired in code and in both `.env.example` files. What is left is
-outside this repository — see `docs/canvexia/domains.md` for the full table.
+| | |
+|---|---|
+| Pharmacy | **CANVEXIA Pharmacy Davao** (`canvexia-pharmacy-davao`) |
+| Owned by | CANVEXIA Davao — the house partner |
+| Sign in | `owner@risceta.com` |
+| Password | `a9eETJaAPvFE-Rx7` — **temporary, change it** |
+| Role | owner (every permission) |
+| Status | **pending** |
 
-**Two hosting projects:**
+**It is `pending` on purpose, and that is the one thing to decide.** A pharmacy
+cannot legally dispense before its FDA Licence to Operate is on file, so
+provisioning creates it pending and defaulting to active would mean the platform
+had enabled it. Everything works except selling. When the LTO is in hand:
 
-- `apps/servd` — add **both** `servdph.net` and `canvexia.com` to it. One
-  deployment serves both; the middleware reads the Host header and rewrites.
-- `apps/reseta` — `risceta.com`.
-
-**DNS.** The two wildcards are load-bearing — a merchant subdomain and a partner
-subdomain are both created by someone *using* the product, not by someone
-editing DNS:
-
-```
-servdph.net      apex   → Servd deployment
-www.servdph.net  CNAME
-*.servdph.net    CNAME  ← every merchant storefront
-canvexia.com     apex   → the SAME deployment
-www.canvexia.com CNAME
-*.canvexia.com   CNAME  ← every partner's branded portal
-risceta.com      apex   → Reseta deployment
-www.risceta.com  CNAME
-```
-
-Then set the env values from the two `.env.example` files in your host.
-
-## 2. Then get a real merchant in
-
-```bash
-# a. Supabase Auth variables — apps/servd/.env.example, apps/reseta/.env.example
-# b. a partner, then a merchant through the portal
-# c. the first pharmacy login (the /staff screen needs someone signed in)
-pnpm --filter reseta staff:create -- <pharmacySlug> owner <email> <password> "Name"
+```sql
+update pharmacies
+   set status = 'active',
+       "fdaLtoNumber" = 'YOUR-LTO',
+       "prcLicenseNo" = 'YOUR-PRC',
+       tin = 'YOUR-TIN',
+       "updatedAt" = now()
+ where slug = 'canvexia-pharmacy-davao';
 ```
 
-## 3. Then the next piece of Reseta
-
-Independent of each other; my order, most useful first:
-
-- **Voids and returns** — the biggest hole. `PharmacySale.status` and `voidedAt`
-  exist and nothing sets them. A void must return stock **to the batch it came
-  from** and write the compensating movement, never edit the sale. A counter
-  that cannot correct a mistake gets corrected in the drawer instead.
-- **The receipt** — `fdaLtoNumber`, `prcLicenseNo` and `tin` are captured and
-  shown nowhere. A PH pharmacy receipt has to carry them, and an SC/PWD sale has
-  to show the beneficiary's ID.
-- **Expiry write-offs** — the dashboard shows what has expired; nothing can act
-  on it. `expiry_writeoff` is already in the movement enum.
-
-Say which and I will build it.
+Rename it freely — Reseta has no slug in its URLs (D30), so the name and slug
+are display only.
 
 ---
 
-# What just changed, and what it caught
+# What to do next
 
-## servdph.com is out of this project
+## 1. Deploy Reseta and sign in
 
-`docs/canvexia/deploy-runbook.md` is **deleted**, not corrected. It described
-applying migrations and a merchant backfill to servdph.com's production
-database, and it had been the first item on this list for three rounds. A
-runbook is an instruction — left in `docs/canvexia/`, someone follows it.
-Replaced by `docs/canvexia/servd-is-separate.md`; the content is in git history
-for whoever runs that system.
+The account is waiting; the app is not up. Set the env from
+`apps/reseta/.env.example` — the same `DATABASE_URL` Servd uses, plus the
+Supabase Auth keys from the same project — and deploy `apps/reseta`.
 
-Consequently: the four "pending" migrations are **not pending here** (this
-database was built in one pass from the schema, D26), and the backfill has
-**nothing to backfill** — no CANVEXIA merchant predates `partnerId`.
+Then: sign in → **Receive** a delivery → **Counter** to sell it → **Receipts**
+to void or return it. That is the whole loop, and it is worth walking once
+before anyone else touches it.
 
-Two grandfather rules are now inert and both **stay**: `POWERED_BY_SINCE`, and
-D2's rule that a legacy-tier partner sits on 0%. No row here can satisfy either.
-They are guards, and a guard that never fires today still catches the row
-somebody imports by hand later.
+## 2. The receipt
 
-## canvexia.com would have served Servd's marketing
+The last real gap in the counter. `fdaLtoNumber`, `prcLicenseNo` and `tin` are
+captured and displayed **nowhere** — a PH pharmacy receipt has to carry them,
+and an SC/PWD sale has to show the beneficiary's ID. Nothing prints today.
 
-`parseHost` answered `platform` for the bare partner root. That was right while
-`NEXT_PUBLIC_PARTNER_ROOT_DOMAIN` was unset and hypothetical, and wrong the
-moment it became a real domain: **canvexia.com would have shown a page about
-online ordering for restaurants** at the partner program's own address.
+## 3. Then one of
 
-It now returns `partner_root` and the middleware rewrites to `/partner` — the
-same rewrite a partner subdomain gets. A test asserted the old behaviour and was
-right when written; it is now inverted, with the reason in the test name.
+- **Expiry write-offs.** The dashboard shows what has expired; nothing can act
+  on it. `expiry_writeoff` is already in the movement enum.
+- **A daily Z-reading.** The void window depends on "the business day" and
+  nothing closes one off — it is reckoned from the Manila calendar date, which
+  is right until a pharmacy trades past midnight.
+- **DNS**, when you are ready — `docs/canvexia/domains.md` has the table.
 
-## The domain was in the source fourteen times — one was a live bug
+---
 
-The badge, the QR splash, the partner support link, the prospecting User-Agent
-and ten `?? "https://servdph.com"` fallbacks. All now from
-`NEXT_PUBLIC_APP_URL`, through `apps/servd/src/lib/branding/app-domain.ts`.
+# What just landed: voids and returns
 
-Thirteen were cosmetic. **One was not.** The super-admin feedback page decided
-whether a reply would reach a real inbox by testing for `@staff.servdph.com`
-spelled out. On any other domain that says *every* synthetic login is a real
-inbox — so the reply form would tell you your answer had been emailed when it
-had not, and nothing would say otherwise.
+Two operations, and the difference is not paperwork.
 
-The test meant to cover it had reimplemented the rule locally with the domain as
-a default argument, so it passed against its own copy while the shipped page was
-wrong. It now calls the shipped function. **A test that reimplements the thing it
-tests is testing itself.**
+**Void** — the sale never happened. Every unit back to the **exact batch it
+left**, receipt marked voided. **Same business day only**: a receipt is a
+reported figure, and voiding one from a closed day changes a number that has
+been filed. That is what a credit note exists to avoid. The window is a signpost
+to the right instrument, not a block — a reversal screen that simply refuses
+gets worked around, and the workaround is a drawer that does not reconcile.
 
-## One thing still true of the other system
+**Return** — its own document, its own number series (`CN00000001`), any time.
 
-servdph.com has the D27 RLS hole: twelve tables with no policy, and Supabase
-grants the browser-side `anon` key full read/write on anything unprotected.
-`prospect_leads` — names, phones, emails and addresses of sales leads — is one.
+## Two places I did not follow Reseta
 
-**Not this project's work**, and nothing here will fix it. Recorded because it
-is a real exposure of real people's contact details on a system you run. The fix
-is one command there: this repo's `rls.sql` closes it.
+`jobanica/Pharmacy` was the source for the domain facts, and on returns it does
+two things I deliberately did not copy:
+
+**It restocks every return.** Once a medicine has left the premises nobody can
+verify how it was stored or whether the pack was tampered with. A shop can
+restock a returned kettle; a pharmacy cannot restock a returned box of
+antibiotics. `disposition` defaults to **destroyed**, and restocking is a
+per-line choice needing `manageStock` — not merely permission to hand the money
+back.
+
+**It restocks into the newest batch.** Its return items point at a *product*, so
+the lot is already lost. Mine point at the original sale *line*, which names the
+batch — so a restock goes back where it came from. A recall names a lot, and a
+unit from one lot counted into another makes both figures wrong.
+
+A test asserts both: a void leaves `SOON` and `LATER` at exactly their starting
+quantities rather than piling everything into the newest batch.
+
+## The refund is prorated
+
+Priced from the original line, then scaled by what was actually paid. Not an
+edge case: **every SC/PWD sale is discounted**, so refunding list price would
+overpay on every statutory return — ₱112 of shelf price against ₱80 taken.
+
+## One invariant worth knowing about
+
+A test runs at the end over every product: **the movement ledger sums to the
+batch quantities.** The batch quantity is the balance and the ledger is the
+statement explaining it. A reversal that touched one without the other shows up
+there and nowhere else.
 
 ## Numbers
 
+- **Reseta 101 offline + 34 DB-backed**
 - **Servd 1,026 offline + 38 DB-backed**
-- **Reseta 78 offline + 21 DB-backed**
-- both typecheck, both build
+- both typecheck, both build; RLS covers the two new tables automatically
+  (the axis loop, D29), 100 of 100 tables forced, advisor clean

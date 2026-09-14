@@ -2470,8 +2470,28 @@ enum PharmacyMovementType {
   receive
   sale
   adjustment
+  /// The whole sale reversed. Stock goes back to the exact batches it left.
   void
+  /// A customer brought something back. Whether the stock goes back on the
+  /// shelf is a separate question — see PharmacyReturnDisposition.
+  return
   expiry_writeoff
+}
+
+/// What happened to the goods a customer brought back.
+///
+/// THE DEFAULT IS `destroyed`, and that is a pharmacy fact rather than a
+/// preference. Once a medicine has left the premises nobody can verify how it
+/// was stored or whether the pack was tampered with, so it cannot go back into
+/// saleable stock. A shop can restock a returned kettle; a pharmacy cannot
+/// restock a returned box of antibiotics.
+///
+/// `restocked` exists for the case that genuinely happens — a sealed item
+/// handed back across the counter before the customer left — and it is a
+/// deliberate choice someone makes per line, never the default.
+enum PharmacyReturnDisposition {
+  destroyed
+  restocked
 }
 
 enum PharmacySaleStatus {
@@ -2527,6 +2547,11 @@ model Pharmacy {
   /// counting rows (which would reuse a number after a delete).
   nextReceiptNo Int @default(dbgenerated("1"))
 
+  /// Next credit-note number, for returns. Its OWN series, not shared with
+  /// receipts: a credit note and a receipt are different documents and BIR
+  /// wants each sequence gapless on its own terms.
+  nextReturnNo Int @default(dbgenerated("1"))
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2537,6 +2562,7 @@ model Pharmacy {
   batches    PharmacyBatch[]
   movements  PharmacyStockMovement[]
   sales      PharmacySale[]
+  returns    PharmacyReturn[]
 
   @@index([partnerId])
   @@map("pharmacies")
@@ -2746,6 +2772,7 @@ model PharmacySale {
 
   pharmacy Pharmacy           @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   items    PharmacySaleItem[]
+  returns  PharmacyReturn[]
 
   @@unique([pharmacyId, receiptNumber])
   @@index([pharmacyId, createdAt])
@@ -2785,12 +2812,80 @@ model PharmacySaleItem {
   unitCostCentavos  Int       @default(0)
   createdAt         DateTime  @default(now())
 
-  sale    PharmacySale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product PharmacyProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  batch   PharmacyBatch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  sale        PharmacySale         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product     PharmacyProduct?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+  batch       PharmacyBatch?       @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  returnItems PharmacyReturnItem[]
 
   @@index([saleId])
   @@index([productId])
   @@index([pharmacyId])
   @@map("pharmacy_sale_items")
+}
+
+/// A customer brought something back. A credit note against one sale.
+///
+/// Separate from a VOID, and the difference is not paperwork. A void says the
+/// sale never really happened — rung up twice, wrong customer, cashier error —
+/// and it is only available on the same business day, because voiding a receipt
+/// from a day already closed off would change a figure that has been reported.
+/// A return says the sale happened and is being partly undone; it is its own
+/// document, with its own number, available any time.
+model PharmacyReturn {
+  id           String @id @default(uuid())
+  pharmacyId   String
+  saleId       String
+  /// Gapless per pharmacy, and a SEPARATE series from receipts.
+  returnNumber String
+
+  reason        String?
+  totalCentavos Int     @default(0)
+  /// cash | gcash | card | maya | store_credit
+  refundMethod  String  @default(dbgenerated("'cash'"))
+
+  processedByStaffId String?
+  createdAt          DateTime @default(now())
+
+  pharmacy Pharmacy             @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  sale     PharmacySale         @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  items    PharmacyReturnItem[]
+
+  @@unique([pharmacyId, returnNumber])
+  @@index([pharmacyId, createdAt])
+  @@index([saleId])
+  @@map("pharmacy_returns")
+}
+
+/// One returned line, against the ORIGINAL SALE LINE.
+///
+/// `saleItemId` rather than just a product id, and that is the load-bearing
+/// part: a sale line names the batch the units actually came from, so a return
+/// that points at the line knows the lot. Pointing at the product instead —
+/// which is what the system this was derived from does — loses it, and a unit
+/// from one lot gets counted back into another. A recall names a lot.
+model PharmacyReturnItem {
+  id         String  @id @default(uuid())
+  pharmacyId String
+  returnId   String
+  saleItemId String
+  productId  String?
+  /// Copied from the sale line, so the trail survives even if the batch row
+  /// is later removed.
+  batchId    String?
+
+  quantity          Int
+  unitPriceCentavos Int
+  lineTotalCentavos Int
+  /// Destroyed by default: a dispensed medicine cannot go back on the shelf.
+  disposition       PharmacyReturnDisposition @default(destroyed)
+
+  createdAt DateTime @default(now())
+
+  return   PharmacyReturn   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  saleItem PharmacySaleItem @relation(fields: [saleItemId], references: [id], onDelete: Restrict)
+
+  @@index([returnId])
+  @@index([saleItemId])
+  @@index([pharmacyId])
+  @@map("pharmacy_return_items")
 }

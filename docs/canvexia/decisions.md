@@ -1216,3 +1216,79 @@ the domain as a default argument, so it passed against its own copy while the
 shipped page was wrong. It now exercises the shipped function. That is the
 lesson worth keeping: a test that reimplements the thing it tests is testing
 itself.
+
+---
+
+## D32 — A void and a return are different instruments
+
+**Settled.** Reseta's reversals, and the two places it deliberately departs from
+the system it was derived from.
+
+**Void** — the sale never really happened. Rung up twice, wrong customer,
+cashier error. Every unit goes back to the exact batch it left; the receipt is
+marked voided. **Same business day only.**
+
+**Return** — the sale happened and is being partly undone. Its own document with
+its own gapless number series (`CN…`), available any time. Stock does **not**
+go back on the shelf by default.
+
+### The void window is not an arbitrary restriction
+
+A receipt is a reported figure. Voiding one from a day already closed off
+changes a number that has been filed, which is precisely what a credit note
+exists to avoid: you do not edit history, you post a correction against it.
+
+So the window routes you to the right instrument rather than blocking you — and
+that distinction matters, because a reversal screen that simply refuses gets
+worked around, and the workaround is a cash drawer that does not reconcile. A
+sale with a credit note against it also cannot be voided: it has already been
+partly undone, and voiding as well gives the money back twice.
+
+Neither operation ever edits the sale's figures. A void flips a status; a return
+is a separate document pointing at the sale. The receipt keeps saying what it
+said when it was printed, which is the only version of this that reconciles.
+
+### Two departures from Reseta, both deliberate
+
+`jobanica/Pharmacy` was the source for the domain facts (D28) and is not
+followed here on either of these.
+
+**It restocks every return, into the newest batch of the product.** Both halves
+are wrong for a pharmacy:
+
+1. *Restocking at all.* Once a medicine has left the premises nobody can verify
+   how it was stored or whether the pack was tampered with. A shop can restock a
+   returned kettle; a pharmacy cannot restock a returned box of antibiotics.
+   `disposition` therefore defaults to `destroyed`, and `restocked` is a
+   per-line decision needing `manageStock` — not merely the permission to hand
+   the money back.
+2. *Into the newest batch.* Its `sale_return_items` points at a **product**, so
+   the lot is already lost by the time the stock goes back. A unit from one lot
+   is counted into another and both figures are wrong. Reseta's return items
+   point at the original **sale line**, which names the batch — so a restock
+   goes back where it came from. A recall names a lot.
+
+A movement is written either way. Destroyed stock still moved — it left the
+customer and did not return to the shelf — and a ledger that records only what
+it kept cannot explain what it did not.
+
+### The refund is prorated, and skipping that is a systematic overpayment
+
+Priced from the original line (never today's price), then scaled by what the
+customer actually paid. A ₱1,000 sale discounted to ₱800 refunds 80% of list.
+
+This is not an edge case: **every SC/PWD sale is discounted**, so refunding list
+price would overpay on every single statutory return — ₱112 of shelf price
+against ₱80 actually taken. The test asserts that case by name.
+
+### Verified against a real database
+
+Thirteen DB-backed tests, including the two that would have caught the
+departures above: a void puts stock back in `SOON` and `LATER` at exactly their
+starting quantities rather than piling it into the newest batch, and a restocked
+return goes into the lot the units were dispensed from.
+
+One invariant test runs at the end over every product: **the sum of the movement
+ledger equals the sum of the batch quantities.** The batch quantity is the
+balance and the ledger is the statement explaining it; a reversal that touched
+one without the other shows up there and nowhere else.
