@@ -904,3 +904,131 @@ policies, and the Supabase security advisor returning an empty list.
 **This is also a fix Servd needs.** It ships in `rls.sql`, so servdph.com picks
 it up the next time `npm run db:rls` runs — which the deploy runbook already
 calls for as step 2.
+
+---
+
+## D28 — The first vertical is Reseta (pharmacy), because it is the only one that exists
+
+**Settled**, and it settles itself once the repositories are opened.
+
+D24 named three repositories as the specification for future verticals and
+flagged: *"Worth confirming before the first line of a new vertical: that this is
+a deliberate trade and not an underestimate of what is already in those repos."*
+
+Confirmed, and the answer is the opposite of what the brief says:
+
+| Repository | Brief says | Actually |
+|---|---|---|
+| `jobanica/print-new` | *"fully specced (22-phase build, 33-table schema)"* | **empty** |
+| `jobanica/laundry` | pushed the day before this work started | **empty** |
+| `jobanica/Pharmacy` | — | **347 files. A complete MVP**, 39 tables, 52 migrations, ~50 routes, live at reseta.vercel.app |
+
+So D24's cost — "those repositories contain real work… whoever writes the new
+version has to actually read it or the specification is lost with it" — applies
+to exactly one of them.
+
+That also resolves the constraint the brief set: *"Do not guess on schema for
+Pharmacy or Laundry — those come in later prompts."* For laundry and print there
+is nothing to read, so building either means guessing, which is forbidden. For
+pharmacy there is a working schema to derive from, so no guessing is required.
+**The constraint selects the vertical.**
+
+### What was taken, and what was not
+
+**Taken** — domain facts that would have been got wrong by invention:
+
+- **Batch-level stock with lot numbers and expiry dates.** Stock is not a number
+  on the product; it is the sum of unexpired batches.
+- **FEFO dispensing** — first *expiry* out, not first *in*. A delivery received
+  last week routinely expires before one received last year, so received date
+  only breaks ties.
+- **The SC/PWD formula.** RA 9994 and RA 10754 give 20% off the **VAT-exclusive**
+  price, and the sale is VAT-exempt: `net = price / 1.12 * 0.8`. The obvious
+  `price * 0.8` overcharges every beneficiary by exactly the VAT on the
+  discounted price — ₱9.60 on a ₱112 box, silently, forever. Reseta's
+  `complete_sale` has the right one; it is asserted in
+  `apps/reseta/tests/pharmacy/discount.test.ts` as law rather than as behaviour.
+- **Gapless receipt numbering**, allocated by incrementing a counter inside the
+  sale transaction. Counting rows reissues a number after a void.
+- **The Rx gate**, checked across the whole cart before anything is written.
+
+**Not taken** — its tenancy. Reseta is `organizations` + `branches` +
+`memberships` with Supabase-Auth RLS (`auth_org_id()`, `has_org_role()`). None of
+that survives: a CANVEXIA merchant is owned by a partner, and the policies
+resolve through `partnerId`. Reconciling two tenancy models is precisely the work
+D24 chose to avoid, and it is most of what a migration would have been.
+
+### The shape that came out of it
+
+`pharmacies` carries `partnerId` before its first row. There is no backfill, no
+grandfathering, no "which of these tables predate tenancy" — the class of problem
+that produced the Phase 1 and Phase 3 ownership bugs does not arise. The adapter
+is 25 lines against Servd's 45, and the difference is exactly that.
+
+**Scope of this pass**: catalogue, batches, suppliers, stock movements, POS with
+FEFO + SC/PWD + Rx gate, expiry and low-stock reporting. **Not** in it: HRIS,
+loyalty, prescriptions as records, stock transfers, stocktakes, purchase-order
+receiving, z-readings, online orders. Reseta has all of those and they are all
+real; none is load-bearing for the platform question this pass had to answer.
+
+## D29 — Each product gets its own merchant table, and RLS loops over the axes
+
+**Settled.** The architectural decision the first vertical forced.
+
+`ProvisionResult.merchantId` already said it — *"the new tenant's id WITHIN that
+product. Not globally unique across products"* — but nothing had tested it,
+because there was only one product.
+
+The alternative was one shared `merchants` table. Rejected: a pharmacy needs an
+FDA Licence to Operate and a PRC number, a restaurant needs a printer config and
+a QR grandfather flag, and neither belongs on the other. One table means either a
+column soup of every product's fields or a Json blob nobody can query.
+
+So `pharmacies` sits beside `restaurants`, and what they share is the contract:
+
+1. a `partnerId` column, same name and same meaning, so one partner arm works
+   for every product;
+2. a foreign-key column on every tenant table pointing at it;
+3. a GUC carrying the current merchant id.
+
+`rls.sql`'s tenant loop now iterates over those three-tuples instead of hard-coding
+`restaurantId`/`restaurants`. **Adding a product is one array entry**, and every
+tenant table of that product is covered the moment it exists — the same
+catalogue-driven reasoning that fixed the thirteen uncovered tables in D7, one
+level up. Applying it to the live database created `tenant_isolation` on all nine
+pharmacy tables without naming any of them.
+
+The list exists twice — `MERCHANT_AXES` in `packages/core`, and an array literal
+in `rls.sql` — because SQL cannot import TypeScript.
+`apps/reseta/tests/isolation/merchant-axes.test.ts` reads the SQL as text and
+fails if they disagree, including checking that every axis has its helper
+function declared. Without it the drift is silent: a mismatched GUC name makes
+`current_setting(..., true)` return NULL, the policy matches nothing, and the
+symptom is an empty screen a long way from the cause.
+
+### `partner_ledger_entries.restaurantId` had to go
+
+It was never a restaurant id in meaning — it was a merchant id — and it cannot
+be a foreign key, because which table it indexes depends on the product. It is
+now `merchantId` + `productId`. Renamed in place, never dropped and re-added:
+`prisma migrate diff` emits the destructive version, which would discard every
+settlement row. `add-partner-ledger.sql` carries the rename so a database that
+applied the first version moves forward without losing anything; servdph.com has
+not applied it at all yet, so for it this is simply the shape it arrives in.
+
+### What was proved, against the live CANVEXIA database
+
+Two partners, a pharmacy each, read back as `app_user` with **no where clause
+anywhere**:
+
+| Check | Result |
+|---|---|
+| Partner sees its own pharmacy | ✅ only its own |
+| Partner sees products / batches | ✅ only its own lot numbers |
+| Partner reads the *other* axis (`restaurants`) | ✅ nothing |
+| Merchant scope (`app.current_pharmacy_id`) | ✅ only its own rows |
+| Partner fetches a rival's batch **by primary key** | ✅ nothing |
+| Partner updates a rival's pharmacy to claim it | ✅ **0 rows** |
+| Merchant reads `partner_ledger_entries` | ✅ nothing — the split is not theirs |
+| Tables with RLS enabled *and* forced | ✅ 98 of 98 |
+| Supabase security advisor | ✅ empty |

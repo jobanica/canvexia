@@ -99,7 +99,11 @@ export async function recordSettlement(
   await tx.partnerLedgerEntry.create({
     data: {
       partnerId: restaurant.partnerId,
-      restaurantId,
+      // Servd's merchants are restaurants. The ledger is product-agnostic —
+      // a merchant id means nothing without knowing which product's table it
+      // indexes — so every writer states its own product.
+      productId: "servd",
+      merchantId: restaurantId,
       kind,
       providerRef,
       grossAmount,

@@ -13,8 +13,10 @@
  * bug with more steps.
  */
 export const GUC = {
-  /** The merchant the request is scoped to. Set by tenantDb(). */
+  /** The Servd merchant the request is scoped to. Set by tenantDb(). */
   restaurantId: "app.current_restaurant_id",
+  /** The Reseta merchant the request is scoped to. Set by pharmacyDb(). */
+  pharmacyId: "app.current_pharmacy_id",
   /** The CANVEXIA partner the request is scoped to. Set by partnerDb(). */
   partnerId: "app.current_partner_id",
   /** Trusted system context. Set by systemDb(). Bypasses every tenant policy. */

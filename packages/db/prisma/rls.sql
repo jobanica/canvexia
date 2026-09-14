@@ -56,6 +56,18 @@ create or replace function app.current_partner_id() returns text
     select nullif(current_setting('app.current_partner_id', true), '')
 $$;
 
+-- The Reseta (pharmacy) merchant the current request is scoped to.
+--
+-- A second product means a second merchant axis, not a second copy of this
+-- file: `pharmacies` carries `partnerId` exactly as `restaurants` does, so the
+-- partner arm below is the same expression with different table and column
+-- names. See MERCHANT_AXES in packages/core/src/tenancy/merchant.ts — the
+-- array in the loop below is its other copy, and a test asserts they agree.
+create or replace function app.current_pharmacy_id() returns text
+  language sql stable as $$
+    select nullif(current_setting('app.current_pharmacy_id', true), '')
+$$;
+
 -- ----------------------------------------------------------------------------
 -- app_user: a NON-privileged role (no BYPASSRLS) that tenantDb() switches to,
 -- so Row-Level Security is always enforced even if the pooled connection role
@@ -86,7 +98,8 @@ end $$;
 
 -- ----------------------------------------------------------------------------
 -- Tenant tables: enable + FORCE rls and add a tenant policy for every table
--- with a direct restaurant foreign key ("restaurantId" column).
+-- with a direct merchant foreign key — "restaurantId" for Servd, "pharmacyId"
+-- for Reseta, one pass of the loop per axis.
 --
 -- This list used to be written out by hand, and it drifted. Adding a model and
 -- remembering to add it here are two separate acts, and the second one was
@@ -101,15 +114,24 @@ end $$;
 -- Asking the catalogue instead means a new tenant table is covered the moment
 -- it exists, which is the only version of this that stays true.
 --
--- The exclusion list is the other half. A few tables carry "restaurantId" and
+-- The exclusion list is the other half. A few tables carry a merchant column and
 -- are NOT tenant-owned: platform data that happens to name a restaurant. Those
--- get a super-admin-only policy further down. The DEFAULT for a restaurantId
+-- get a super-admin-only policy further down. The DEFAULT for a merchant-keyed
 -- table is tenant isolation — anything added to this array needs a reason of
 -- the same kind, in a comment beside it.
 -- ----------------------------------------------------------------------------
 do $$
 declare
   t text;
+  axis record;
+  -- One row per product. Each names the merchant table, the column its tenant
+  -- tables carry, and the GUC that scopes a request to one merchant. Mirrors
+  -- MERCHANT_AXES in packages/core; tests/isolation/merchant-axes.test.ts fails
+  -- if the two drift.
+  axes text[][] := array[
+    array['restaurants', 'restaurantId', 'app.current_restaurant_id'],
+    array['pharmacies',  'pharmacyId',   'app.current_pharmacy_id']
+  ];
   platform_owned text[] := array[
     'platform_feedback', -- owners' feedback ABOUT Servd, read by the super-admin
     'crm_clients',       -- the founder's own sales pipeline
@@ -119,76 +141,85 @@ declare
     'partner_ledger_entries' -- see the policy below: partner + HQ only
   ];
 begin
-  for t in
-    select c.table_name
-      from information_schema.columns c
-      join information_schema.tables tb
-        on tb.table_schema = c.table_schema
-       and tb.table_name = c.table_name
-     where c.table_schema = 'public'
-       and c.column_name = 'restaurantId'
-       and tb.table_type = 'BASE TABLE'
-       and not (c.table_name = any(platform_owned))
-     order by c.table_name
+  for axis in
+    select axes[i][1] as merchant_table,
+           axes[i][2] as fk_column,
+           axes[i][3] as guc
+      from generate_subscripts(axes, 1) as i
   loop
-    execute format('alter table %I enable row level security;', t);
-    execute format('alter table %I force row level security;', t);
-    execute format('drop policy if exists tenant_isolation on %I;', t);
-    -- Three ways a row is visible: the trusted system context, the merchant it
-    -- belongs to, or the partner that owns that merchant. The partner arm is a
-    -- semi-join through restaurants; with restaurants_partnerId_idx in place it
-    -- is an index lookup per row group, not a scan.
+    for t in
+      select c.table_name
+        from information_schema.columns c
+        join information_schema.tables tb
+          on tb.table_schema = c.table_schema
+         and tb.table_name = c.table_name
+       where c.table_schema = 'public'
+         and c.column_name = axis.fk_column
+         and tb.table_type = 'BASE TABLE'
+         and c.table_name <> axis.merchant_table
+         and not (c.table_name = any(platform_owned))
+       order by c.table_name
+    loop
+      execute format('alter table %I enable row level security;', t);
+      execute format('alter table %I force row level security;', t);
+      execute format('drop policy if exists tenant_isolation on %I;', t);
+      -- Three ways a row is visible: the trusted system context, the merchant it
+      -- belongs to, or the partner that owns that merchant. The partner arm is a
+      -- semi-join through the merchant table; with its partnerId index in place
+      -- it is an index lookup per row group, not a scan.
+      --
+      -- %1$I rather than a bare column reference in the sub-select: unqualified
+      -- "restaurantId" happens to resolve to the outer table today only because
+      -- restaurants has no column by that name, which is a coincidence and not a
+      -- guarantee worth resting fifty policies on.
+      execute format($f$
+        create policy tenant_isolation on %1$I
+        using (
+          app.is_super_admin()
+          or %1$I.%2$I = nullif(current_setting(%3$L, true), '')
+          or exists (
+            select 1 from %4$I m
+            where m.id = %1$I.%2$I
+              and m."partnerId" = app.current_partner_id()
+          )
+        )
+        with check (
+          app.is_super_admin()
+          or %1$I.%2$I = nullif(current_setting(%3$L, true), '')
+          or exists (
+            select 1 from %4$I m
+            where m.id = %1$I.%2$I
+              and m."partnerId" = app.current_partner_id()
+          )
+        );
+      $f$, t, axis.fk_column, axis.guc, axis.merchant_table);
+    end loop;
+
+    -- The merchant table itself: a staff user sees only their own merchant row;
+    -- a partner sees the merchants it owns and nothing else.
     --
-    -- %1$I rather than a bare column reference in the sub-select: unqualified
-    -- "restaurantId" happens to resolve to the outer table today only because
-    -- restaurants has no column by that name, which is a coincidence and not a
-    -- guarantee worth resting fifty policies on.
+    -- The with-check arm is what stops a partner claiming somebody else's
+    -- merchant: an update that would set "partnerId" to anything other than the
+    -- caller's own fails the check, and the row was already invisible to them
+    -- under using.
+    execute format('alter table %I enable row level security;', axis.merchant_table);
+    execute format('alter table %I force row level security;', axis.merchant_table);
+    execute format('drop policy if exists tenant_isolation on %I;', axis.merchant_table);
     execute format($f$
       create policy tenant_isolation on %1$I
       using (
         app.is_super_admin()
-        or "restaurantId" = app.current_restaurant_id()
-        or exists (
-          select 1 from restaurants r
-          where r.id = %1$I."restaurantId"
-            and r."partnerId" = app.current_partner_id()
-        )
+        or id = nullif(current_setting(%2$L, true), '')
+        or "partnerId" = app.current_partner_id()
       )
       with check (
         app.is_super_admin()
-        or "restaurantId" = app.current_restaurant_id()
-        or exists (
-          select 1 from restaurants r
-          where r.id = %1$I."restaurantId"
-            and r."partnerId" = app.current_partner_id()
-        )
+        or id = nullif(current_setting(%2$L, true), '')
+        or "partnerId" = app.current_partner_id()
       );
-    $f$, t);
+    $f$, axis.merchant_table, axis.guc);
   end loop;
 end $$;
-
--- ----------------------------------------------------------------------------
--- restaurants: a staff user sees only their own restaurant row; a partner sees
--- the merchants it owns and nothing else.
---
--- The with-check arm is what stops a partner claiming somebody else's merchant:
--- an update that would set "partnerId" to anything other than the caller's own
--- fails the check, and the row was already invisible to them under using.
--- ----------------------------------------------------------------------------
-alter table restaurants enable row level security;
-alter table restaurants force row level security;
-drop policy if exists tenant_isolation on restaurants;
-create policy tenant_isolation on restaurants
-  using (
-    app.is_super_admin()
-    or id = app.current_restaurant_id()
-    or "partnerId" = app.current_partner_id()
-  )
-  with check (
-    app.is_super_admin()
-    or id = app.current_restaurant_id()
-    or "partnerId" = app.current_partner_id()
-  );
 
 -- ----------------------------------------------------------------------------
 -- audit_logs: the one tenant table whose "restaurantId" can be NULL.
@@ -383,7 +414,8 @@ create policy partner_self on partners
 -- ----------------------------------------------------------------------------
 -- partner_ledger_entries: the partner who earned it, and HQ. NOT the merchant.
 --
--- Excluded from the tenant loop even though it carries a "restaurantId", and the
+-- Excluded from the tenant loop — it carries "merchantId", not any axis's own
+-- column, and could not be reached by the loop even if it were wanted there. The
 -- reason is not tidiness. Each row holds the partner/HQ split of that payment —
 -- a commercial term between CANVEXIA and the operator. Under the generic tenant
 -- policy a restaurant could read its own rows and learn exactly what its partner

@@ -10,7 +10,12 @@
 CREATE TABLE IF NOT EXISTS "partner_ledger_entries" (
   "id"            TEXT PRIMARY KEY,
   "partnerId"     TEXT NOT NULL,
-  "restaurantId"  TEXT NOT NULL,
+  -- Which product the merchant belongs to, and its id WITHIN that product.
+  -- Not a foreign key and cannot be one: the table "merchantId" indexes
+  -- depends on "productId". Defaults to 'servd' because that was the only
+  -- product when this file was first written.
+  "productId"     TEXT NOT NULL DEFAULT 'servd',
+  "merchantId"    TEXT NOT NULL,
   "kind"          TEXT NOT NULL,
   "providerRef"   TEXT NOT NULL,
   "grossAmount"   INTEGER NOT NULL,
@@ -28,9 +33,32 @@ CREATE UNIQUE INDEX IF NOT EXISTS "partner_ledger_entries_providerRef_key"
 
 CREATE INDEX IF NOT EXISTS "partner_ledger_entries_partnerId_occurredAt_idx"
   ON "partner_ledger_entries" ("partnerId", "occurredAt");
-CREATE INDEX IF NOT EXISTS "partner_ledger_entries_restaurantId_idx"
-  ON "partner_ledger_entries" ("restaurantId");
+CREATE INDEX IF NOT EXISTS "partner_ledger_entries_productId_merchantId_idx"
+  ON "partner_ledger_entries" ("productId", "merchantId");
 
--- Expect one row, true.
+-- Rename forward for any database that applied the first version of this file.
+-- No-ops on a table that already has the new shape.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'partner_ledger_entries'
+                AND column_name = 'restaurantId') THEN
+    ALTER TABLE "partner_ledger_entries" RENAME COLUMN "restaurantId" TO "merchantId";
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_name = 'partner_ledger_entries'
+                    AND column_name = 'productId') THEN
+    ALTER TABLE "partner_ledger_entries" ADD COLUMN "productId" TEXT NOT NULL DEFAULT 'servd';
+  END IF;
+END $$;
+DROP INDEX IF EXISTS "partner_ledger_entries_restaurantId_idx";
+
+-- Expect one row, all true.
 SELECT 'partner_ledger_entries' AS table,
-       to_regclass('public.partner_ledger_entries') IS NOT NULL AS present;
+       to_regclass('public.partner_ledger_entries') IS NOT NULL AS present,
+       EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'partner_ledger_entries'
+                  AND column_name = 'merchantId') AS has_merchant_id,
+       EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'partner_ledger_entries'
+                  AND column_name = 'productId') AS has_product_id;

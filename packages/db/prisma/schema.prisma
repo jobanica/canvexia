@@ -148,13 +148,13 @@ model PlatformSetting {
 /// surfaced to the super-admin. Platform-level (no tenant RLS); written + read
 /// through systemDb.
 model PlatformFeedback {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   restaurantId   String?
   restaurantName String?
   authorEmail    String?
   rating         Int? // optional 1–5
   message        String
-  resolved       Boolean  @default(false)
+  resolved       Boolean   @default(false)
   /// What the Servd team wrote back, shown to the owner in their own dashboard.
   ///
   /// Kept on the feedback row rather than as a thread: this is a reply to one
@@ -167,7 +167,7 @@ model PlatformFeedback {
   repliedAt      DateTime?
   /// When the owner saw the reply. Drives the unread dot on their sidebar.
   replyReadAt    DateTime?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   @@index([createdAt])
   @@index([restaurantId])
@@ -204,7 +204,7 @@ model ProspectLead {
 /// Outreach CRM (platform/super-admin only): clients you message on Facebook,
 /// tracked through a follow-up sequence until they reply. Never tenant-visible.
 model CrmClient {
-  id               String          @id @default(uuid())
+  id               String    @id @default(uuid())
   name             String
   facebookUrl      String?
   contactName      String?
@@ -212,14 +212,14 @@ model CrmClient {
   email            String?
   address          String?
   notes            String?
-  stage            String          @default("new") // new | in_sequence | replied | won | lost | revisit
-  step             Int             @default(0) // touches sent (0..TOTAL_TOUCHES)
+  stage            String    @default("new") // new | in_sequence | replied | won | lost | revisit
+  step             Int       @default(0) // touches sent (0..TOTAL_TOUCHES)
   lastTouchAt      DateTime?
   nextDueAt        DateTime? // when the next follow-up is due
   repliedAt        DateTime?
   revisitAt        DateTime? // when to re-approach a no-reply prospect (revisit bucket)
   demoRestaurantId String? // the demo storefront created for this client, if any
-  source           String          @default("manual")
+  source           String    @default("manual")
 
   // --- Business-operations layer (super-admin only) ------------------------
   // Added so ONE pipeline covers both intake tracks. The manual/VA track walks
@@ -229,24 +229,24 @@ model CrmClient {
   // drives must keep working on a database that hasn't run it.
   //
   /// The tenant this lead became, once it exists. Null while still a prospect.
-  restaurantId     String?
+  restaurantId  String?
   /// Fulfillment milestones. Null means "not reached", never "unknown date" —
   /// inventing a timestamp would quietly corrupt every funnel average.
-  materialsAt      DateTime?
-  productionAt     DateTime?
-  previewSentAt    DateTime?
-  paidAt           DateTime?
-  activatedAt      DateTime?
+  materialsAt   DateTime?
+  productionAt  DateTime?
+  previewSentAt DateTime?
+  paidAt        DateTime?
+  activatedAt   DateTime?
   /// Who is working it, and why it died. Free text: the VA roster is a handful
   /// of people, and a foreign key to auth.users would be a schema change to a
   /// table this layer is forbidden from touching.
-  assignedTo       String?
-  lostReason       String?
+  assignedTo    String?
+  lostReason    String?
 
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  touches          CrmTouch[]
-  outreachVideos   OutreachVideo[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  touches        CrmTouch[]
+  outreachVideos OutreachVideo[]
 
   @@index([restaurantId])
   @@index([stage])
@@ -714,11 +714,11 @@ model PushSubscription {
 
 /// Public website settings: store hours + delivery zones/fees.
 model StorefrontSetting {
-  id              String   @id @default(uuid())
-  restaurantId    String   @unique
-  hours           Json? // [{open,close,closed}] index 0=Sun … 6=Sat
-  deliveryZones   Json? // [{name, fee}] fee in centavos
-  pauseWhenClosed Boolean  @default(false) // block online orders outside hours
+  id                String   @id @default(uuid())
+  restaurantId      String   @unique
+  hours             Json? // [{open,close,closed}] index 0=Sun … 6=Sat
+  deliveryZones     Json? // [{name, fee}] fee in centavos
+  pauseWhenClosed   Boolean  @default(false) // block online orders outside hours
   /// Manual "stop taking online orders" switch, for when the kitchen is buried.
   ///
   /// Separate from pauseWhenClosed, which is automatic and tied to opening
@@ -729,7 +729,7 @@ model StorefrontSetting {
   /// Nullable with NO default: a static default would be sent by Prisma on
   /// every insert and break saving storefront settings on a database that
   /// lacks the column. Null means not paused.
-  ordersPaused    Boolean?
+  ordersPaused      Boolean?
   /// Accept an online order by itself if nobody has answered it within this
   /// many seconds. Null or 0 means off, which is how every shop behaves until
   /// somebody turns it on.
@@ -743,10 +743,10 @@ model StorefrontSetting {
   /// storefront_settings row, which breaks saving settings on a database that
   /// has not run the migration.
   autoAcceptSeconds Int?
-  acceptsBookings Boolean  @default(false) // show the "Book a table" flow on the website
-  bookingConfig   Json? // { requireDownpayment, downpaymentType, downpaymentValue, downpaymentInstructions }
-  paymentConfig   Json? // { codEnabled, gcashEnabled, gcashName, gcashNumber, gcashQrUrl }
-  deliveryConfig  Json? // { mode, baseFee, perKm, freeKm, minFee, maxKm, roadFactor, originLat, originLng }
+  acceptsBookings   Boolean  @default(false) // show the "Book a table" flow on the website
+  bookingConfig     Json? // { requireDownpayment, downpaymentType, downpaymentValue, downpaymentInstructions }
+  paymentConfig     Json? // { codEnabled, gcashEnabled, gcashName, gcashNumber, gcashQrUrl }
+  deliveryConfig    Json? // { mode, baseFee, perKm, freeKm, minFee, maxKm, roadFactor, originLat, originLng }
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -879,24 +879,24 @@ model LoyaltyTransaction {
 }
 
 model StaffUser {
-  id           String    @id @default(uuid())
-  restaurantId String
+  id               String    @id @default(uuid())
+  restaurantId     String
   // Authentication is handled by Supabase Auth (passwords live in auth.users,
   // hashed + salted by Supabase). We DON'T roll our own password storage.
   // NOT globally unique: one login can be staff at several restaurants, which
   // is how an owner runs multiple branches from a single account. Unique per
   // restaurant instead, so they still can't hold two roles in the same shop.
-  authUserId   String
-  role         StaffRole
-  email        String
-  username     String?   @unique // optional login handle (super-admin can create by username)
-  displayName  String?
+  authUserId       String
+  role             StaffRole
+  email            String
+  username         String?   @unique // optional login handle (super-admin can create by username)
+  displayName      String?
   /// Set only on a throwaway login made to demo a storefront to a prospect.
   /// Carrying an expiry IS what makes it temporary — there is no second boolean
   /// to fall out of step with it. NULL on every real staff account, which is
   /// what the conversion check and the staff list both rely on.
   previewExpiresAt DateTime?
-  createdAt    DateTime  @default(now())
+  createdAt        DateTime  @default(now())
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -1186,11 +1186,11 @@ model LandingStat {
 /// A platform partner. Has its own login (Supabase auth) and can set up an
 /// unlimited number of restaurants, which they bill directly.
 model Partner {
-  id               String   @id @default(uuid())
-  authUserId       String?  @unique // Supabase auth user for the partner portal
-  name             String
-  email            String   @unique
-  status           String   @default("pending") // pending | approved | suspended | rejected
+  id         String  @id @default(uuid())
+  authUserId String? @unique // Supabase auth user for the partner portal
+  name       String
+  email      String  @unique
+  status     String  @default("pending") // pending | approved | suspended | rejected
   /// "reseller" = the legacy zero-cut program. "operator" = a CANVEXIA city
   /// operator on a revenue share. "affiliate" survives only on old rows.
   ///
@@ -1200,7 +1200,7 @@ model Partner {
   /// share, and an operator with a 0% share is rejected — see
   /// src/lib/partners/revenue-share.ts, because a silent 0 there is CANVEXIA
   /// earning nothing on a partner forever and nothing surfacing to say so.
-  tier             String   @default("reseller")
+  tier       String  @default("reseller")
 
   // --- CANVEXIA operator fields ---------------------------------------------
   // All nullable or database-defaulted, because every one of them is being
@@ -1211,23 +1211,23 @@ model Partner {
   // length on Restaurant.autoPrintReceipt.
   //
   /// URL label for the {slug}.canvexia.app fallback domain.
-  slug             String?  @unique
+  slug                String?  @unique
   /// Display name, logo, colors, support contacts, legal footer. Shape lives in
   /// packages/core/src/branding. Null = inherit the platform's own brand.
-  brandConfig      Json?
+  brandConfig         Json?
   /// City or province this operator is licensed for. Free text until HQ
   /// territory management lands in Phase 2.
-  territory        String?
+  territory           String?
   /// The operator's cut of merchant subscription revenue, as a percentage.
   /// 0 for every legacy partner; 70 for a CANVEXIA operator.
-  revenueSharePct  Int      @default(dbgenerated("0"))
+  revenueSharePct     Int      @default(dbgenerated("0"))
   /// Who takes the merchant's money: "partner_collects" (the operator's own
   /// gateway account, the CANVEXIA default) or "hq_collects".
-  collectionMode   String   @default(dbgenerated("'partner_collects'"))
+  collectionMode      String   @default(dbgenerated("'partner_collects'"))
   /// "powered_by" keeps a CANVEXIA/Servd credit on customer-facing surfaces;
   /// "full_whitelabel" removes it. Reconciled with the per-merchant white-label
   /// unlock in Phase 5 — today they are two systems answering one question.
-  brandMode        String   @default(dbgenerated("'powered_by'"))
+  brandMode           String   @default(dbgenerated("'powered_by'"))
   /// This operator's sub-account under CANVEXIA's own gateway platform.
   ///
   /// An IDENTIFIER, not a secret — which is the whole point of D5 Option B. The
@@ -1244,11 +1244,11 @@ model Partner {
   // Payout/tax columns from the commission era. Servd pays partners nothing, so
   // new applications never fill these in; they stay only to preserve what was
   // already collected. Nothing reads them.
-  payoutMethod     String?
-  payoutDetailsEnc String?
-  taxInfoEnc       String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  payoutMethod        String?
+  payoutDetailsEnc    String?
+  taxInfoEnc          String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@map("partners")
 }
@@ -1271,7 +1271,15 @@ model Partner {
 model PartnerLedgerEntry {
   id            String   @id @default(uuid())
   partnerId     String
-  restaurantId  String
+  /// Which product the merchant belongs to. Ledger rows outlive the app that
+  /// wrote them, and "merchant abc123" means nothing without it once there is
+  /// more than one product — ids are unique within a product, not across them
+  /// (see ProvisionResult.merchantId).
+  productId     String   @default(dbgenerated("'servd'"))
+  /// The merchant id WITHIN that product: restaurants.id for servd,
+  /// pharmacies.id for pharmacy. Not a foreign key, and cannot be one — the
+  /// table it points at depends on productId.
+  merchantId    String
   /// "subscription" | "addon" | "feature" | "activation"
   kind          String
   /// The gateway reference this settlement came from. UNIQUE, which is what
@@ -1292,7 +1300,7 @@ model PartnerLedgerEntry {
   occurredAt    DateTime @default(now())
 
   @@index([partnerId, occurredAt])
-  @@index([restaurantId])
+  @@index([productId, merchantId])
   @@map("partner_ledger_entries")
 }
 
@@ -2015,32 +2023,32 @@ model DeliverySettings {
 
 /// A third-party rider booking attached to a delivery order. One per order.
 model DeliveryBooking {
-  id           String   @id @default(uuid())
-  restaurantId String
-  orderId      String   @unique
-  provider     String // manual | deeplink | api
-  providerKey  String?
-  bookingRef   String? // the provider's booking id
-  status       String   @default("manual") // searching|assigned|picked_up|delivered|cancelled|failed|manual
-  fee          Int? // centavos
-  etaMinutes   Int?
-  riderName    String?
-  riderPhone   String?
-  riderLat     Float?
-  riderLng     Float?
-  trackingUrl  String?
+  id              String    @id @default(uuid())
+  restaurantId    String
+  orderId         String    @unique
+  provider        String // manual | deeplink | api
+  providerKey     String?
+  bookingRef      String? // the provider's booking id
+  status          String    @default("manual") // searching|assigned|picked_up|delivered|cancelled|failed|manual
+  fee             Int? // centavos
+  etaMinutes      Int?
+  riderName       String?
+  riderPhone      String?
+  riderLat        Float?
+  riderLng        Float?
+  trackingUrl     String?
   /// Set when the rider says they are at the door. Not a status on the
   /// provider's side either — it happens during "out for delivery" and the
   /// delivery is not over until somebody hands the food across.
-  arrivedAt    DateTime?
+  arrivedAt       DateTime?
   /// The last thing the rider said to this diner, kept only so the tracker can
   /// show and announce it. The conversation itself lives on the provider's
   /// tracking page; this is a doorbell, not a second inbox.
   lastMessageAt   DateTime?
   lastMessageBody String?
-  raw          Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  raw             Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([restaurantId])
   @@index([bookingRef])
@@ -2422,4 +2430,359 @@ model AnnouncementRead {
   @@unique([announcementId, staffUserId])
   @@index([staffUserId])
   @@map("announcement_reads")
+}
+
+// ============================================================================
+// RESETA — pharmacy (product id "pharmacy")
+//
+// The second product on this schema, and the first written here rather than
+// retrofitted (D24). Everything below is derived from jobanica/Pharmacy, a
+// working MVP, rather than invented: the batch/expiry model, FEFO dispensing,
+// and the statutory Senior Citizen / PWD arithmetic are domain facts that would
+// have been got wrong by guessing. What is NOT carried over is that repo's
+// tenancy — organizations/branches/memberships with Supabase-Auth RLS — which is
+// replaced wholesale by the CANVEXIA partner axis. That replacement is the
+// reason D24 says rebuild rather than migrate.
+//
+// TENANCY: every table here carries `pharmacyId`, exactly as Servd's carry
+// `restaurantId`. rls.sql loops over both axes; see MERCHANT_AXES in
+// packages/core. A pharmacy's owner is `Pharmacy.partnerId`, the same column
+// name and the same meaning as `Restaurant.partnerId`.
+//
+// TABLE NAMES are all prefixed `pharmacy_`. Servd already owns `categories`,
+// `suppliers` and `products` in this schema, and three of those names are ones
+// a pharmacy wants too. One schema for every product (D25) makes the namespace
+// shared, so the prefix is the cost of that decision, paid here.
+//
+// MONEY is centavos, everywhere, as integers — same as Servd.
+// ============================================================================
+
+enum PharmacyStaffRole {
+  owner
+  manager
+  /// Licensed pharmacist. The only role permitted to dispense a prescription
+  /// item in PH practice; the gate is enforced in code, not by this enum.
+  pharmacist
+  cashier
+}
+
+enum PharmacyMovementType {
+  receive
+  sale
+  adjustment
+  void
+  expiry_writeoff
+}
+
+enum PharmacySaleStatus {
+  completed
+  voided
+}
+
+/// `sc` and `pwd` are the two statutory discounts, and they are not ordinary
+/// percentage discounts — see the note on PharmacySale.discountAmount.
+enum PharmacyDiscountType {
+  none
+  manual
+  sc
+  pwd
+}
+
+/// A pharmacy merchant. The pharmacy equivalent of Restaurant.
+///
+/// `partnerId` is the ownership axis and the whole point: it exists before the
+/// first row, so there is no backfill, no grandfathering and no reconciling a
+/// tenancy model that predates it. That is what D24 bought by rebuilding.
+model Pharmacy {
+  id        String  @id @default(uuid())
+  /// The CANVEXIA partner that owns this merchant. Same meaning as
+  /// Restaurant.partnerId; the RLS partner arm resolves through it.
+  partnerId String?
+  name      String
+  slug      String  @unique
+  /// active | suspended | pending
+  status    String  @default(dbgenerated("'pending'"))
+
+  displayName String?
+  logoUrl     String?
+  tagline     String?
+  address     String?
+  phone       String?
+  email       String?
+
+  /// FDA Licence to Operate number. Displayed on the receipt; PH pharmacies
+  /// must show it. Nullable because a merchant is created before it is chased.
+  fdaLtoNumber String?
+  /// The supervising pharmacist's PRC licence number, shown on the receipt.
+  prcLicenseNo String?
+  /// BIR Taxpayer Identification Number.
+  tin          String?
+  /// VAT rate as a whole percent. 12 in the Philippines, and a column rather
+  /// than a constant because the SC/PWD arithmetic divides by it — a rate
+  /// change must not mean a code change to a statutory calculation.
+  vatRatePct   Int     @default(dbgenerated("12"))
+
+  /// Next receipt number. BIR requires receipts to be gapless and sequential,
+  /// so this is incremented inside the sale transaction, not derived by
+  /// counting rows (which would reuse a number after a delete).
+  nextReceiptNo Int @default(dbgenerated("1"))
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff      PharmacyStaff[]
+  categories PharmacyCategory[]
+  products   PharmacyProduct[]
+  suppliers  PharmacySupplier[]
+  batches    PharmacyBatch[]
+  movements  PharmacyStockMovement[]
+  sales      PharmacySale[]
+
+  @@index([partnerId])
+  @@map("pharmacies")
+}
+
+/// A login at one pharmacy. Mirrors StaffUser: the auth user lives in Supabase,
+/// this row is the membership and the role.
+model PharmacyStaff {
+  id          String            @id @default(uuid())
+  pharmacyId  String
+  authUserId  String
+  role        PharmacyStaffRole
+  email       String
+  displayName String?
+  createdAt   DateTime          @default(now())
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@unique([pharmacyId, authUserId])
+  @@unique([pharmacyId, email])
+  @@index([authUserId])
+  @@map("pharmacy_staff")
+}
+
+model PharmacyCategory {
+  id         String   @id @default(uuid())
+  pharmacyId String
+  name       String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  pharmacy Pharmacy          @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  products PharmacyProduct[]
+
+  @@index([pharmacyId])
+  @@map("pharmacy_categories")
+}
+
+/// A sellable item. The SELLING price lives here; COST lives on the batch,
+/// because two deliveries of the same drug are routinely bought at different
+/// prices and margin is only meaningful per batch.
+model PharmacyProduct {
+  id         String  @id @default(uuid())
+  pharmacyId String
+  categoryId String?
+
+  /// What is on the box, e.g. "Biogesic 500mg".
+  name        String
+  /// The molecule, e.g. "Paracetamol". Separate because PH pharmacies are
+  /// required to offer the generic equivalent, and staff search by it.
+  genericName String?
+  /// Dosage form: tablet, capsule, syrup, suspension, ointment…
+  form        String?
+  /// e.g. "500mg", "250mg/5mL".
+  strength    String?
+  sku         String?
+  barcode     String?
+  /// The unit a single sale line is counted in — piece, bottle, box, sachet.
+  unit        String  @default(dbgenerated("'piece'"))
+
+  /// Rx-only. Dispensing one without a prescription is an offence, so this is
+  /// a hard gate in the sale path rather than a warning in the UI.
+  requiresPrescription Boolean @default(false)
+  /// Below this on-hand quantity the product is reported as low stock.
+  reorderPoint         Int     @default(0)
+  /// Centavos. VAT-INCLUSIVE, which is what the shelf label says and what the
+  /// SC/PWD formula expects to be handed.
+  priceCentavos        Int     @default(0)
+  isActive             Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pharmacy  Pharmacy                @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  category  PharmacyCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  batches   PharmacyBatch[]
+  movements PharmacyStockMovement[]
+  saleItems PharmacySaleItem[]
+
+  @@unique([pharmacyId, sku])
+  @@unique([pharmacyId, barcode])
+  @@index([pharmacyId])
+  @@index([pharmacyId, genericName])
+  @@index([categoryId])
+  @@map("pharmacy_products")
+}
+
+model PharmacySupplier {
+  id            String   @id @default(uuid())
+  pharmacyId    String
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  address       String?
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  pharmacy Pharmacy        @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  batches  PharmacyBatch[]
+
+  @@index([pharmacyId])
+  @@map("pharmacy_suppliers")
+}
+
+/// One delivery of one product, with its own lot number and expiry date.
+///
+/// THE table that makes this a pharmacy system rather than a shop system.
+/// Stock is not a number on the product: it is the sum of unexpired batches,
+/// and dispensing draws from the batch expiring soonest (FEFO). Without this
+/// the system cannot answer "what expires next month", which is the question
+/// the whole category exists to answer.
+model PharmacyBatch {
+  id         String  @id @default(uuid())
+  pharmacyId String
+  productId  String
+  supplierId String?
+
+  /// The manufacturer's lot number, as printed. Needed for a recall: a recall
+  /// names a lot, not a product.
+  lotNumber    String?
+  expiryDate   DateTime?
+  /// Units remaining in this batch. Never negative.
+  quantity     Int       @default(0)
+  /// Centavos paid per unit for THIS delivery. Snapshotted onto the sale line
+  /// so margin stays correct when the next delivery costs something else.
+  costCentavos Int       @default(0)
+  receivedAt   DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+
+  pharmacy  Pharmacy                @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  product   PharmacyProduct         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier  PharmacySupplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  movements PharmacyStockMovement[]
+  saleItems PharmacySaleItem[]
+
+  @@index([pharmacyId])
+  @@index([productId, expiryDate])
+  @@index([pharmacyId, expiryDate])
+  @@map("pharmacy_batches")
+}
+
+/// Append-only stock ledger. Every change to a batch quantity writes one.
+///
+/// The batch quantity is the balance; this is the statement that explains it.
+/// Keeping both is deliberate — a discrepancy between them is a bug you can
+/// see, and a regulator asking "where did these forty tablets go" needs the
+/// statement, not the balance.
+model PharmacyStockMovement {
+  id            String               @id @default(uuid())
+  pharmacyId    String
+  productId     String
+  batchId       String?
+  type          PharmacyMovementType
+  /// Signed. Negative for a sale or a write-off, positive for a delivery.
+  quantityDelta Int
+  /// The sale (or other document) that caused it. Not a foreign key: the
+  /// referent depends on `type`.
+  referenceId   String?
+  reason        String?
+  actorStaffId  String?
+  createdAt     DateTime             @default(now())
+
+  pharmacy Pharmacy        @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  product  PharmacyProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  batch    PharmacyBatch?  @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([pharmacyId, createdAt])
+  @@index([productId])
+  @@index([batchId])
+  @@map("pharmacy_stock_movements")
+}
+
+model PharmacySale {
+  id            String @id @default(uuid())
+  pharmacyId    String
+  /// Gapless per pharmacy, allocated inside the sale transaction. BIR wants a
+  /// sequence with no holes; counting rows would reuse a number after a void.
+  receiptNumber String
+
+  subtotalCentavos Int @default(0)
+  discountCentavos Int @default(0)
+  totalCentavos    Int @default(0)
+
+  discountType      PharmacyDiscountType @default(none)
+  /// The Senior Citizen or PWD ID presented. Required on the receipt and in
+  /// the logbook a pharmacy must keep for these sales.
+  beneficiaryIdNo   String?
+  beneficiaryName   String?
+  /// The portion of the total that is VAT-exempt. An SC/PWD sale is exempt in
+  /// full; recording it is what makes the BIR return reconcilable.
+  vatExemptCentavos Int                  @default(0)
+
+  /// cash | gcash | card | maya
+  paymentMethod    String @default(dbgenerated("'cash'"))
+  tenderedCentavos Int    @default(0)
+  changeCentavos   Int    @default(0)
+
+  status          PharmacySaleStatus @default(completed)
+  /// Free-text reference to the prescription presented. Rx items cannot be
+  /// sold without one.
+  prescriptionRef String?
+  soldByStaffId   String?
+  voidedByStaffId String?
+  voidedAt        DateTime?
+  createdAt       DateTime           @default(now())
+
+  pharmacy Pharmacy           @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  items    PharmacySaleItem[]
+
+  @@unique([pharmacyId, receiptNumber])
+  @@index([pharmacyId, createdAt])
+  @@index([pharmacyId, status])
+  @@map("pharmacy_sales")
+}
+
+/// One line of one sale, against ONE batch.
+///
+/// A quantity that spans two batches becomes two lines, because which batch a
+/// unit came from is the recall trail. Names and prices are snapshotted for the
+/// same reason Servd's order items snapshot them.
+model PharmacySaleItem {
+  id         String  @id @default(uuid())
+  pharmacyId String
+  saleId     String
+  productId  String
+  batchId    String?
+
+  nameAtTime        String
+  genericAtTime     String?
+  lotNumberAtTime   String?
+  expiryAtTime      DateTime?
+  quantity          Int
+  unitPriceCentavos Int
+  lineTotalCentavos Int
+  /// Snapshotted from the batch. Margin reporting reads this, never the
+  /// batch's current cost.
+  unitCostCentavos  Int       @default(0)
+  createdAt         DateTime  @default(now())
+
+  sale    PharmacySale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product PharmacyProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  batch   PharmacyBatch?  @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@index([productId])
+  @@index([pharmacyId])
+  @@map("pharmacy_sale_items")
 }

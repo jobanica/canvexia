@@ -1,79 +1,91 @@
-# Next: point the app at the CANVEXIA database, then move the schema
+# Next: one command, then Reseta goes live
 
-The CANVEXIA database is **provisioned and verified**. Supabase project
-`Canvexia` (`vqiwfemnmxrzsmyncwrf`, ap-southeast-1).
+The first vertical is built. **Reseta** — pharmacy POS, batch inventory, expiry
+tracking — at `apps/reseta`. Full notes in `docs/canvexia/reseta.md`.
 
-There was nothing to wipe — the project was empty when I opened it. No
-application tables, no auth users, no storage objects, only Supabase's own
-`auth` / `storage` / `vault` schemas.
+## The one thing left
 
-## What is in it
+`live` is `false` in the product registry, so the partner portal lists Reseta
+and refuses to open an account in it. The gate is one specific thing:
+`provisionPharmacy()` has not run against a real database, because this
+repository has no `DATABASE_URL`.
 
-Schema generated in one pass from `schema.prisma`, not by replaying
-`packages/db/prisma/manual/` (D26 — the four pending migrations are for *servdph.com*, which
-is already-populated; a database built from the schema is past them).
+```bash
+export DATABASE_URL=...   # the CANVEXIA project
+export DIRECT_URL=...
+pnpm --filter reseta test:isolation
+```
 
-| | |
-|---|---|
-| Tables / enums / FKs | 89 · 22 · 85 |
-| Indexes | 154 + 89 primary keys |
-| Columns | 873 |
-| RLS enabled **and forced** | 89 of 89 |
-| Policies | 92 |
-| Supabase security advisor | **0 findings** |
+Green ⇒ set `live: true` in `packages/core/src/products/registry.ts`. One line.
 
-Reference data only — three plans, their `plan_modules`, the two singleton
-settings rows, and the house partner **CANVEXIA Davao** (`canvexia-davao`,
-`hq_collects`, 70%). **No demo restaurants.** `packages/db/prisma/seed.mjs` would have
-created Mango Grill and Guava Cafe; those are test fixtures, not a live system.
-Say the word if you want them for smoke-testing.
+I did not flip it myself. `live: true` makes the portal offer pharmacy accounts,
+so an adapter bug that only shows against a database becomes a merchant with an
+account they cannot use — discovered by them.
 
-## Isolation was proved, not assumed
+## Why pharmacy, and not laundry or print
 
-Two partners and two merchants, then read back under `set role app_user` with
-**no where clause anywhere**:
+I opened the three repositories D24 names as the specification. Two are **empty**:
 
-- partner Alpha → its own merchant, its own orders, its own partner row · nothing else
-- merchant Beta → its own row and orders; `partner_ledger_entries` returns **nothing** (the split is not the merchant's business)
-- Alpha updating Beta's merchant to claim it → **0 rows**
+| Repository | The brief says | Actually |
+|---|---|---|
+| `jobanica/print-new` | *"fully specced, 22-phase build, 33-table schema"* | **empty** |
+| `jobanica/laundry` | pushed 2026-09-12 | **empty** |
+| `jobanica/Pharmacy` | — | **347 files, complete MVP**, 39 tables, live |
 
-Fixture deleted afterwards; the tables are back to empty.
+Your own constraint then picks the vertical: *"Do not guess on schema for
+Pharmacy or Laundry."* For laundry and print there is nothing to read, so
+building either means guessing. For pharmacy there is a working schema to derive
+from. See D28.
 
-## One thing I found and fixed — it affects Servd too
+## Three domain facts I took rather than invented
 
-Supabase grants `anon` full read/write on every table in `public`, and the anon
-key ships in the browser. `rls.sql` covered 77 of 89 tables. The twelve it
-missed included **`prospect_leads`** — names, phones, emails and addresses of
-sales leads — and `platform_settings`, which is world-*writable*.
+- **FEFO, not FIFO** — dispense the batch expiring *soonest*. A delivery received
+  last week routinely expires before one received last year.
+- **The SC/PWD discount is 20% off the VAT-EXCLUSIVE price** and the sale is
+  VAT-exempt. `price * 0.8` is the obvious formula and it overcharges every
+  beneficiary by the VAT on the discounted price — ₱9.60 on a ₱112 box, silently.
+- **Receipt numbers are allocated by incrementing a counter** inside the sale
+  transaction. Counting rows reissues a number after a void; BIR wants the
+  sequence gapless.
 
-Confirmed rather than assumed: a canary row read back under `set role anon`
-before the fix, and returned nothing after.
+## What else changed
 
-`rls.sql` now ends with a **sweep** — any `public` table with no policy by that
-point gets RLS forced and a super-admin-only policy — plus `search_path` pinned
-on the three `app.*` helpers. Written as a sweep because this exact list drifted
-twelve times; a new table now arrives locked. Safe because all twelve are
-reached only through `systemDb()`, checked per model against its callers.
+**The schema moved to `packages/db`** (D25). Its stated blocker was that ~20
+error strings name `prisma/manual/add-X.sql` — which is an argument for moving
+them *atomically with the directory*, not for waiting on a database this repo
+cannot reach. All 37 references moved in the same commit.
 
-**servdph.com has this hole right now.** It closes the next time `npm run db:rls`
-runs, which is step 2 of the deploy runbook. See D27.
+**RLS now loops over merchant axes** (D29). `pharmacies` sits beside
+`restaurants`; each product has its own merchant table carrying `partnerId`, and
+`rls.sql` iterates over the axes instead of hard-coding `restaurantId`. Adding a
+product is **one array entry** — applying it created `tenant_isolation` on all
+nine pharmacy tables without naming any of them.
 
-## What is left for you
+`partner_ledger_entries."restaurantId"` became `merchantId` + `productId`. It was
+never a restaurant id in meaning, and it cannot be a foreign key when which table
+it indexes depends on the product.
 
-1. **Set `DATABASE_URL` / `DIRECT_URL`** to this project (Supabase dashboard →
-   Connect). I do not have the database password and did not want it.
-2. **Create the super-admin auth user** and its `platform_admins` row — that
-   needs Supabase Auth, not SQL.
-3. **`CREDENTIALS_ENCRYPTION_KEY`** must be set before any partner or merchant
-   gateway credentials are written.
+## Proved against the live CANVEXIA database
 
-## Then, in order
+Two partners, a pharmacy each, read back as `app_user` with **no where clause**:
 
-1. **Apply the four migrations to servdph.com** — `docs/canvexia/deploy-runbook.md`,
-   unchanged and still correct. This database being ready does not advance that
-   one; they are separate databases with separate histories.
-2. ~~Move the schema to `packages/db`~~ — **done.** D25's objection was that ~20
-   user-facing error strings name `prisma/manual/add-X.sql` and are read exactly
-   when something is already broken. That is an argument for moving them
-   *atomically with the directory*, which is what happened, not for waiting.
-3. **Build the first vertical** (D24) — in progress.
+- partner sees its own pharmacy, products and lot numbers — and nothing else
+- a partner fetching a rival's batch **by primary key** gets nothing
+- a partner updating a rival's pharmacy to claim it affects **0 rows**
+- a merchant reading `partner_ledger_entries` gets nothing
+- **98 of 98** tables RLS-enabled and forced · security advisor **empty**
+
+Fixture deleted afterwards; the database holds reference data and the house
+partner only.
+
+Offline: **1,036 tests pass** (996 Servd + 40 Reseta), both apps typecheck, both
+build. CI now runs `pnpm -r` so a third app is covered without editing it.
+
+## Still queued
+
+1. **Apply the four migrations to servdph.com** — `docs/canvexia/deploy-runbook.md`.
+   Unchanged and still correct; this work does not advance it. It also closes the
+   `anon`-key hole from D27, which is live there now.
+2. **Sign-in for Reseta.** No session yet; `/` lists every pharmacy, which is why
+   it says it is a development console.
+3. **Receiving, voids, and the receipt** — see the end of `docs/canvexia/reseta.md`.

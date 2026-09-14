@@ -30,15 +30,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # One schema for every product (D25); each app generates its own client
+      # from it. `pnpm -r` so a new app is covered without editing this file.
       - name: Generate Prisma client
-        run: pnpm --filter servd db:generate
+        run: pnpm -r db:generate
 
       - name: Typecheck
-        run: pnpm --filter servd typecheck
+        run: pnpm -r typecheck
 
       - name: Unit tests
         # DB-backed isolation tests skip automatically without DATABASE_URL.
-        run: pnpm --filter servd test
+        run: pnpm -r test
 
       - name: Build
-        run: pnpm --filter servd build
+        run: pnpm -r build
