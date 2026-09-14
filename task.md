@@ -22,7 +22,7 @@ verifies, the identity row is there, and the membership resolves.
 | Pharmacy | **CANVEXIA Pharmacy Davao** (`canvexia-pharmacy-davao`) |
 | Owned by | CANVEXIA Davao — the house partner |
 | Sign in | `owner@resceta.com` |
-| Password | `a9eETJaAPvFE-Rx7` — **temporary, change it** |
+| Password | **not in this repo** — see below |
 | Role | owner (every permission) |
 | Status | **pending** |
 
@@ -42,6 +42,25 @@ update pharmacies
 
 Rename it freely — Resceta has no slug in its URLs (D30), so the name and slug
 are display only.
+
+### The password is not written down here, and that is the fix
+
+`jobanica/canvexia` is a **public** repository, and the first temporary password
+for this account was committed to this file. It was readable by anyone for the
+length of five commits, and it is still in the git history — rewriting history
+would not undo a public clone, an index, or a fork.
+
+So it was **rotated**, which is the only thing that actually closes it. The
+replacement was handed over in chat and deliberately not committed. Change it
+again from the app the first time you sign in.
+
+Nothing else was exposed: the Supabase anon key is public by design, and the
+service-role key and database password have never been in the repository. The
+account had never been signed into, and `audit_logs` records no action against
+it.
+
+**Do not put the next one in a file here.** If a credential has to be shared,
+share it out of band and rotate it after.
 
 ---
 
