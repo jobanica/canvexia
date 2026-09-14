@@ -47,3 +47,8 @@ packages/*/coverage/
 
 # supabase CLI scratch
 **/supabase/.temp/
+
+# Vercel CLI link. Never committed: it points a local `vercel` run at one
+# specific project, and the one checked in here pointed at a DIFFERENT repo's
+# deployment (jobanica/Servd). Each project is linked from the dashboard.
+.vercel
