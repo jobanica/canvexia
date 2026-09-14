@@ -247,11 +247,23 @@ export function Counter({
           </p>
         )}
         {state.status === "done" && (
-          <p className="mt-3 rounded border border-emerald-300 bg-emerald-50 p-2 text-sm text-emerald-900">
-            Receipt <span className="font-mono">{state.receiptNumber}</span> ·{" "}
-            {peso(state.totalCentavos)}
-            {state.changeCentavos > 0 && <> · change {peso(state.changeCentavos)}</>}
-          </p>
+          <div className="mt-3 space-y-2 rounded border border-emerald-300 bg-emerald-50 p-2 text-sm text-emerald-900">
+            <p>
+              Receipt <span className="font-mono">{state.receiptNumber}</span> ·{" "}
+              {peso(state.totalCentavos)}
+              {state.changeCentavos > 0 && <> · change {peso(state.changeCentavos)}</>}
+            </p>
+            {/* A new tab, deliberately: the print dialog opens over the receipt
+                and the counter stays as it is, ready for the next customer. */}
+            <a
+              href={`/receipts/${state.saleId}/print?auto=1`}
+              target="_blank"
+              rel="noopener"
+              className="inline-block rounded bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white"
+            >
+              Print receipt
+            </a>
+          </div>
         )}
 
         <p className="mt-4 text-xs text-slate-500">

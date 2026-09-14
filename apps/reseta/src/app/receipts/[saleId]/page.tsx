@@ -4,6 +4,8 @@ import { getCurrentStaff } from "@/server/tenancy/current-user";
 import { AppShell } from "@/components/AppShell";
 import { saleForReversal } from "@/server/pharmacy/reversal";
 import { canVoid } from "@/lib/pharmacy/reversal";
+import { summaryRows } from "@/lib/pharmacy/receipt";
+import type { DiscountType } from "@/lib/pharmacy/discount";
 import { can } from "@/lib/pharmacy/roles";
 import { peso, manilaDate } from "@/lib/money";
 import { VoidForm, ReturnForm, type ReversalLine } from "./ReversalForms";
@@ -57,7 +59,15 @@ export default async function ReceiptPage({
             </span>
           )}
         </h1>
-        <p className="mb-8 text-sm text-slate-500">{manilaDate(sale.createdAt)}</p>
+        <p className="mb-8 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+          {manilaDate(sale.createdAt)}
+          <Link
+            href={`/receipts/${sale.id}/print`}
+            className="font-medium text-slate-700 underline"
+          >
+            Print receipt
+          </Link>
+        </p>
 
         <section className="mb-8 overflow-hidden rounded-lg border border-slate-200 bg-white">
           <ul className="divide-y divide-slate-100 text-sm">
@@ -76,27 +86,33 @@ export default async function ReceiptPage({
               </li>
             ))}
           </ul>
+          {/* The same rows the paper receipt prints, from the same function.
+              This used to show "Discount (sc) −₱32.00", which on a ₱112 shelf
+              price states a 28.6% discount — the other ₱12 is VAT that came off
+              before it. Two screens disagreeing about a statutory figure is
+              worse than either of them being wrong alone. */}
           <dl className="space-y-1 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-slate-600">Subtotal</dt>
-              <dd className="tabular-nums">{peso(sale.subtotalCentavos)}</dd>
-            </div>
-            {sale.discountCentavos > 0 && (
-              <div className="flex justify-between text-emerald-700">
-                <dt>Discount ({sale.discountType})</dt>
-                <dd className="tabular-nums">−{peso(sale.discountCentavos)}</dd>
+            {summaryRows(
+              {
+                subtotalCentavos: sale.subtotalCentavos,
+                discountCentavos: sale.discountCentavos,
+                totalCentavos: sale.totalCentavos,
+                discountType: sale.discountType as DiscountType,
+              },
+              staff.vatRatePct,
+            ).map((row, i) => (
+              <div
+                key={i}
+                className={`flex justify-between ${
+                  row.kind === "due" ? "font-semibold" : "text-slate-600"
+                }`}
+              >
+                <dt>{row.label}</dt>
+                <dd className="tabular-nums">
+                  {row.kind === "deduction" ? `−${peso(row.centavos)}` : peso(row.centavos)}
+                </dd>
               </div>
-            )}
-            <div className="flex justify-between font-semibold">
-              <dt>Total</dt>
-              <dd className="tabular-nums">{peso(sale.totalCentavos)}</dd>
-            </div>
-            {sale.vatExemptCentavos > 0 && (
-              <div className="flex justify-between text-xs text-slate-500">
-                <dt>VAT-exempt</dt>
-                <dd className="tabular-nums">{peso(sale.vatExemptCentavos)}</dd>
-              </div>
-            )}
+            ))}
           </dl>
         </section>
 

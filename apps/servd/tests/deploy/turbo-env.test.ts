@@ -71,6 +71,9 @@ function readsByVariable(): Map<string, string[]> {
   return found;
 }
 
+// Parsed as strict JSON on purpose. Turborepo accepts comments in turbo.json;
+// this test does not, so the file stays machine-readable and a stray `//`
+// fails here rather than in whatever else grows to read it.
 const turbo = JSON.parse(readFileSync(join(ROOT, "turbo.json"), "utf8"));
 const declared: string[] = turbo.tasks.build.env;
 
@@ -94,5 +97,17 @@ describe("turbo.json declares every variable the build reads", () => {
 
   it("is sorted, so additions land in one obvious place", () => {
     expect(declared).toEqual([...declared].sort());
+  });
+});
+
+describe("turbo.json lets the DB-backed suites actually run", () => {
+  // Every isolation suite is `hasDb ? describe : describe.skip`. Under strict
+  // env mode a `test` task that does not declare DATABASE_URL never sees it, so
+  // all 79 of them skip themselves and the run reports green having tested
+  // nothing — which is worse than 79 failures, because nobody investigates a
+  // pass.
+  it("declares the database connection on the test task", () => {
+    expect(turbo.tasks.test.env).toContain("DATABASE_URL");
+    expect(turbo.tasks.test.env).toContain("DIRECT_URL");
   });
 });

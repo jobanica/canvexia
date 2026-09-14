@@ -2,7 +2,7 @@
 
 CANVEXIA is separate from servdph.com — its own database, its own merchants, its
 own domains (D31). Two products live: **Servd** (restaurants) and **Reseta**
-(pharmacy). 1,199 tests pass.
+(pharmacy). 1,239 tests pass, none skipped.
 
 | Domain | Serves | Deployment |
 |---|---|---|
@@ -29,15 +29,14 @@ verifies, the identity row is there, and the membership resolves.
 **It is `pending` on purpose, and that is the one thing to decide.** A pharmacy
 cannot legally dispense before its FDA Licence to Operate is on file, so
 provisioning creates it pending and defaulting to active would mean the platform
-had enabled it. Everything works except selling. When the LTO is in hand:
+had enabled it. Everything works except selling.
+
+The licence numbers themselves now go in through **Settings** in the app — no
+SQL. Activation is still deliberate and separate:
 
 ```sql
 update pharmacies
-   set status = 'active',
-       "fdaLtoNumber" = 'YOUR-LTO',
-       "prcLicenseNo" = 'YOUR-PRC',
-       tin = 'YOUR-TIN',
-       "updatedAt" = now()
+   set status = 'active', "updatedAt" = now()
  where slug = 'canvexia-pharmacy-davao';
 ```
 
@@ -54,26 +53,31 @@ The account is waiting; the app is not up. Set the env from
 `apps/reseta/.env.example` — the same `DATABASE_URL` Servd uses, plus the
 Supabase Auth keys from the same project — and deploy `apps/reseta`.
 
-**Deployment: two projects, one repository** — `docs/canvexia/domains.md` now
-has the whole setup. The short version: a second Vercel project with Root
-Directory `apps/reseta`, **Include source files outside of the Root Directory**
-turned on, Node 22. Both `vercel.json` files now set
-`ignoreCommand: npx turbo-ignore`, so a change in `apps/servd` no longer
-redeploys the pharmacy — but a change in `packages/db` still correctly rebuilds
-both, because it is the dependency graph being consulted, not a path filter.
+**Deployment: two projects, one repository** — `docs/canvexia/domains.md` has
+the whole setup. The short version: a second Vercel project with Root Directory
+`apps/reseta`, **Include source files outside of the Root Directory** turned on,
+Node 22. Both `vercel.json` files set `ignoreCommand: npx turbo-ignore`, so a
+change in `apps/servd` no longer redeploys the pharmacy — but a change in
+`packages/db` still correctly rebuilds both.
 
-Then: sign in → **Receive** a delivery → **Counter** to sell it → **Receipts**
-to void or return it. That is the whole loop, and it is worth walking once
-before anyone else touches it.
+Then, in this order:
 
-## 2. The receipt
+1. **Settings** → enter the TIN, address, FDA LTO and PRC number. Until they are
+   in, every receipt prints marked *NOT AN OFFICIAL RECEIPT*, which is on
+   purpose.
+2. Run the activation SQL above.
+3. **Receive** a delivery → **Counter** to sell it → **Print receipt** →
+   **Receipts** to void or return it.
 
-The last real gap in the counter. `fdaLtoNumber`, `prcLicenseNo` and `tin` are
-captured and displayed **nowhere** — a PH pharmacy receipt has to carry them,
-and an SC/PWD sale has to show the beneficiary's ID. Nothing prints today.
+That is the whole loop, and it is worth walking once before anyone else touches
+it.
 
-## 3. Then one of
+## 2. Then one of
 
+- **The credit note.** A return allocates `CN00000001` and prints nothing. It is
+  the same machinery as the receipt — a different document with its own number
+  series — and it is now the only thing in the counter that produces a number
+  the customer cannot be handed.
 - **Expiry write-offs.** The dashboard shows what has expired; nothing can act
   on it. `expiry_writeoff` is already in the movement enum.
 - **A daily Z-reading.** The void window depends on "the business day" and
@@ -83,55 +87,73 @@ and an SC/PWD sale has to show the beneficiary's ID. Nothing prints today.
 
 ---
 
-# What just landed: voids and returns
+# What just landed: the receipt
 
-Two operations, and the difference is not paperwork.
+`lib/pharmacy/receipt.ts` builds the document — the arithmetic *and the order of
+the summary rows*, tested, rather than laid out in JSX. It prints on an 80mm
+thermal roll from `/receipts/<id>/print`, and the counter links straight to it
+after a sale.
 
-**Void** — the sale never happened. Every unit back to the **exact batch it
-left**, receipt marked voided. **Same business day only**: a receipt is a
-reported figure, and voiding one from a closed day changes a number that has
-been filed. That is what a credit note exists to avoid. The window is a signpost
-to the right instrument, not a block — a reversal screen that simply refuses
-gets worked around, and the workaround is a drawer that does not reconcile.
+## The stored discount is not the statutory discount
 
-**Return** — its own document, its own number series (`CN00000001`), any time.
+The finding that made the module worth having. On a ₱112.00 shelf price a Senior
+Citizen pays ₱80.00, so the stored `discountCentavos` is **₱32.00** — but ₱12.00
+of that is VAT removed *before* the 20%. Printing ₱32.00 as "20% discount" says
+28.6%, and **₱32.00 is not what the pharmacy may claim**: the statutory discount
+is a tax deduction and the deductible figure is ₱20.00.
 
-## Two places I did not follow Reseta
+A statutory sale now prints the five rows a BIR examiner reads:
 
-`jobanica/Pharmacy` was the source for the domain facts, and on returns it does
-two things I deliberately did not copy:
+```
+Total (VAT-inclusive)              ₱112.00
+Less VAT (12%)                     −₱12.00
+Total (VAT-exempt)                 ₱100.00
+Less 20% Senior Citizen discount   −₱20.00
+Amount due                          ₱80.00
+```
 
-**It restocks every return.** Once a medicine has left the premises nobody can
-verify how it was stored or whether the pack was tampered with. A shop can
-restock a returned kettle; a pharmacy cannot restock a returned box of
-antibiotics. `disposition` defaults to **destroyed**, and restocking is a
-per-line choice needing `manageStock` — not merely permission to hand the money
-back.
+The receipt *screen* was showing the wrong figure too. It renders from the same
+function now — two screens disagreeing about a statutory number is worse than
+either being wrong alone.
 
-**It restocks into the newest batch.** Its return items point at a *product*, so
-the lot is already lost. Mine point at the original sale *line*, which names the
-batch — so a restock goes back where it came from. A recall names a lot, and a
-unit from one lot counted into another makes both figures wrong.
+## Every figure is a subtraction from a stored one
 
-A test asserts both: a void leaves `SOON` and `LATER` at exactly their starting
-quantities rather than piling everything into the newest batch.
+`totalSale` rounds per line, so re-totalling on the receipt can land a centavo
+from the money that changed hands. The rounding drift is pushed entirely into
+the statutory discount — the residual — so the printed rows add up to what was
+charged by construction. Same rule in the VAT box: the exempt portion is carved
+out first and the VAT derived by subtraction, so `vatable + vat + exempt` equals
+the amount due for every input. A DB-backed test asserts both through a real
+sale, not a fixture.
 
-## The refund is prorated
+## A blank where the TIN goes still looks official
 
-Priced from the original line, then scaled by what was actually paid. Not an
-edge case: **every SC/PWD sale is discounted**, so refunding list price would
-overpay on every statutory return — ₱112 of shelf price against ₱80 taken.
+The tempting behaviour is to print the receipt with the missing fields left out.
+The customer cannot tell the difference; an auditor can. So the paper prints
+**NOT AN OFFICIAL RECEIPT** and names what is missing, and `isOfficial` stays
+false until nothing is. On a statutory sale the beneficiary's name and ID are on
+that list — the discount is not valid without them.
 
-## One invariant worth knowing about
+Not being VAT-registered is *not* a gap. Set the VAT rate to 0 and the receipt
+drops the VAT box and prints the non-VAT wording, because a box of zeros says
+"VAT-registered, sold nothing VATable" — a different statement.
 
-A test runs at the end over every product: **the movement ledger sums to the
-batch quantities.** The batch quantity is the balance and the ledger is the
-statement explaining it. A reversal that touched one without the other shows up
-there and nowhere else.
+## And a settings screen, because otherwise it is permanently blank
+
+`manageSettings` had been in `roles.ts` since the start with nothing using it.
+Those four fields could only be set with raw SQL. `/settings` is owner-only and
+writes the whole record either side of the change to `audit_logs` — not a diff
+of field names, because what an audit asks is what the TIN *used to be*.
 
 ## Numbers
 
-- **Reseta 101 offline + 34 DB-backed**
-- **Servd 1,026 offline + 38 DB-backed**
-- both typecheck, both build; RLS covers the two new tables automatically
-  (the axis loop, D29), 100 of 100 tables forced, advisor clean
+- **Reseta 130 offline + 41 DB-backed**
+- **Servd 1,030 offline + 38 DB-backed**
+- both typecheck, both build
+
+One more thing turned up while verifying: `turbo run test` was **hiding
+`DATABASE_URL`** from the test task (strict env mode again, same root cause as
+the build-env fix), so all 79 DB-backed tests across both apps skipped
+themselves and the run reported green. Declared now, and asserted by the same
+drift test — a suite that skips is worse than one that fails, because nobody
+investigates a pass.

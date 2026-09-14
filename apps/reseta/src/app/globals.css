@@ -5,3 +5,36 @@
 :root {
   color-scheme: light dark;
 }
+
+/**
+ * Printing a receipt.
+ *
+ * 80mm roll, continuous feed — `auto` height rather than a page size, because a
+ * receipt is as long as it is and a fixed page would break a ten-line sale
+ * across two sheets of thermal paper.
+ *
+ * Driven by data attributes rather than Tailwind's `print:` variant so the
+ * rules live in one place a printer problem can be debugged from.
+ */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 4mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  /* The screen preview is a 302px card; on paper it is the whole width. */
+  [data-receipt-paper] {
+    max-width: none !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+}

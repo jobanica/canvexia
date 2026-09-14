@@ -44,7 +44,13 @@ const Sale = z.object({
 export type SaleState =
   | { status: "idle" }
   | { status: "error"; message: string }
-  | { status: "done"; receiptNumber: string; totalCentavos: number; changeCentavos: number };
+  | {
+      status: "done";
+      saleId: string;
+      receiptNumber: string;
+      totalCentavos: number;
+      changeCentavos: number;
+    };
 
 export async function recordSale(
   _prev: SaleState,
@@ -129,6 +135,9 @@ export async function recordSale(
   revalidatePath("/pos");
   return {
     status: "done",
+    // Carried back so the counter can offer the print. Without it the only way
+    // to the receipt just rung up is to go and find it in the list.
+    saleId: outcome.saleId,
     receiptNumber: outcome.receiptNumber,
     totalCentavos: outcome.totalCentavos,
     changeCentavos: outcome.changeCentavos,

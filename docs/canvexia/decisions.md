@@ -1292,3 +1292,91 @@ One invariant test runs at the end over every product: **the sum of the movement
 ledger equals the sum of the batch quantities.** The batch quantity is the
 balance and the ledger is the statement explaining it; a reversal that touched
 one without the other shows up there and nowhere else.
+
+---
+
+## D33 — The receipt shows the 20% as 20%, and says so when it is not official
+
+**Settled.** A PH pharmacy receipt is a regulated document twice over: BIR wants
+a sales invoice with a specific VAT presentation, FDA wants the Licence to
+Operate and the supervising pharmacist's PRC number on the face of it. Reseta
+prints one, from `lib/pharmacy/receipt.ts` — the arithmetic *and the order of
+the summary rows* live in a tested module, not in JSX.
+
+### The stored discount is not the statutory discount
+
+This is the finding that made the module worth having.
+
+On a ₱112.00 shelf price a Senior Citizen pays ₱80.00, so
+`PharmacySale.discountCentavos` is **₱32.00**. Printing that as "20% discount"
+states a 28.6% discount, because ₱12.00 of it is VAT that came off *before* the
+20% did. Two things go wrong at once:
+
+- the receipt contradicts itself — 20% of ₱112 is not ₱32
+- **₱32.00 is not what the pharmacy may claim.** The statutory discount is a tax
+  deduction, and the deductible figure is the ₱20.00.
+
+So a statutory sale prints five rows, which is the presentation a BIR examiner
+reads and the only one where the 20% appears as 20%:
+
+```
+Total (VAT-inclusive)       ₱112.00
+Less VAT (12%)              −₱12.00
+Total (VAT-exempt)          ₱100.00
+Less 20% Senior Citizen discount  −₱20.00
+Amount due                   ₱80.00
+```
+
+The receipt detail screen was showing the wrong figure too. It now renders from
+the same `summaryRows()` — two screens disagreeing about a statutory number is
+worse than either being wrong alone.
+
+### Derived from the stored totals, never recomputed
+
+`totalSale` rounds **per line**, so re-totalling the lines on the receipt can
+land a centavo away from the money that changed hands. Every figure on the
+document is therefore a subtraction from a stored one:
+
+```
+netOfVat          = round(subtotal / 1.12)
+vatDeducted       = subtotal - netOfVat
+statutoryDiscount = netOfVat - total      ← the residual
+```
+
+Rounding drift lands entirely in `statutoryDiscount`, which is the right place
+for it: the VAT removal is exact arithmetic on the shelf price, and the discount
+is whatever reconciles to the amount charged. The printed rows add up to the
+money taken **by construction**, and a DB-backed test asserts it end to end
+through a real sale rather than through a fixture.
+
+The VAT box obeys the same rule — the exempt portion is carved out first and the
+VAT derived by subtraction, so `vatable + vat + exempt === amount due` for every
+input. A box that does not reconcile to the total is a filing that does not
+reconcile either.
+
+### A blank where the TIN goes still looks official
+
+`fdaLtoNumber`, `prcLicenseNo`, `tin` and the business address are nullable,
+because a merchant is created before those documents are chased (D30's
+provisioning creates a pharmacy `pending` for the same reason). The tempting
+behaviour is to print the receipt with the fields left out.
+
+That is the failure worth avoiding: **the customer cannot tell.** A document
+with an empty space where a licence number belongs reads as an official receipt
+to everyone except an auditor. So `receiptGaps()` names what is missing and why,
+the paper prints **NOT AN OFFICIAL RECEIPT** with the list, and `isOfficial` is
+false until nothing is missing. On a statutory sale the beneficiary's name and
+ID are on that list too — the discount is not valid without them.
+
+Not being VAT-registered is **not** a gap. It is a registration status: the
+receipt drops the VAT box entirely and prints the non-VAT wording, because a box
+of zeros says "VAT-registered, sold nothing VATable", which is a different
+statement.
+
+### Which is why there is a settings screen
+
+`manageSettings` existed in `roles.ts` and nothing used it. Until now those four
+fields could only be set with raw SQL, which meant every receipt printed with
+blanks and the documented fix was a psql session. `/settings` is owner-only, and
+the whole record either side of the change goes to `audit_logs` — not a diff of
+field names, because the question an audit asks is what the TIN *used to be*.
