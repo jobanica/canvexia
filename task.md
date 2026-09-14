@@ -54,6 +54,14 @@ The account is waiting; the app is not up. Set the env from
 `apps/reseta/.env.example` — the same `DATABASE_URL` Servd uses, plus the
 Supabase Auth keys from the same project — and deploy `apps/reseta`.
 
+**Deployment: two projects, one repository** — `docs/canvexia/domains.md` now
+has the whole setup. The short version: a second Vercel project with Root
+Directory `apps/reseta`, **Include source files outside of the Root Directory**
+turned on, Node 22. Both `vercel.json` files now set
+`ignoreCommand: npx turbo-ignore`, so a change in `apps/servd` no longer
+redeploys the pharmacy — but a change in `packages/db` still correctly rebuilds
+both, because it is the dependency graph being consulted, not a path filter.
+
 Then: sign in → **Receive** a delivery → **Counter** to sell it → **Receipts**
 to void or return it. That is the whole loop, and it is worth walking once
 before anyone else touches it.

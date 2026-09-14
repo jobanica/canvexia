@@ -54,6 +54,89 @@ so there are no subdomains to configure and nothing to parse.
 
 ---
 
+## Deployment: two projects, one repository
+
+Two Vercel projects, both connected to this repo. They differ by **Root
+Directory** and nothing else:
+
+| Project | Root Directory | Domains |
+|---|---|---|
+| `servd` | `apps/servd` | `servdph.net`, `*.servdph.net`, `canvexia.com`, `*.canvexia.com`, and every merchant's own custom domain |
+| `reseta` | `apps/reseta` | `risceta.com`, `www.risceta.com` |
+
+`canvexia.com` is on the **Servd project** on purpose. One deployment serves
+both roots; the middleware reads the Host header and rewrites. Adding it to a
+project of its own would give you a second copy of the same app with a second
+database connection and no partner portal on either.
+
+Two settings on each project are not defaults and both matter:
+
+- **Include source files outside of the Root Directory in the Build Step — on.**
+  Both apps generate Prisma from `../../packages/db/prisma/schema.prisma` and
+  compile `@servd/core` from source (`transpilePackages`). With this off the
+  install succeeds and the build fails on a schema it cannot find.
+- **Node 22.x**, matching `engines` in both `package.json` files.
+
+`regions` and `crons` come from each app's `vercel.json`, not the dashboard.
+Both deploy to `hnd1` (Tokyo — the closest region to Manila). Only Servd has
+crons; Reseta has no scheduled work.
+
+### Only the app that changed gets deployed
+
+This is **not** what Vercel does by default. Every project connected to a repo
+rebuilds on every push to it, so a one-line change in `apps/servd/src` would
+redeploy the pharmacy too.
+
+Both `vercel.json` files therefore set:
+
+```json
+"ignoreCommand": "npx turbo-ignore"
+```
+
+`turbo-ignore` asks Turborepo whether this package — or anything it depends on —
+actually changed since this project's last successful deployment, and cancels
+the build if nothing did. It reads the real dependency graph, so:
+
+| Changed | Rebuilds |
+|---|---|
+| `apps/servd/**` | Servd |
+| `apps/reseta/**` | Reseta |
+| `packages/db/**` (the schema) | **both** |
+| `packages/core/**` | **both** |
+| `pnpm-lock.yaml`, `turbo.json`, root config | **both** |
+
+The two `packages/**` rows are the reason to use `turbo-ignore` rather than a
+path filter: a schema change *has* to rebuild both apps, and a hand-written
+"did `apps/reseta` change?" check would miss it.
+
+It fails safe — when it cannot tell (first deployment, no prior successful
+build, missing git history) it builds. If it ever skips a build you wanted,
+**Redeploy** from the dashboard runs unconditionally.
+
+### The variables the build can see
+
+Turborepo 2 runs tasks in strict env mode: a build only sees the variables
+`turbo.json` declares under `tasks.build.env`. A variable missing from that list
+is `undefined` during the build *and* absent from the cache key, so changing it
+in the dashboard invalidates nothing.
+
+Nothing errors when this happens, which is why
+`apps/servd/tests/deploy/turbo-env.test.ts` derives the list from the source and
+fails if the two drift. Add a `process.env.SOMETHING` and the test tells you to
+declare it.
+
+### One database, no per-project switch
+
+Both projects point `DATABASE_URL` at the same Supabase project (D25). There is
+no staging copy and no per-project override, so a schema change is live for both
+apps the moment it is applied — **migrate first, then deploy**, and never the
+other way round. A deploy that expects a column that is not there yet fails for
+every merchant on both products at once.
+
+`VERCEL_PROJECT_ID` — used to attach merchants' custom domains through the
+Domains API — must be the **Servd** project's id. Now that a second project
+exists, the wrong id silently points a restaurant's domain at the pharmacy app.
+
 ## Configuration
 
 `apps/servd/.env.example`:
