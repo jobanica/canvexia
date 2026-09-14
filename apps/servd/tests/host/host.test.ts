@@ -183,10 +183,10 @@ describe("parseHost — the configured domains", () => {
     expect(h("www.servdph.com")).toEqual({ kind: "custom", host: "www.servdph.com" });
   });
 
-  it("treats risceta.com as a custom host here — Reseta is its own app", () => {
-    // Reseta is deployed separately and does no host routing; it never reaches
+  it("treats resceta.com as a custom host here — Resceta is its own app", () => {
+    // Resceta is deployed separately and does no host routing; it never reaches
     // this function. If the domain were pointed at Servd by mistake, it would
     // be looked up as a restaurant and not found, which is the honest answer.
-    expect(h("risceta.com")).toEqual({ kind: "custom", host: "risceta.com" });
+    expect(h("resceta.com")).toEqual({ kind: "custom", host: "resceta.com" });
   });
 });

@@ -2433,7 +2433,7 @@ model AnnouncementRead {
 }
 
 // ============================================================================
-// RESETA — pharmacy (product id "pharmacy")
+// RESCETA — pharmacy (product id "pharmacy")
 //
 // The second product on this schema, and the first written here rather than
 // retrofitted (D24). Everything below is derived from jobanica/Pharmacy, a

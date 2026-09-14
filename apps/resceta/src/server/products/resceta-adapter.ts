@@ -3,9 +3,9 @@ import { registerProductAdapter, type ProductAdapter, type ProvisionInput } from
 import { provisionPharmacy } from "@/server/pharmacy/provision";
 
 /**
- * Reseta, as a CANVEXIA product.
+ * Resceta, as a CANVEXIA product.
  *
- * The only place that knows a CANVEXIA "merchant" is a Reseta "pharmacy".
+ * The only place that knows a CANVEXIA "merchant" is a Resceta "pharmacy".
  * Everything above it deals in merchants; everything below it deals in
  * pharmacies.
  *
@@ -20,7 +20,7 @@ import { provisionPharmacy } from "@/server/pharmacy/provision";
  * laundry, and every field added to the shared shape is a field the portal must
  * render for every vertical.
  */
-export const resetaAdapter: ProductAdapter = {
+export const rescetaAdapter: ProductAdapter = {
   productId: "pharmacy",
 
   async provisionMerchant(input: ProvisionInput) {
@@ -48,4 +48,4 @@ function asString(v: unknown): string | undefined {
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
 }
 
-registerProductAdapter(resetaAdapter);
+registerProductAdapter(rescetaAdapter);

@@ -6,7 +6,7 @@
  * provision into them, without importing anything from a vertical — adding the
  * laundry app must not mean editing the portal.
  *
- * `live` is the honest field here. Servd has the paying customers; Reseta is
+ * `live` is the honest field here. Servd has the paying customers; Resceta is
  * built and provisionable but has none yet. The other two are entries for
  * products that do not exist — their repositories are empty (D28) — and
  * `live: false` is what stops the portal offering a merchant an account in
@@ -50,11 +50,11 @@ export const PRODUCTS = {
   },
   pharmacy: {
     id: "pharmacy",
-    name: "Reseta",
+    name: "Resceta",
     description: "Pharmacy POS, batch inventory, expiry tracking and SC/PWD compliance.",
     // Live as of the sign-in work. The gate `adding-a-vertical.md` sets is
     // three things, and all three are asserted against a real database by
-    // apps/reseta/tests/isolation/provision.test.ts: the real adapter creates a
+    // apps/resceta/tests/isolation/provision.test.ts: the real adapter creates a
     // pharmacy owned by the right partner, that partner sees it through RLS
     // with NO where clause, and no other partner sees it — not even by primary
     // key. The same run dispenses FEFO across two batches and checks the stock

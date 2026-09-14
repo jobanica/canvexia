@@ -1,4 +1,6 @@
 -- Reseta — voids and returns (D32).
+-- (The product was renamed to Resceta after this file was written. manual/ is a
+--  record of what was run, not a queue to replay, so the old name stands here.)
 --
 -- Run in the Supabase SQL editor, then `pnpm --filter @servd/db db:rls`: the
 -- two new tables carry `pharmacyId`, so the axis loop covers them without

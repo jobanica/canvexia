@@ -33,7 +33,7 @@ export function AppShell({
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3">
-          <span className="font-semibold tracking-tight">Reseta</span>
+          <span className="font-semibold tracking-tight">Resceta</span>
 
           {staff.memberships.length > 1 ? (
             <PharmacySwitcher

@@ -117,11 +117,11 @@ list of requirements than this document.
 
 ## Done once, and here is what it actually took
 
-**Reseta** (D28) is the first vertical built this way. The four steps above were
+**Resceta** (D28) is the first vertical built this way. The four steps above were
 accurate; what they do not say is that a *second* product forces one piece of
 platform work the first never needed:
 
-**The merchant axis.** Servd's merchants are `restaurants`; Reseta's are
+**The merchant axis.** Servd's merchants are `restaurants`; Resceta's are
 `pharmacies`. `rls.sql` used to hard-code `restaurantId`/`restaurants`, so a
 second product's tenant tables were invisible to it. It now loops over
 `MERCHANT_AXES` (`packages/core/src/tenancy/merchant.ts`) — and **adding a
@@ -135,7 +135,7 @@ table needs a `partnerId` column with that exact name, every tenant table needs
 your foreign-key column, and you need a GUC. Then steps 1–4 below are all that is
 left.
 
-The rest held up. The adapter really is small — Reseta's is 25 lines against
+The rest held up. The adapter really is small — Resceta's is 25 lines against
 Servd's 45 — and the reason is exactly the one predicted: `pharmacies.partnerId`
 existed before the first row, so there was nothing to thread.
 

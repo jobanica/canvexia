@@ -1,4 +1,6 @@
 -- CANVEXIA — Reseta, the pharmacy vertical (D24, D28).
+-- (The product was renamed to Resceta after this file was written. manual/ is a
+--  record of what was run, not a queue to replay, so the old name stands here.)
 --
 -- The second product on this schema. Run in the Supabase SQL editor, then
 -- `pnpm --filter @servd/db db:rls` to install the policies for the new tenant

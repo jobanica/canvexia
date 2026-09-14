@@ -2,7 +2,7 @@
  * The merchant axes — one per product.
  *
  * A merchant is a tenant of exactly one product, and each product records its
- * merchants in its own table: Servd in `restaurants`, Reseta in `pharmacies`.
+ * merchants in its own table: Servd in `restaurants`, Resceta in `pharmacies`.
  * That is not incidental, it is what `ProvisionResult.merchantId` already says —
  * "the new tenant's id WITHIN that product. Not globally unique across
  * products." One shared merchants table was the alternative and would have meant

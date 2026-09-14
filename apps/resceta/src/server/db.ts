@@ -8,7 +8,7 @@ import { PrismaClient } from "@prisma/client";
  * few minutes. Same pattern as apps/servd/src/server/db.ts, and the same
  * reason.
  *
- * Reseta and Servd share one schema and one database (D25) but hold separate
+ * Resceta and Servd share one schema and one database (D25) but hold separate
  * clients, because they are separate processes. Nothing is shared at runtime
  * except the database itself.
  */

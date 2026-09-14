@@ -1,6 +1,6 @@
-# Reseta — the pharmacy vertical
+# Resceta — the pharmacy vertical
 
-The first vertical built here rather than migrated (D24). `apps/reseta`.
+The first vertical built here rather than migrated (D24). `apps/resceta`.
 
 Derived from `jobanica/Pharmacy`, a working MVP, for the domain facts — batches,
 FEFO, the statutory SC/PWD arithmetic — and from nothing at all for the tenancy,
@@ -13,7 +13,7 @@ which is CANVEXIA's. See D28 for what was taken and what was deliberately not.
 `live: true` in the product registry — the partner portal will create pharmacy
 accounts. The gate `adding-a-vertical.md` sets is three things, and all three
 are asserted against a real database in
-`apps/reseta/tests/isolation/provision.test.ts`:
+`apps/resceta/tests/isolation/provision.test.ts`:
 
 1. the **real** adapter creates a pharmacy owned by the right partner
 2. that partner sees it through RLS **with no where clause**
@@ -24,7 +24,7 @@ explains the balance, and checks receipt numbers come out gapless.
 
 ```bash
 export DATABASE_URL=... DIRECT_URL=...
-pnpm --filter reseta test        # 76; the DB-backed ones skip without the URL
+pnpm --filter resceta test        # 171; the DB-backed ones skip without the URL
 ```
 
 **Run them as a non-superuser.** A superuser bypasses RLS regardless of `FORCE`
@@ -80,7 +80,7 @@ Staff are added at `/staff` by an owner or manager. That screen needs someone
 signed in, so the first account at a pharmacy comes from the bootstrap script:
 
 ```bash
-pnpm --filter reseta staff:create -- <pharmacySlug> owner <email> <password> [name]
+pnpm --filter resceta staff:create -- <pharmacySlug> owner <email> <password> [name]
 ```
 
 Auth user first, membership second — never the reverse, which leaves a
@@ -96,14 +96,14 @@ remove themselves.
 
 | | |
 |---|---|
-| Tables | 9, all `pharmacy*`, all keyed on `pharmacyId` |
-| Policies | `tenant_isolation` on all 9, created by the axis loop without naming any of them |
-| Routes | `/login`, `/` (dashboard), `/pos`, `/receipts`, `/receiving`, `/staff`, `/logout` |
-| Tests | 101 offline, 34 DB-backed |
+| Tables | 11, all `pharmacy*`, all keyed on `pharmacyId` |
+| Policies | `tenant_isolation` on all 11, created by the axis loop without naming any of them |
+| Routes | `/login`, `/` (dashboard), `/pos`, `/receipts`, `/receipts/<id>`, `/receipts/<id>/print`, `/receiving`, `/settings`, `/staff`, `/logout` |
+| Tests | 130 offline, 41 DB-backed |
 
-**Catalogue · batches · suppliers · stock movements · POS · expiry and low-stock
-reporting.** Not in this pass: HRIS, loyalty, prescriptions as records, stock
-transfers, stocktakes, PO receiving, z-readings, online orders. Reseta has all of
+**Catalogue · batches · suppliers · stock movements · POS with voids, returns
+and a printable BIR receipt · expiry and low-stock reporting.** Not in this pass: HRIS, loyalty, prescriptions as records, stock
+transfers, stocktakes, PO receiving, z-readings, online orders. The source MVP has all of
 those and they are all real; none is load-bearing for the platform question this
 pass had to answer.
 
@@ -161,7 +161,7 @@ two copies of this formula is how it would happen.
 ```
 partner portal
   → provisionMerchant("pharmacy", partnerId, {...})   @servd/core, knows nothing about pharmacies
-    → resetaAdapter.provisionMerchant                 apps/reseta, the only file that knows
+    → rescetaAdapter.provisionMerchant                 apps/resceta, the only file that knows
       → provisionPharmacy                             writes pharmacies.partnerId
 ```
 

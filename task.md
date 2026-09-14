@@ -1,14 +1,14 @@
 # Where CANVEXIA is, and what to do next
 
 CANVEXIA is separate from servdph.com — its own database, its own merchants, its
-own domains (D31). Two products live: **Servd** (restaurants) and **Reseta**
+own domains (D31). Two products live: **Servd** (restaurants) and **Resceta**
 (pharmacy). 1,239 tests pass, none skipped.
 
 | Domain | Serves | Deployment |
 |---|---|---|
 | **servdph.net** | Servd — restaurants | `apps/servd` |
 | **canvexia.com** | CANVEXIA — the partner portal | `apps/servd`, same deployment |
-| **risceta.com** | Reseta — pharmacy | `apps/reseta` |
+| **resceta.com** | Resceta — pharmacy | `apps/resceta` |
 
 ---
 
@@ -21,7 +21,7 @@ verifies, the identity row is there, and the membership resolves.
 |---|---|
 | Pharmacy | **CANVEXIA Pharmacy Davao** (`canvexia-pharmacy-davao`) |
 | Owned by | CANVEXIA Davao — the house partner |
-| Sign in | `owner@risceta.com` |
+| Sign in | `owner@resceta.com` |
 | Password | `a9eETJaAPvFE-Rx7` — **temporary, change it** |
 | Role | owner (every permission) |
 | Status | **pending** |
@@ -40,22 +40,22 @@ update pharmacies
  where slug = 'canvexia-pharmacy-davao';
 ```
 
-Rename it freely — Reseta has no slug in its URLs (D30), so the name and slug
+Rename it freely — Resceta has no slug in its URLs (D30), so the name and slug
 are display only.
 
 ---
 
 # What to do next
 
-## 1. Deploy Reseta and sign in
+## 1. Deploy Resceta and sign in
 
 The account is waiting; the app is not up. Set the env from
-`apps/reseta/.env.example` — the same `DATABASE_URL` Servd uses, plus the
-Supabase Auth keys from the same project — and deploy `apps/reseta`.
+`apps/resceta/.env.example` — the same `DATABASE_URL` Servd uses, plus the
+Supabase Auth keys from the same project — and deploy `apps/resceta`.
 
 **Deployment: two projects, one repository** — `docs/canvexia/domains.md` has
 the whole setup. The short version: a second Vercel project with Root Directory
-`apps/reseta`, **Include source files outside of the Root Directory** turned on,
+`apps/resceta`, **Include source files outside of the Root Directory** turned on,
 Node 22. Both `vercel.json` files set `ignoreCommand: npx turbo-ignore`, so a
 change in `apps/servd` no longer redeploys the pharmacy — but a change in
 `packages/db` still correctly rebuilds both.
@@ -147,7 +147,7 @@ of field names, because what an audit asks is what the TIN *used to be*.
 
 ## Numbers
 
-- **Reseta 130 offline + 41 DB-backed**
+- **Resceta 130 offline + 41 DB-backed**
 - **Servd 1,030 offline + 38 DB-backed**
 - both typecheck, both build
 

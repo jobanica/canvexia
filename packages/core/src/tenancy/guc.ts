@@ -15,7 +15,7 @@
 export const GUC = {
   /** The Servd merchant the request is scoped to. Set by tenantDb(). */
   restaurantId: "app.current_restaurant_id",
-  /** The Reseta merchant the request is scoped to. Set by pharmacyDb(). */
+  /** The Resceta merchant the request is scoped to. Set by pharmacyDb(). */
   pharmacyId: "app.current_pharmacy_id",
   /** The CANVEXIA partner the request is scoped to. Set by partnerDb(). */
   partnerId: "app.current_partner_id",

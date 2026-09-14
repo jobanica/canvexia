@@ -907,7 +907,7 @@ calls for as step 2.
 
 ---
 
-## D28 — The first vertical is Reseta (pharmacy), because it is the only one that exists
+## D28 — The first vertical is Resceta (pharmacy), because it is the only one that exists
 
 **Settled**, and it settles itself once the repositories are opened.
 
@@ -945,14 +945,14 @@ pharmacy there is a working schema to derive from, so no guessing is required.
 - **The SC/PWD formula.** RA 9994 and RA 10754 give 20% off the **VAT-exclusive**
   price, and the sale is VAT-exempt: `net = price / 1.12 * 0.8`. The obvious
   `price * 0.8` overcharges every beneficiary by exactly the VAT on the
-  discounted price — ₱9.60 on a ₱112 box, silently, forever. Reseta's
+  discounted price — ₱9.60 on a ₱112 box, silently, forever. The source MVP's
   `complete_sale` has the right one; it is asserted in
-  `apps/reseta/tests/pharmacy/discount.test.ts` as law rather than as behaviour.
+  `apps/resceta/tests/pharmacy/discount.test.ts` as law rather than as behaviour.
 - **Gapless receipt numbering**, allocated by incrementing a counter inside the
   sale transaction. Counting rows reissues a number after a void.
 - **The Rx gate**, checked across the whole cart before anything is written.
 
-**Not taken** — its tenancy. Reseta is `organizations` + `branches` +
+**Not taken** — its tenancy. `jobanica/Pharmacy` is `organizations` + `branches` +
 `memberships` with Supabase-Auth RLS (`auth_org_id()`, `has_org_role()`). None of
 that survives: a CANVEXIA merchant is owned by a partner, and the policies
 resolve through `partnerId`. Reconciling two tenancy models is precisely the work
@@ -968,7 +968,7 @@ is 25 lines against Servd's 45, and the difference is exactly that.
 **Scope of this pass**: catalogue, batches, suppliers, stock movements, POS with
 FEFO + SC/PWD + Rx gate, expiry and low-stock reporting. **Not** in it: HRIS,
 loyalty, prescriptions as records, stock transfers, stocktakes, purchase-order
-receiving, z-readings, online orders. Reseta has all of those and they are all
+receiving, z-readings, online orders. The source MVP has all of those and they are all
 real; none is load-bearing for the platform question this pass had to answer.
 
 ## D29 — Each product gets its own merchant table, and RLS loops over the axes
@@ -1000,7 +1000,7 @@ pharmacy tables without naming any of them.
 
 The list exists twice — `MERCHANT_AXES` in `packages/core`, and an array literal
 in `rls.sql` — because SQL cannot import TypeScript.
-`apps/reseta/tests/isolation/merchant-axes.test.ts` reads the SQL as text and
+`apps/resceta/tests/isolation/merchant-axes.test.ts` reads the SQL as text and
 fails if they disagree, including checking that every axis has its helper
 function declared. Without it the drift is silent: a mismatched GUC name makes
 `current_setting(..., true)` return NULL, the policy matches nothing, and the
@@ -1037,7 +1037,7 @@ anywhere**:
 
 ## D30 — Identity is the session and the membership rows, never the URL
 
-**Settled.** Sign-in for Reseta, and the reason it changed the routes.
+**Settled.** Sign-in for Resceta, and the reason it changed the routes.
 
 Before this, the pharmacy came from a `[slug]` path segment. Everything below it
 was correct — `pharmacyDb` scoped every query, the policies held — but the id
@@ -1106,7 +1106,7 @@ D25 but its dependency stayed behind in `apps/servd`, so `db:rls` failed with
 in the offline suite touches it; it only appears when someone applies policies
 to a database, which is exactly the wrong moment.
 
-**`pharmacy_sale_items.productId` was `Restrict`.** Copied from Reseta's schema
+**`pharmacy_sale_items.productId` was `Restrict`.** Copied from the source MVP's schema
 without noticing that Servd had already hit the identical bug on
 `order_items.menuItemId` and fixed it — there is a migration named
 `fix-orderitem-menuitem-setnull.sql` whose comment describes this exact failure.
@@ -1168,7 +1168,7 @@ There simply are no such customers on this database yet.
 |---|---|---|
 | **servdph.net** | Servd — restaurants; merchants get subdomains | `apps/servd` |
 | **canvexia.com** | CANVEXIA — the partner portal; partners get subdomains | `apps/servd`, same deployment |
-| **risceta.com** | Reseta — pharmacy | `apps/reseta` |
+| **resceta.com** | Resceta — pharmacy | `apps/resceta` |
 
 Full routing and DNS in `docs/canvexia/domains.md`.
 
@@ -1186,8 +1186,9 @@ A test asserted the old behaviour — `expect(p("canvexia.app").kind).toBe(
 "platform")` — and it was right when written. It is now inverted, with the
 reason in the test name rather than in a comment nobody reads.
 
-Note the product/domain spelling: the product is **Reseta**, the domain is
-**risceta.com**. Different by intent, not by typo — flagged and confirmed.
+Note the product/domain spelling. It was first **Resceta** with the domain
+**resceta.com** — flagged as a mismatch at the time and confirmed as intended.
+It was later settled the other way: see D34.
 
 ### The old domain, and the bug it was hiding
 
@@ -1221,7 +1222,7 @@ itself.
 
 ## D32 — A void and a return are different instruments
 
-**Settled.** Reseta's reversals, and the two places it deliberately departs from
+**Settled.** Resceta's reversals, and the two places it deliberately departs from
 the system it was derived from.
 
 **Void** — the sale never really happened. Rung up twice, wrong customer,
@@ -1248,7 +1249,7 @@ Neither operation ever edits the sale's figures. A void flips a status; a return
 is a separate document pointing at the sale. The receipt keeps saying what it
 said when it was printed, which is the only version of this that reconciles.
 
-### Two departures from Reseta, both deliberate
+### Two departures from the source MVP, both deliberate
 
 `jobanica/Pharmacy` was the source for the domain facts (D28) and is not
 followed here on either of these.
@@ -1264,7 +1265,7 @@ are wrong for a pharmacy:
    the money back.
 2. *Into the newest batch.* Its `sale_return_items` points at a **product**, so
    the lot is already lost by the time the stock goes back. A unit from one lot
-   is counted into another and both figures are wrong. Reseta's return items
+   is counted into another and both figures are wrong. Resceta's return items
    point at the original **sale line**, which names the batch — so a restock
    goes back where it came from. A recall names a lot.
 
@@ -1299,7 +1300,7 @@ one without the other shows up there and nowhere else.
 
 **Settled.** A PH pharmacy receipt is a regulated document twice over: BIR wants
 a sales invoice with a specific VAT presentation, FDA wants the Licence to
-Operate and the supervising pharmacist's PRC number on the face of it. Reseta
+Operate and the supervising pharmacist's PRC number on the face of it. Resceta
 prints one, from `lib/pharmacy/receipt.ts` — the arithmetic *and the order of
 the summary rows* live in a tested module, not in JSX.
 
@@ -1380,3 +1381,56 @@ fields could only be set with raw SQL, which meant every receipt printed with
 blanks and the documented fix was a psql session. `/settings` is owner-only, and
 the whole record either side of the change goes to `audit_logs` — not a diff of
 field names, because the question an audit asks is what the TIN *used to be*.
+
+---
+
+## D34 — The product is Resceta, and so is the domain
+
+**Settled.** The pharmacy vertical is **Resceta**, served from **resceta.com**,
+built from `apps/resceta`. This supersedes the spelling note in D31.
+
+It was previously **Reseta** the product on **risceta.com** the domain. That was
+recorded as deliberate, and it was — but it left a customer typing `risceta.com`
+onto a page whose header and browser tab both said "Reseta", which is the kind of
+thing people notice and nobody can explain. One spelling, both places.
+
+Done now rather than later because both halves get more expensive with use: a
+domain acquires bookmarks, printed receipts and a Google index, and the login
+address is not config — it is a stored value.
+
+### What actually had to change
+
+| | |
+|---|---|
+| Code | `apps/reseta` → `apps/resceta`, the package name, `reseta-adapter.ts`, every UI string |
+| Domain | `risceta.com` → `resceta.com` in both `.env.example`s, the DNS table, Servd's host test |
+| **Database** | the owner's login in `auth.users`, `auth.identities`, and `pharmacy_staff.email` |
+
+The database row is the only part that is not a find-and-replace. A synthetic or
+real login address is written into Supabase Auth at creation and does not follow
+an environment variable afterwards — the same trap D31 records for
+`INTERNAL_LOGIN_DOMAIN`, hit for real this time.
+
+Product **ids** did not change. `partner_ledger_entries.productId` is `'servd'`
+and `'pharmacy'`; the vertical's id was never its brand name, so no data
+migration touches them. That is worth knowing the next time a product is
+renamed.
+
+### The rename fixed an ambiguity it did not create
+
+The docs used "Reseta" for **two different systems**: this product, and
+`jobanica/Pharmacy` — the working MVP at `reseta.vercel.app` that D28 took the
+domain facts from. Six passages meant the source, not this codebase ("Reseta is
+`organizations` + `branches`", "copied from Reseta's schema", "two departures
+from Reseta").
+
+Blanket-renaming those would have made them false. They now say **the source
+MVP** or `jobanica/Pharmacy` outright, so the two systems are distinguishable by
+reading rather than by knowing.
+
+### `prisma/manual/` keeps the old name
+
+`add-pharmacy-vertical.sql` and `add-pharmacy-returns.sql` still say Reseta, with
+a note at the top saying why. `manual/` is a record of what was run, not a queue
+to replay (D26) — and what was run, at the time, was called Reseta. Editing it to
+agree with today would be rewriting the record to be tidier and less true.

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { PrismaClient, type Prisma } from "@prisma/client";
-import { resetaAdapter } from "@/server/products/reseta-adapter";
+import { rescetaAdapter } from "@/server/products/resceta-adapter";
 import { completeSale } from "@/server/pharmacy/sale";
 
 /**
@@ -67,7 +67,7 @@ d("provisioning a pharmacy through the real adapter", () => {
       rivalPartner = await mk("rival");
     });
 
-    provisioned = await resetaAdapter.provisionMerchant({
+    provisioned = await rescetaAdapter.provisionMerchant({
       partnerId: ownerPartner,
       name: `Botica ${stamp}`,
       address: "Davao City",
@@ -141,7 +141,7 @@ d("provisioning a pharmacy through the real adapter", () => {
   });
 
   it("assigns a distinct slug when two pharmacies share a name", async () => {
-    const second = await resetaAdapter.provisionMerchant({
+    const second = await rescetaAdapter.provisionMerchant({
       partnerId: rivalPartner,
       name: `Botica ${stamp}`,
     });

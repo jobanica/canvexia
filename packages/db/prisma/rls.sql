@@ -56,7 +56,7 @@ create or replace function app.current_partner_id() returns text
     select nullif(current_setting('app.current_partner_id', true), '')
 $$;
 
--- The Reseta (pharmacy) merchant the current request is scoped to.
+-- The Resceta (pharmacy) merchant the current request is scoped to.
 --
 -- A second product means a second merchant axis, not a second copy of this
 -- file: `pharmacies` carries `partnerId` exactly as `restaurants` does, so the
@@ -99,7 +99,7 @@ end $$;
 -- ----------------------------------------------------------------------------
 -- Tenant tables: enable + FORCE rls and add a tenant policy for every table
 -- with a direct merchant foreign key — "restaurantId" for Servd, "pharmacyId"
--- for Reseta, one pass of the loop per axis.
+-- for Resceta, one pass of the loop per axis.
 --
 -- This list used to be written out by hand, and it drifted. Adding a model and
 -- remembering to add it here are two separate acts, and the second one was

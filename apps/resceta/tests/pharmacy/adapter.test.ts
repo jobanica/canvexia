@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * The adapter contract, without a database.
  *
  * What matters here is not that a row gets written — the isolation test covers
- * that — but that Reseta plugs into the platform the way the contract requires:
+ * that — but that Resceta plugs into the platform the way the contract requires:
  * it registers under the right product id, it passes ownership through, and it
  * returns the slug that was actually assigned rather than one it guessed.
  */
@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const provisionPharmacy = vi.fn();
 vi.mock("@/server/pharmacy/provision", () => ({ provisionPharmacy }));
 
-const { resetaAdapter } = await import("@/server/products/reseta-adapter");
+const { rescetaAdapter } = await import("@/server/products/resceta-adapter");
 const { getProductAdapter, provisionMerchant, PRODUCTS } = await import("@servd/core");
 
 beforeEach(() => {
@@ -20,10 +20,10 @@ beforeEach(() => {
   provisionPharmacy.mockResolvedValue({ id: "ph_1", slug: "alpha-botica" });
 });
 
-describe("the Reseta product adapter", () => {
+describe("the Resceta product adapter", () => {
   it("registers itself under the pharmacy product id", () => {
-    expect(getProductAdapter("pharmacy")).toBe(resetaAdapter);
-    expect(resetaAdapter.productId).toBe("pharmacy");
+    expect(getProductAdapter("pharmacy")).toBe(rescetaAdapter);
+    expect(rescetaAdapter.productId).toBe("pharmacy");
   });
 
   it("is a product the registry actually knows about", () => {
@@ -32,7 +32,7 @@ describe("the Reseta product adapter", () => {
   });
 
   it("passes ownership through — the adapter sets it, not the dispatch", async () => {
-    await resetaAdapter.provisionMerchant({ partnerId: "partner_1", name: "Alpha Botica" });
+    await rescetaAdapter.provisionMerchant({ partnerId: "partner_1", name: "Alpha Botica" });
     expect(provisionPharmacy).toHaveBeenCalledWith(
       expect.objectContaining({ partnerId: "partner_1", name: "Alpha Botica" }),
     );
@@ -40,7 +40,7 @@ describe("the Reseta product adapter", () => {
 
   it("returns the slug that was assigned, not one it derived", async () => {
     provisionPharmacy.mockResolvedValue({ id: "ph_9", slug: "alpha-botica-3" });
-    const result = await resetaAdapter.provisionMerchant({
+    const result = await rescetaAdapter.provisionMerchant({
       partnerId: "partner_1",
       name: "Alpha Botica",
     });
@@ -50,7 +50,7 @@ describe("the Reseta product adapter", () => {
   });
 
   it("takes the licence numbers off `extra`, not off the shared shape", async () => {
-    await resetaAdapter.provisionMerchant({
+    await rescetaAdapter.provisionMerchant({
       partnerId: "partner_1",
       name: "Alpha Botica",
       extra: { fdaLtoNumber: "  LTO-123  ", prcLicenseNo: "PRC-9", tin: "" },
@@ -62,7 +62,7 @@ describe("the Reseta product adapter", () => {
   });
 
   it("ignores non-string junk in `extra` rather than writing it", async () => {
-    await resetaAdapter.provisionMerchant({
+    await rescetaAdapter.provisionMerchant({
       partnerId: "partner_1",
       name: "Alpha Botica",
       extra: { fdaLtoNumber: 42, prcLicenseNo: null, tin: { nope: true } },

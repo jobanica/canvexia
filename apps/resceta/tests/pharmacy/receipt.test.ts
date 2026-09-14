@@ -303,8 +303,8 @@ describe("the document", () => {
   it("prefers the trading name, falling back to the registered one", () => {
     expect(buildReceipt(COMPLETE, sale()).title).toBe("CANVEXIA Pharmacy Davao");
     expect(
-      buildReceipt({ ...COMPLETE, displayName: "Reseta Quimpo" }, sale()).title,
-    ).toBe("Reseta Quimpo");
+      buildReceipt({ ...COMPLETE, displayName: "Resceta Quimpo" }, sale()).title,
+    ).toBe("Resceta Quimpo");
     expect(buildReceipt({ ...COMPLETE, displayName: "  " }, sale()).title).toBe(
       "CANVEXIA Pharmacy Davao",
     );

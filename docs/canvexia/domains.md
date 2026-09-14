@@ -6,7 +6,7 @@ Three domains, two deployments, one database. D31.
 |---|---|---|
 | **servdph.net** | Servd — the restaurant product | `apps/servd` |
 | **canvexia.com** | CANVEXIA — the partner portal | `apps/servd` (same deployment) |
-| **risceta.com** | Reseta — the pharmacy product | `apps/reseta` |
+| **resceta.com** | Resceta — the pharmacy product | `apps/resceta` |
 
 `servdph.com` is a **different business on a different database** and is not part
 of this project. If it is ever pointed here it resolves as an ordinary custom
@@ -46,9 +46,9 @@ One deployment serves both domains. They are not two apps: the middleware reads
 the Host header and rewrites, which is why both roots must be added to the same
 hosting project.
 
-### risceta.com → `apps/reseta`
+### resceta.com → `apps/resceta`
 
-A separate deployment and **no host routing at all**. Reseta is one app, and
+A separate deployment and **no host routing at all**. Resceta is one app, and
 which pharmacy you are looking at comes from the session, never the URL (D30) —
 so there are no subdomains to configure and nothing to parse.
 
@@ -62,7 +62,7 @@ Directory** and nothing else:
 | Project | Root Directory | Domains |
 |---|---|---|
 | `servd` | `apps/servd` | `servdph.net`, `*.servdph.net`, `canvexia.com`, `*.canvexia.com`, and every merchant's own custom domain |
-| `reseta` | `apps/reseta` | `risceta.com`, `www.risceta.com` |
+| `resceta` | `apps/resceta` | `resceta.com`, `www.resceta.com` |
 
 `canvexia.com` is on the **Servd project** on purpose. One deployment serves
 both roots; the middleware reads the Host header and rewrites. Adding it to a
@@ -79,7 +79,7 @@ Two settings on each project are not defaults and both matter:
 
 `regions` and `crons` come from each app's `vercel.json`, not the dashboard.
 Both deploy to `hnd1` (Tokyo — the closest region to Manila). Only Servd has
-crons; Reseta has no scheduled work.
+crons; Resceta has no scheduled work.
 
 ### Only the app that changed gets deployed
 
@@ -100,14 +100,14 @@ the build if nothing did. It reads the real dependency graph, so:
 | Changed | Rebuilds |
 |---|---|
 | `apps/servd/**` | Servd |
-| `apps/reseta/**` | Reseta |
+| `apps/resceta/**` | Resceta |
 | `packages/db/**` (the schema) | **both** |
 | `packages/core/**` | **both** |
 | `pnpm-lock.yaml`, `turbo.json`, root config | **both** |
 
 The two `packages/**` rows are the reason to use `turbo-ignore` rather than a
 path filter: a schema change *has* to rebuild both apps, and a hand-written
-"did `apps/reseta` change?" check would miss it.
+"did `apps/resceta` change?" check would miss it.
 
 It fails safe — when it cannot tell (first deployment, no prior successful
 build, missing git history) it builds. If it ever skips a build you wanted,
@@ -148,10 +148,10 @@ NEXT_PUBLIC_PARTNER_ROOT_DOMAIN="canvexia.com"
 INTERNAL_LOGIN_DOMAIN="staff.servdph.net"
 ```
 
-`apps/reseta/.env.example`:
+`apps/resceta/.env.example`:
 
 ```
-NEXT_PUBLIC_APP_URL="https://risceta.com"
+NEXT_PUBLIC_APP_URL="https://resceta.com"
 ```
 
 Both apps point at the **same** `DATABASE_URL` — one schema and one database for
@@ -177,8 +177,8 @@ editing DNS.
 | `canvexia.com` | apex → the SAME deployment | the partner front door |
 | `www.canvexia.com` | CNAME | same |
 | `*.canvexia.com` | **wildcard** CNAME | every partner's branded portal |
-| `risceta.com` | apex → the Reseta deployment | the pharmacy app |
-| `www.risceta.com` | CNAME | same |
+| `resceta.com` | apex → the Resceta deployment | the pharmacy app |
+| `www.resceta.com` | CNAME | same |
 
 **QR codes do not depend on the merchant wildcard.** `qr.ts` always builds the
 apex path (`/t/<token>`) unless the merchant has a verified custom domain — so a

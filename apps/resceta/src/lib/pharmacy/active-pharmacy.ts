@@ -14,7 +14,7 @@
  * Pure, so the precedence can be tested without a browser.
  */
 
-export const PHARMACY_COOKIE = "reseta_pharmacy";
+export const PHARMACY_COOKIE = "resceta_pharmacy";
 
 export interface Membership {
   pharmacyId: string;

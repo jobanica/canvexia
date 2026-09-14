@@ -1,14 +1,14 @@
-// Creates a Reseta login: a Supabase Auth user plus the pharmacy_staff row.
+// Creates a Resceta login: a Supabase Auth user plus the pharmacy_staff row.
 //
 // The bootstrap. Staff are normally added from /staff inside the app, but that
 // screen needs someone signed in as an owner or manager — so the FIRST account
 // at a pharmacy has to come from here. After that, use the app.
 //
 // Usage (note the `--` so pnpm passes the args through):
-//   pnpm --filter reseta staff:create -- <pharmacySlug> <owner|manager|pharmacist|cashier> <email> <password> [name]
+//   pnpm --filter resceta staff:create -- <pharmacySlug> <owner|manager|pharmacist|cashier> <email> <password> [name]
 //
 // Example:
-//   pnpm --filter reseta staff:create -- alpha-botica owner ana@botica.test 'StrongPass123!' 'Ana Reyes'
+//   pnpm --filter resceta staff:create -- alpha-botica owner ana@botica.test 'StrongPass123!' 'Ana Reyes'
 import { PrismaClient } from "@prisma/client";
 import { createClient } from "@supabase/supabase-js";
 
@@ -27,7 +27,7 @@ const displayName = nameParts.join(" ").trim() || null;
 
 if (!slug || !role || !email || !password) {
   console.error(
-    "Usage: pnpm --filter reseta staff:create -- <pharmacySlug> <" +
+    "Usage: pnpm --filter resceta staff:create -- <pharmacySlug> <" +
       ROLES.join("|") +
       "> <email> <password> [name]",
   );

@@ -32,7 +32,7 @@ export default async function LoginPage({
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6 py-12">
       <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Reseta</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Resceta</h1>
         <p className="mt-1 text-sm text-slate-600">
           Sign in to your pharmacy.
         </p>

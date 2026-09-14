@@ -1,8 +1,8 @@
 {
-  "name": "reseta",
+  "name": "resceta",
   "version": "0.1.0",
   "private": true,
-  "description": "Reseta \u2014 pharmacy POS, batch inventory and expiry tracking. A CANVEXIA vertical.",
+  "description": "Resceta \u2014 pharmacy POS, batch inventory and expiry tracking. A CANVEXIA vertical.",
   "engines": {
     "node": "22.x"
   },
