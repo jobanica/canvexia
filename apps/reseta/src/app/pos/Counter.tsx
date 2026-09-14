@@ -16,13 +16,19 @@ import type { CatalogueRow } from "@/server/pharmacy/queries";
  * still recomputes — this is a preview, never the source of truth.
  */
 export function Counter({
-  slug,
   vatRatePct,
   products,
+  canDispenseRx,
 }: {
-  slug: string;
   vatRatePct: number;
   products: CatalogueRow[];
+  /**
+   * Whether THIS person may complete a cart containing a prescription-only
+   * item. Passed in rather than derived here: the role lives in the session,
+   * and the server checks it again before writing anything. This only decides
+   * what the counter says before they try.
+   */
+  canDispenseRx: boolean;
 }) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [discountType, setDiscountType] = useState<DiscountType>("none");
@@ -54,6 +60,7 @@ export function Counter({
   );
 
   const needsRx = lines.some((l) => byId.get(l.productId)?.requiresPrescription);
+  const blockedOnRx = needsRx && !canDispenseRx;
   const statutory = discountType === "sc" || discountType === "pwd";
 
   function add(id: string, delta: number) {
@@ -66,7 +73,7 @@ export function Counter({
 
   return (
     <form action={formAction} className="grid gap-8 lg:grid-cols-[1fr_20rem]">
-      <input type="hidden" name="slug" value={slug} />
+      {/* No pharmacy id in this form. It comes from the session server-side. */}
       <input type="hidden" name="lines" value={JSON.stringify(lines)} />
       <input type="hidden" name="discountType" value={discountType} />
 
@@ -168,7 +175,15 @@ export function Counter({
           </div>
         )}
 
-        {needsRx && (
+        {blockedOnRx && (
+          <p className="mb-3 rounded border border-violet-300 bg-violet-50 p-3 text-sm text-violet-900">
+            This cart contains a prescription-only item. A pharmacist has to
+            complete it — under PH practice an Rx medicine is dispensed by, or
+            directly supervised by, a registered pharmacist.
+          </p>
+        )}
+
+        {needsRx && canDispenseRx && (
           <label className="mb-3 block text-sm">
             <span className="mb-1 block text-violet-900">Prescription reference</span>
             <input
@@ -220,7 +235,7 @@ export function Counter({
 
         <button
           type="submit"
-          disabled={pending || lines.length === 0}
+          disabled={pending || lines.length === 0 || blockedOnRx}
           className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
         >
           {pending ? "Recording…" : "Complete sale"}

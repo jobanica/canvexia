@@ -1032,3 +1032,86 @@ anywhere**:
 | Merchant reads `partner_ledger_entries` | ✅ nothing — the split is not theirs |
 | Tables with RLS enabled *and* forced | ✅ 98 of 98 |
 | Supabase security advisor | ✅ empty |
+
+---
+
+## D30 — Identity is the session and the membership rows, never the URL
+
+**Settled.** Sign-in for Reseta, and the reason it changed the routes.
+
+Before this, the pharmacy came from a `[slug]` path segment. Everything below it
+was correct — `pharmacyDb` scoped every query, the policies held — but the id
+being scoped *to* arrived from the browser. That is one forgotten check away
+from being the whole tenancy argument's weak point, and the check would be in a
+different file from the code that depends on it.
+
+**So the routes have no `[slug]` any more.** `/`, `/pos`, `/staff`, `/login`.
+`getCurrentStaff()` reads the Supabase session, then `pharmacy_staff`, and
+returns the pharmacy. There is no URL to tamper with because there is no URL.
+Same rule Servd's `current-user.ts` already states — *"restaurantId is derived
+ONLY from the trusted session here"* — arrived at from the other direction.
+
+### Middleware renews the token and nothing else
+
+No database, no route gating. It runs on the Edge; a middleware that decides who
+may see what needs the membership rows, which means Prisma, which does not
+belong there. Gating happens where the rows are: `requireStaff()` in the pages
+and the actions.
+
+It also skips the Supabase round-trip entirely when the request carries no
+session cookie, so an anonymous hit costs nothing.
+
+### Several pharmacies, one login
+
+`pharmacy_staff` is unique on `(pharmacyId, authUserId)`, so an owner with two
+branches or a relief pharmacist covering both is one login with two memberships.
+The switcher writes a cookie; `pickPharmacy` checks it against the memberships
+read from the database. **A cookie naming a pharmacy you are not staff at is
+ignored**, and a stale one from a removed membership drops you into your
+remaining pharmacy rather than locking you out.
+
+Membership is verified when the cookie is *written* as well as when it is read.
+Redundant today — but a cookie the server wrote looks trustworthy to whoever
+reads this code next, and that is how the read-side check gets dropped later.
+
+### The permission that is law
+
+`dispenseRx` belongs to `pharmacist` and `owner`. Under PH practice a
+prescription-only medicine is dispensed by, or under the direct supervision of,
+a registered pharmacist — so a **cashier cannot complete a cart containing one,
+and neither can a manager**. Seniority is not a licence. Every other permission
+in the table is ordinary access control and can be argued about; that one cannot
+be loosened without someone deciding to break the law.
+
+The counter disables the button, and the server checks again — with the Rx flags
+read **from the database**, not from the form. A browser that omits the flag
+must not be able to talk a cashier's till into dispensing an antibiotic.
+
+Two smaller decisions worth keeping:
+
+- **Owner is a superset by construction**, not a list. A permission added in six
+  months must not silently exclude the person who owns the business, and a test
+  asserts it over the `PERMISSIONS` array rather than a copy of it.
+- **An unknown role grants nothing rather than throwing.** TypeScript makes that
+  look unreachable; it is not, because the value comes from a database column. A
+  role added to the Postgres enum before the code knows about it would otherwise
+  crash inside a render — a 500 on every page rather than a denied permission.
+  Caught by a test, not by review.
+
+### Two bugs this work surfaced
+
+**`pg` did not move with the script.** `apply-rls.mjs` moved to `packages/db` in
+D25 but its dependency stayed behind in `apps/servd`, so `db:rls` failed with
+`Cannot find package 'pg'` the first time it was run from its new home. Nothing
+in the offline suite touches it; it only appears when someone applies policies
+to a database, which is exactly the wrong moment.
+
+**`pharmacy_sale_items.productId` was `Restrict`.** Copied from Reseta's schema
+without noticing that Servd had already hit the identical bug on
+`order_items.menuItemId` and fixed it — there is a migration named
+`fix-orderitem-menuitem-setnull.sql` whose comment describes this exact failure.
+Restrict makes a product undeletable the moment anyone buys it, and a pharmacy
+with sales undeletable entirely. Now nullable with `SET NULL`: the line already
+snapshots `nameAtTime`, so history survives without the live row.
+
+A test teardown found it, which is the only reason it was found at all.

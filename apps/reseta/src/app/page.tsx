@@ -1,91 +1,194 @@
-import Link from "next/link";
-import { PRODUCTS } from "@servd/core";
-import { listPharmacies } from "@/server/pharmacy/queries";
+import { redirect } from "next/navigation";
+import { getCurrentStaff } from "@/server/tenancy/current-user";
+import { AppShell } from "@/components/AppShell";
+import { catalogue, expiryReport, recentSales } from "@/server/pharmacy/queries";
+import { can } from "@/lib/pharmacy/roles";
+import { peso, manilaDate } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The index, and for now a development console rather than a product surface.
+ * The dashboard, for whichever pharmacy the session resolves to.
  *
- * It lists every pharmacy, which is a thing NO logged-in user should ever see —
- * it runs system-scoped precisely because there is no session yet. Wiring
- * Supabase Auth and `pharmacy_staff` is the next piece of work; until it lands,
- * this page says so rather than pretending otherwise.
+ * Note what is NOT here: a pharmacy id, a slug, any parameter at all. The
+ * pharmacy comes from `getCurrentStaff()`, which reads the session and the
+ * membership rows. There is no URL to tamper with because there is no URL.
+ *
+ * Two questions, in the order a pharmacist actually asks them: what is about to
+ * expire, and what is about to run out. Sales are third — they are the record,
+ * not the decision, and a cashier does not see them at all.
  */
-export default async function Home() {
-  let pharmacies: Awaited<ReturnType<typeof listPharmacies>> = [];
-  let dbError: string | null = null;
-  try {
-    pharmacies = await listPharmacies();
-  } catch (e) {
-    dbError = e instanceof Error ? e.message : String(e);
-  }
+export default async function Dashboard() {
+  const staff = await getCurrentStaff();
+  if (!staff) redirect("/login");
+
+  const showSales = can(staff.role, "viewReports");
+  const [stock, expiring, sales] = await Promise.all([
+    catalogue(staff.pharmacyId),
+    expiryReport(staff.pharmacyId, 90),
+    showSales ? recentSales(staff.pharmacyId, 10) : Promise.resolve([]),
+  ]);
+
+  const lowStock = stock.filter((p) => p.onHand <= p.reorderPoint);
+  const expired = expiring.filter((b) => b.expired);
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <header className="mb-10">
-        <h1 className="text-3xl font-semibold tracking-tight">Reseta</h1>
-        <p className="mt-2 text-slate-600">
-          {PRODUCTS.pharmacy.description} A CANVEXIA vertical.
-        </p>
-      </header>
+    <AppShell staff={staff}>
+      <main className="mx-auto max-w-5xl px-6 py-10">
+        <h1 className="mb-8 text-2xl font-semibold tracking-tight">
+          {staff.pharmacyName}
+        </h1>
 
-      <section className="mb-10 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-        <p className="font-medium">No sign-in yet.</p>
-        <p className="mt-1">
-          Every pharmacy below is listed without a session, which is why this is a
-          development console and not a product screen. Sign-in against{" "}
-          <code className="rounded bg-amber-100 px-1">pharmacy_staff</code> is the
-          next piece; the tenant queries behind each link already run scoped, so
-          adding it changes who gets an id, not what the id can reach.
-        </p>
-      </section>
+        <section className="mb-10">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Expiring within 90 days
+            {expired.length > 0 && (
+              <span className="ml-2 rounded bg-red-100 px-2 py-0.5 text-xs normal-case text-red-800">
+                {expired.length} already expired
+              </span>
+            )}
+          </h2>
+          {expiring.length === 0 ? (
+            <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+              Nothing expiring in the window.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Item</th>
+                    <th className="px-4 py-2 font-medium">Lot</th>
+                    <th className="px-4 py-2 font-medium">Expires</th>
+                    <th className="px-4 py-2 text-right font-medium">Qty</th>
+                    {can(staff.role, "viewReports") && (
+                      <th className="px-4 py-2 text-right font-medium">At cost</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {expiring.map((b) => (
+                    <tr key={b.batchId} className={b.expired ? "bg-red-50" : undefined}>
+                      <td className="px-4 py-2">{b.productName}</td>
+                      <td className="px-4 py-2 font-mono text-xs text-slate-500">
+                        {b.lotNumber ?? "—"}
+                      </td>
+                      <td className="px-4 py-2">
+                        {manilaDate(b.expiryDate)}
+                        {b.expired && (
+                          <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-800">
+                            expired
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">{b.quantity}</td>
+                      {can(staff.role, "viewReports") && (
+                        <td className="px-4 py-2 text-right tabular-nums">
+                          {peso(b.valueCentavos)}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Pharmacies
-      </h2>
+        <section className="mb-10">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Stock
+          </h2>
+          {stock.length === 0 ? (
+            <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+              No products yet.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Item</th>
+                    <th className="px-4 py-2 font-medium">Generic</th>
+                    <th className="px-4 py-2 text-right font-medium">Price</th>
+                    <th className="px-4 py-2 text-right font-medium">On hand</th>
+                    <th className="px-4 py-2 font-medium">Soonest expiry</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {stock.map((p) => (
+                    <tr key={p.id}>
+                      <td className="px-4 py-2">
+                        {p.name}
+                        {p.requiresPrescription && (
+                          <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-xs text-violet-800">
+                            Rx
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-slate-500">{p.genericName ?? "—"}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        {peso(p.priceCentavos)}
+                      </td>
+                      <td
+                        className={`px-4 py-2 text-right tabular-nums ${
+                          p.onHand <= p.reorderPoint ? "font-semibold text-red-700" : ""
+                        }`}
+                      >
+                        {p.onHand} {p.unit}
+                      </td>
+                      <td className="px-4 py-2 text-slate-500">
+                        {p.soonestExpiry ? manilaDate(p.soonestExpiry) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {lowStock.length > 0 && (
+            <p className="mt-2 text-xs text-slate-500">
+              {lowStock.length} item{lowStock.length === 1 ? "" : "s"} at or below
+              the reorder point. On-hand excludes expired stock — it is not
+              sellable, so it is not counted.
+            </p>
+          )}
+        </section>
 
-      {dbError ? (
-        <p className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-900">
-          Could not reach the database. Set <code>DATABASE_URL</code> and{" "}
-          <code>DIRECT_URL</code>, then run{" "}
-          <code>packages/db/prisma/manual/add-pharmacy-vertical.sql</code> and{" "}
-          <code>pnpm --filter @servd/db db:rls</code>.
-          <span className="mt-2 block font-mono text-xs opacity-70">{dbError}</span>
-        </p>
-      ) : pharmacies.length === 0 ? (
-        <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
-          None yet. A pharmacy is created by a partner through the CANVEXIA
-          portal, which dispatches to this product&apos;s adapter — not by a form
-          here.
-        </p>
-      ) : (
-        <ul className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white">
-          {pharmacies.map((p) => (
-            <li key={p.id}>
-              <Link
-                href={`/${p.slug}`}
-                className="flex items-center justify-between px-4 py-3 hover:bg-slate-50"
-              >
-                <span>
-                  <span className="font-medium">{p.name}</span>
-                  <span className="ml-2 text-sm text-slate-500">/{p.slug}</span>
-                </span>
-                <span className="flex items-center gap-3 text-sm">
-                  {!p.partnerId && (
-                    <span className="rounded bg-red-100 px-2 py-0.5 text-red-800">
-                      no partner
+        {showSales && (
+          <section>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Recent sales
+            </h2>
+            {sales.length === 0 ? (
+              <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                No sales yet.
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
+                {sales.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between px-4 py-2">
+                    <span className="font-mono text-xs text-slate-500">
+                      {s.receiptNumber}
                     </span>
-                  )}
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700">
-                    {p.status}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </main>
+                    <span className="flex items-center gap-3">
+                      {s.discountType !== "none" && (
+                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs uppercase text-emerald-800">
+                          {s.discountType}
+                        </span>
+                      )}
+                      {s.vatExemptCentavos > 0 && (
+                        <span className="text-xs text-slate-500">VAT-exempt</span>
+                      )}
+                      <span className="tabular-nums">{peso(s.totalCentavos)}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+      </main>
+    </AppShell>
   );
 }

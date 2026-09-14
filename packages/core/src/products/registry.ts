@@ -6,10 +6,11 @@
  * provision into them, without importing anything from a vertical — adding the
  * laundry app must not mean editing the portal.
  *
- * `live` is the honest field here. Servd is the only product with paying
- * customers. Reseta (pharmacy) is built — schema, policies, adapter, POS — and
- * is held at false for one reason stated on its entry. The other two are empty
- * repositories (D28). Listing them as entries with
+ * `live` is the honest field here. Servd has the paying customers; Reseta is
+ * built and provisionable but has none yet. The other two are entries for
+ * products that do not exist — their repositories are empty (D28) — and
+ * `live: false` is what stops the portal offering a merchant an account in
+ * something that cannot create one. Listing them as entries with
  * live:false is not aspiration, it is what stops the portal from offering a
  * merchant account in a product that cannot yet create one.
  */
@@ -51,22 +52,14 @@ export const PRODUCTS = {
     id: "pharmacy",
     name: "Reseta",
     description: "Pharmacy POS, batch inventory, expiry tracking and SC/PWD compliance.",
-    // STILL FALSE, and the gate is one specific thing.
-    //
-    // The tables exist, the policies hold (proved against the live CANVEXIA
-    // database: a partner reading `pharmacy_batches` with no where clause sees
-    // only its own, and fetching another partner's batch BY PRIMARY KEY returns
-    // nothing), and the adapter is registered and unit-tested. What has NOT
-    // happened is `provisionPharmacy()` itself running against a real database —
-    // this session has no DATABASE_URL, and the isolation suite that would prove
-    // it skips without one.
-    //
-    // adding-a-vertical.md says to flip this only after provisioning has been
-    // run for real, and the rule is not ceremony: `live: true` makes the partner
-    // portal offer pharmacy accounts, so an adapter bug that only shows against
-    // a database becomes a merchant with an account they cannot use, discovered
-    // by them. One command closes it — see docs/canvexia/reseta.md.
-    live: false,
+    // Live as of the sign-in work. The gate `adding-a-vertical.md` sets is
+    // three things, and all three are asserted against a real database by
+    // apps/reseta/tests/isolation/provision.test.ts: the real adapter creates a
+    // pharmacy owned by the right partner, that partner sees it through RLS
+    // with NO where clause, and no other partner sees it — not even by primary
+    // key. The same run dispenses FEFO across two batches and checks the stock
+    // ledger explains the balance.
+    live: true,
   },
 } as const satisfies Record<string, ProductDefinition>;
 

@@ -8,34 +8,89 @@ which is CANVEXIA's. See D28 for what was taken and what was deliberately not.
 
 ---
 
-## The one thing left to do
+## Status: live
 
-**`live` is `false` in the product registry**, so the partner portal lists
-Reseta but refuses to create an account in it (`product_not_live`).
+`live: true` in the product registry — the partner portal will create pharmacy
+accounts. The gate `adding-a-vertical.md` sets is three things, and all three
+are asserted against a real database in
+`apps/reseta/tests/isolation/provision.test.ts`:
 
-Everything else is done and verified. The gate is one specific thing:
-`provisionPharmacy()` has not been run against a real database, because this
-repository has no `DATABASE_URL`. `adding-a-vertical.md` says to flip the flag
-only after provisioning has been run for real, and the rule earns its keep —
-`live: true` makes the portal offer pharmacy accounts, so an adapter bug that
-only shows against a database becomes a merchant with an account they cannot
-use, discovered by them.
+1. the **real** adapter creates a pharmacy owned by the right partner
+2. that partner sees it through RLS **with no where clause**
+3. no other partner sees it — not even by primary key
 
-To close it:
+The same run dispenses FEFO across two batches, checks the stock ledger
+explains the balance, and checks receipt numbers come out gapless.
 
 ```bash
-export DATABASE_URL=...   # the CANVEXIA project
-export DIRECT_URL=...
-pnpm --filter reseta test:isolation     # 7 DB-backed tests; they skip without the URL
+export DATABASE_URL=... DIRECT_URL=...
+pnpm --filter reseta test        # 76; the DB-backed ones skip without the URL
 ```
-
-They assert the three things the flag depends on: a pharmacy is owned by the
-partner that created it, that partner sees it through RLS **with no where
-clause**, and no other partner sees it at all. Green ⇒ set
-`live: true` in `packages/core/src/products/registry.ts`. One line.
 
 **Run them as a non-superuser.** A superuser bypasses RLS regardless of `FORCE`
 and every assertion passes for the wrong reason.
+
+## Signing in
+
+Session → membership → pharmacy. Nothing takes a pharmacy id from the browser.
+
+- `src/middleware.ts` renews the Supabase access token and does **nothing else**.
+  No database, no route gating — it runs on the Edge, and a middleware that
+  decides who may see what needs the membership rows, which means Prisma.
+- `src/server/tenancy/current-user.ts` reads the session, then
+  `pharmacy_staff`, and returns the pharmacy. **This is the only source of a
+  pharmacy id.**
+- `requireStaff(permission?)` is the gate. Pages and actions call it; the nav is
+  filtered separately as a convenience, not as the check.
+
+**The routes have no `[slug]` segment, and that is the point.** They used to.
+A slug in the path is a pharmacy id the browser chose, and having one at all
+invites exactly one forgotten check.
+
+One login can be staff at several pharmacies — `pharmacy_staff` is unique on
+(pharmacyId, authUserId), not on authUserId. The switcher writes a cookie, and
+`pickPharmacy` checks it against the memberships: a cookie naming a pharmacy you
+are not staff at is **ignored**, not honoured.
+
+### Roles
+
+| | sell | Rx | void | stock | catalogue | reports | staff | settings |
+|---|---|---|---|---|---|---|---|---|
+| owner | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| manager | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+| pharmacist | ✅ | ✅ | — | ✅ | — | ✅ | — | — |
+| cashier | ✅ | — | — | — | — | — | — | — |
+
+**`dispenseRx` is law, not policy.** Under PH practice a prescription-only
+medicine is dispensed by, or under the direct supervision of, a registered
+pharmacist — so a cashier cannot complete a cart containing one, and neither can
+a manager. Seniority is not a licence. The counter says so before they try; the
+server checks again with the Rx flags read **from the database**, never from the
+form, so a browser that omits the flag cannot talk a cashier's till into
+dispensing an antibiotic.
+
+Owner is a superset **by construction**, not a list — a permission added later
+must not silently exclude the person who owns the business. An unknown role
+grants nothing rather than throwing: the value comes from a database column, and
+a crash inside a render is a 500 on every page rather than a denied permission.
+
+### The first account
+
+Staff are added at `/staff` by an owner or manager. That screen needs someone
+signed in, so the first account at a pharmacy comes from the bootstrap script:
+
+```bash
+pnpm --filter reseta staff:create -- <pharmacySlug> owner <email> <password> [name]
+```
+
+Auth user first, membership second — never the reverse, which leaves a
+membership pointing at an `authUserId` that does not exist if the second step
+fails: a row that looks fine in the staff list and can never be signed into.
+
+Removing staff deletes the membership and **leaves the Auth user alone**. It may
+be their login at another pharmacy, and one branch must not remove someone's
+access to a different one. The last owner cannot be removed, and nobody can
+remove themselves.
 
 ## What is in it
 
@@ -43,8 +98,8 @@ and every assertion passes for the wrong reason.
 |---|---|
 | Tables | 9, all `pharmacy*`, all keyed on `pharmacyId` |
 | Policies | `tenant_isolation` on all 9, created by the axis loop without naming any of them |
-| Routes | `/` (dev console), `/[slug]` (dashboard), `/[slug]/pos` (counter) |
-| Tests | 40 offline, 7 DB-backed |
+| Routes | `/login`, `/` (dashboard), `/pos` (counter), `/staff`, `/logout` |
+| Tests | 62 offline, 14 DB-backed |
 
 **Catalogue · batches · suppliers · stock movements · POS · expiry and low-stock
 reporting.** Not in this pass: HRIS, loyalty, prescriptions as records, stock
@@ -129,9 +184,6 @@ RLS and absent from every statement, and **nothing errors to say so**.
 
 ## What it still needs
 
-- **Sign-in.** There is no session. `/` lists every pharmacy, which is why it
-  says it is a development console. `pharmacy_staff` exists and carries the
-  roles; wiring Supabase Auth changes who gets an id, not what the id can reach.
 - **Receiving stock.** Batches are created by the isolation fixture and by SQL.
   A receiving screen writing a `receive` movement is the next obvious piece.
 - **Voids and returns.** `PharmacySale.status` and `voidedAt` exist; nothing

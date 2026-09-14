@@ -196,7 +196,7 @@ CREATE TABLE IF NOT EXISTS "pharmacy_sale_items" (
     "id" TEXT NOT NULL,
     "pharmacyId" TEXT NOT NULL,
     "saleId" TEXT NOT NULL,
-    "productId" TEXT NOT NULL,
+    "productId" TEXT,
     "batchId" TEXT,
     "nameAtTime" TEXT NOT NULL,
     "genericAtTime" TEXT,
@@ -326,7 +326,12 @@ ALTER TABLE "pharmacy_sales" ADD CONSTRAINT "pharmacy_sales_pharmacyId_fkey" FOR
 ALTER TABLE "pharmacy_sale_items" ADD CONSTRAINT "pharmacy_sale_items_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "pharmacy_sales"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "pharmacy_sale_items" ADD CONSTRAINT "pharmacy_sale_items_productId_fkey" FOREIGN KEY ("productId") REFERENCES "pharmacy_products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- SET NULL, not RESTRICT: the line snapshots nameAtTime, so a sale keeps its
+-- record without the live product row. Restrict would make a product
+-- undeletable the moment anyone bought it — see
+-- prisma/manual/fix-orderitem-menuitem-setnull.sql, where Servd hit exactly
+-- this and fixed it the same way.
+ALTER TABLE "pharmacy_sale_items" ADD CONSTRAINT "pharmacy_sale_items_productId_fkey" FOREIGN KEY ("productId") REFERENCES "pharmacy_products"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "pharmacy_sale_items" ADD CONSTRAINT "pharmacy_sale_items_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "pharmacy_batches"("id") ON DELETE SET NULL ON UPDATE CASCADE;

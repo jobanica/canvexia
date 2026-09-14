@@ -2,7 +2,7 @@
   "name": "reseta",
   "version": "0.1.0",
   "private": true,
-  "description": "Reseta — pharmacy POS, batch inventory and expiry tracking. A CANVEXIA vertical.",
+  "description": "Reseta \u2014 pharmacy POS, batch inventory and expiry tracking. A CANVEXIA vertical.",
   "engines": {
     "node": "22.x"
   },
@@ -15,12 +15,15 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:isolation": "vitest run tests/isolation",
-    "db:generate": "prisma generate --schema=../../packages/db/prisma/schema.prisma"
+    "db:generate": "prisma generate --schema=../../packages/db/prisma/schema.prisma",
+    "staff:create": "node scripts/create-staff.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",
     "@servd/core": "workspace:*",
     "@servd/db": "workspace:*",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.47.10",
     "next": "^15.5.19",
     "react": "19.0.0",
     "react-dom": "19.0.0",

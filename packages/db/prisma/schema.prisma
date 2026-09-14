@@ -2762,7 +2762,15 @@ model PharmacySaleItem {
   id         String  @id @default(uuid())
   pharmacyId String
   saleId     String
-  productId  String
+  /// Nullable, and SET NULL on delete — NOT Restrict.
+  ///
+  /// Scar tissue, inherited rather than rediscovered: Servd shipped this exact
+  /// column as Restrict and it made a menu item undeletable the moment anyone
+  /// had ordered it. See prisma/manual/fix-orderitem-menuitem-setnull.sql. The
+  /// line already snapshots nameAtTime and genericAtTime, so a sale keeps its
+  /// record without the live product row; Restrict only means a pharmacy can
+  /// never tidy a discontinued line out of its catalogue.
+  productId  String?
   batchId    String?
 
   nameAtTime        String
@@ -2777,9 +2785,9 @@ model PharmacySaleItem {
   unitCostCentavos  Int       @default(0)
   createdAt         DateTime  @default(now())
 
-  sale    PharmacySale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product PharmacyProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
-  batch   PharmacyBatch?  @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  sale    PharmacySale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product PharmacyProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  batch   PharmacyBatch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
 
   @@index([saleId])
   @@index([productId])
