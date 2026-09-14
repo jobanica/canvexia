@@ -224,10 +224,15 @@ const BENEFICIARY_LABEL: Record<"sc" | "pwd", string> = {
   pwd: "Person With Disability",
 };
 
-export function receiptGaps(
-  identity: PharmacyIdentity,
-  sale: Pick<ReceiptSaleInput, "discountType" | "beneficiaryIdNo" | "beneficiaryName">,
-): ReceiptGap[] {
+/**
+ * What the pharmacy itself is missing, independent of any one sale.
+ *
+ * Separate from `receiptGaps` because a credit note needs exactly these and
+ * none of the beneficiary checks — and because "is this pharmacy able to issue
+ * a compliant document at all" is a different question from "is this document
+ * complete".
+ */
+export function identityGaps(identity: PharmacyIdentity): ReceiptGap[] {
   const gaps: ReceiptGap[] = [];
 
   if (!identity.tin?.trim()) {
@@ -258,6 +263,15 @@ export function receiptGaps(
       why: "Dispensing happens under a registered pharmacist, who is named on the receipt.",
     });
   }
+
+  return gaps;
+}
+
+export function receiptGaps(
+  identity: PharmacyIdentity,
+  sale: Pick<ReceiptSaleInput, "discountType" | "beneficiaryIdNo" | "beneficiaryName">,
+): ReceiptGap[] {
+  const gaps = identityGaps(identity);
 
   if (isStatutory(sale.discountType)) {
     if (!sale.beneficiaryIdNo?.trim()) {

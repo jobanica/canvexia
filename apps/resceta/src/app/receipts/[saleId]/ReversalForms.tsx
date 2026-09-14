@@ -112,9 +112,21 @@ export function ReturnForm({
 
   if (state.status === "done") {
     return (
-      <p className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
-        {state.message}
-      </p>
+      <div className="space-y-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
+        <p>{state.message}</p>
+        {state.creditNoteHref && (
+          // A new tab, like the receipt: the print dialog opens over the credit
+          // note and the counter stays where it was.
+          <a
+            href={state.creditNoteHref}
+            target="_blank"
+            rel="noopener"
+            className="inline-block rounded bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white"
+          >
+            Print credit note
+          </a>
+        )}
+      </div>
     );
   }
 

@@ -1434,3 +1434,60 @@ reading rather than by knowing.
 a note at the top saying why. `manual/` is a record of what was run, not a queue
 to replay (D26) — and what was run, at the time, was called Reseta. Editing it to
 agree with today would be rewriting the record to be tidier and less true.
+
+---
+
+## D35 — The credit note prints what was refunded, not what came back
+
+**Settled.** A return produces a credit note (`CN…`, its own gapless series,
+D32), printable from `/returns/<id>/print` on the same 80mm roll as the receipt.
+
+### It is the receipt's bug in mirror image
+
+A return is priced from the **original sale line** — shelf prices — but the
+customer is refunded what they actually **paid**, prorated. On a Senior Citizen
+sale those differ by the discount: ₱112.00 of goods comes back and ₱80.00 goes
+out.
+
+Printing the ₱112.00 as the credit would overstate the reversal by exactly the
+discount, on every statutory return, forever. That is D33's ₱32.00 arriving from
+the other direction, and it is why both figures are printed with the step
+between them as a labelled row rather than folded away:
+
+```
+Goods returned (at the prices charged)        ₱112.00
+Less Senior Citizen discount on the original   −₱32.00
+Amount refunded                                ₱80.00
+```
+
+A credit note whose lines sum to more than its total, with nothing explaining
+the difference, is a document that invites a dispute at the counter and a
+question at audit.
+
+### The VAT mirrors the sale, and does not reclaim what was never charged
+
+If the original sale was VAT-exempt the credit is exempt in full. Reclaiming
+output VAT on a statutory sale that never carried any would understate the
+return. `creditVatBox` reads the stored `vatExemptCentavos` rather than
+inferring from the discount type — the flag is what the sale actually recorded.
+
+### It names the invoice it corrects
+
+Directly under the title, not in a footnote. A credit note that does not point
+at a receipt cannot be reconciled against anything, which is the entire reason
+the document exists rather than a second void.
+
+### Assembled through the sale line, not the return
+
+`pharmacy_return_items` stores no product name and no lot — it points at the
+**sale line**, which snapshots both. That is the same decision that lets a
+restock go back to the lot it came from (D32), and it means the document is read
+through `saleItem`. The disposition is printed per line: an inspection asks what
+became of the goods, and a shop floor forgets.
+
+### `identityGaps` split out of `receiptGaps`
+
+A credit note needs the pharmacy's TIN, address, LTO and PRC number, and none of
+the beneficiary checks — those belong to the sale, not to its correction. So
+`receiptGaps` is now `identityGaps` plus the beneficiary rules, and both
+documents print **NOT AN OFFICIAL …** on the same basis (D33).

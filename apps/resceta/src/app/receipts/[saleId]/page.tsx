@@ -131,7 +131,12 @@ export default async function ReceiptPage({
                   .reduce((s, i) => s + i.quantity, 0);
                 return (
                   <li key={r.id} className="flex flex-wrap items-center gap-x-3 px-4 py-2">
-                    <span className="font-mono text-xs text-slate-500">{r.returnNumber}</span>
+                    <Link
+                      href={`/returns/${r.id}/print?from=${sale.id}`}
+                      className="font-mono text-xs text-slate-700 underline"
+                    >
+                      {r.returnNumber}
+                    </Link>
                     <span className="text-slate-500">{manilaDate(r.createdAt)}</span>
                     {r.reason && <span className="text-slate-600">{r.reason}</span>}
                     <span className="text-xs text-slate-500">

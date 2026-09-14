@@ -2,7 +2,7 @@
 
 CANVEXIA is separate from servdph.com — its own database, its own merchants, its
 own domains (D31). Two products live: **Servd** (restaurants) and **Resceta**
-(pharmacy). 1,239 tests pass, none skipped.
+(pharmacy). 1,263 tests pass, none skipped.
 
 | Domain | Serves | Deployment |
 |---|---|---|
@@ -93,16 +93,14 @@ it.
 
 ## 2. Then one of
 
-- **The credit note.** A return allocates `CN00000001` and prints nothing. It is
-  the same machinery as the receipt — a different document with its own number
-  series — and it is now the only thing in the counter that produces a number
-  the customer cannot be handed.
 - **Expiry write-offs.** The dashboard shows what has expired; nothing can act
   on it. `expiry_writeoff` is already in the movement enum.
 - **A daily Z-reading.** The void window depends on "the business day" and
   nothing closes one off — it is reckoned from the Manila calendar date, which
   is right until a pharmacy trades past midnight.
-- **DNS**, when you are ready — `docs/canvexia/domains.md` has the table.
+- **DNS**, when you are ready — `docs/canvexia/domains.md` has the table. There
+  is nothing to change in Resceta for it: the app reads no absolute URL, so it
+  runs the same on a `vercel.app` address or a custom domain.
 
 ---
 
@@ -166,7 +164,7 @@ of field names, because what an audit asks is what the TIN *used to be*.
 
 ## Numbers
 
-- **Resceta 130 offline + 41 DB-backed**
+- **Resceta 150 offline + 45 DB-backed**
 - **Servd 1,030 offline + 38 DB-backed**
 - both typecheck, both build
 

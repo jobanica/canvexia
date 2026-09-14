@@ -16,7 +16,7 @@ import { can } from "@/lib/pharmacy/roles";
 export type ReversalState =
   | { status: "idle" }
   | { status: "error"; message: string }
-  | { status: "done"; message: string };
+  | { status: "done"; message: string; creditNoteHref?: string };
 
 const Void = z.object({
   saleId: z.string().uuid(),
@@ -127,5 +127,11 @@ export async function returnAction(
   const parts = [`Credit note ${outcome.returnNumber}.`];
   if (outcome.unitsRestocked) parts.push(`${outcome.unitsRestocked} back in stock.`);
   if (outcome.unitsDestroyed) parts.push(`${outcome.unitsDestroyed} written off.`);
-  return { status: "done", message: parts.join(" ") };
+  // The credit note is the customer-facing half of a return. Without this the
+  // only way to the document just created is to go and find it on the receipt.
+  return {
+    status: "done",
+    message: parts.join(" "),
+    creditNoteHref: `/returns/${outcome.returnId}/print?auto=1`,
+  };
 }
