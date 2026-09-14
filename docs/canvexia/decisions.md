@@ -1162,7 +1162,34 @@ D2's reasoning is unaffected in principle: quietly changing the terms an
 existing paying customer signed up under is still not a thing to spring on them.
 There simply are no such customers on this database yet.
 
-### The domain, and the bug it was hiding
+### The domains, now chosen
+
+| Domain | Serves | Deployment |
+|---|---|---|
+| **servdph.net** | Servd — restaurants; merchants get subdomains | `apps/servd` |
+| **canvexia.com** | CANVEXIA — the partner portal; partners get subdomains | `apps/servd`, same deployment |
+| **risceta.com** | Reseta — pharmacy | `apps/reseta` |
+
+Full routing and DNS in `docs/canvexia/domains.md`.
+
+**One routing change fell out of it.** `parseHost` answered `platform` for the
+bare partner root, which was correct while `NEXT_PUBLIC_PARTNER_ROOT_DOMAIN` was
+unset and a hypothetical — and wrong the moment it became a real domain:
+`canvexia.com` would have served **Servd's restaurant marketing** at the partner
+program's own address. It now returns a distinct `partner_root`, and the
+middleware rewrites it to `/partner` exactly as it does a partner subdomain. The
+only difference between them is that the root has no partner to resolve, which
+the portal already handles by sending an unauthenticated visitor to
+`/partner/login`.
+
+A test asserted the old behaviour — `expect(p("canvexia.app").kind).toBe(
+"platform")` — and it was right when written. It is now inverted, with the
+reason in the test name rather than in a comment nobody reads.
+
+Note the product/domain spelling: the product is **Reseta**, the domain is
+**risceta.com**. Different by intent, not by typo — flagged and confirmed.
+
+### The old domain, and the bug it was hiding
 
 Servd's public address was written into the source in **fourteen places** — the
 diner-facing "Powered by" badge, the QR splash, the partner support link, the

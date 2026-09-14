@@ -127,7 +127,12 @@ export async function middleware(req: NextRequest) {
   // the tenant rewrite below and be looked up as a restaurant, which it is not.
   // Inert until that variable exists, because parseHost cannot return this kind
   // without it.
-  if (info.kind === "partner") {
+  // CANVEXIA's own domain: the bare root AND a partner's subdomain both serve
+  // the portal, and the rewrite is identical — /partner is prefixed either way,
+  // and which partner it is gets resolved from the host further down. The only
+  // difference is that the root has no partner to resolve, which the portal
+  // already handles by sending an unauthenticated visitor to /partner/login.
+  if (info.kind === "partner" || info.kind === "partner_root") {
     const session = await refreshSession(req);
     const headers = new Headers(req.headers);
     headers.set(PATH_HEADER, pathname);

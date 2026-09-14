@@ -6,26 +6,45 @@ product among several, starting from zero merchants.
 
 Two products are live: **Servd** (restaurants) and **Reseta** (pharmacy). Both
 are provisioned by a partner through the portal. The database is up, policies
-hold, and 1,114 tests pass.
+hold, and 1,163 tests pass.
+
+| Domain | Serves | Deployment |
+|---|---|---|
+| **servdph.net** | Servd — restaurants | `apps/servd` |
+| **canvexia.com** | CANVEXIA — the partner portal | `apps/servd`, same deployment |
+| **risceta.com** | Reseta — pharmacy | `apps/reseta` |
 
 ---
 
 # What to do next
 
-## 1. Tell me the two domains
+## 1. Point the DNS and set the env
 
-Everything below waits on this, and it is the only thing I cannot decide for you:
+The domains are wired in code and in both `.env.example` files. What is left is
+outside this repository — see `docs/canvexia/domains.md` for the full table.
 
-- **Servd's new domain** — what replaces servdph.com for this deployment
-- **CANVEXIA's own domain** — where the partner portal lives
-- and whether **Reseta** gets its own, or a subdomain
+**Two hosting projects:**
 
-Servd's address is no longer written into the source anywhere. It comes from
-`NEXT_PUBLIC_APP_URL`, through one module, and with nothing configured it
-renders **no address at all** and links relatively — a wrong domain is worse
-than no domain, because the "Powered by" badge is the one piece of Servd a diner
-sees. Give me the domains and I will set them, wire the middleware roots, and
-check the badge, the QR splash and the partner support link all point home.
+- `apps/servd` — add **both** `servdph.net` and `canvexia.com` to it. One
+  deployment serves both; the middleware reads the Host header and rewrites.
+- `apps/reseta` — `risceta.com`.
+
+**DNS.** The two wildcards are load-bearing — a merchant subdomain and a partner
+subdomain are both created by someone *using* the product, not by someone
+editing DNS:
+
+```
+servdph.net      apex   → Servd deployment
+www.servdph.net  CNAME
+*.servdph.net    CNAME  ← every merchant storefront
+canvexia.com     apex   → the SAME deployment
+www.canvexia.com CNAME
+*.canvexia.com   CNAME  ← every partner's branded portal
+risceta.com      apex   → Reseta deployment
+www.risceta.com  CNAME
+```
+
+Then set the env values from the two `.env.example` files in your host.
 
 ## 2. Then get a real merchant in
 
@@ -74,6 +93,17 @@ D2's rule that a legacy-tier partner sits on 0%. No row here can satisfy either.
 They are guards, and a guard that never fires today still catches the row
 somebody imports by hand later.
 
+## canvexia.com would have served Servd's marketing
+
+`parseHost` answered `platform` for the bare partner root. That was right while
+`NEXT_PUBLIC_PARTNER_ROOT_DOMAIN` was unset and hypothetical, and wrong the
+moment it became a real domain: **canvexia.com would have shown a page about
+online ordering for restaurants** at the partner program's own address.
+
+It now returns `partner_root` and the middleware rewrites to `/partner` — the
+same rewrite a partner subdomain gets. A test asserted the old behaviour and was
+right when written; it is now inverted, with the reason in the test name.
+
 ## The domain was in the source fourteen times — one was a live bug
 
 The badge, the QR splash, the partner support link, the prospecting User-Agent
@@ -103,6 +133,6 @@ is one command there: this repo's `rls.sql` closes it.
 
 ## Numbers
 
-- **Servd 1,015 offline + 38 DB-backed**
+- **Servd 1,026 offline + 38 DB-backed**
 - **Reseta 78 offline + 21 DB-backed**
 - both typecheck, both build

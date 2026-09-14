@@ -90,13 +90,22 @@ describe("parseHost — partner root domain", () => {
       });
     });
 
-    it("treats the bare partner root and www as platform", () => {
-      expect(p("canvexia.app").kind).toBe("platform");
-      expect(p("www.canvexia.app").kind).toBe("platform");
+    it("serves the bare partner root and www as CANVEXIA's OWN front door", () => {
+      // Not "platform", which is Servd's. These used to be the same answer,
+      // back when the partner root was a domain nobody had configured. Getting
+      // it wrong now means canvexia.com showing a page about online ordering
+      // for restaurants.
+      expect(p("canvexia.app")).toEqual({ kind: "partner_root", host: "canvexia.app" });
+      expect(p("www.canvexia.app")).toEqual({
+        kind: "partner_root",
+        host: "www.canvexia.app",
+      });
     });
 
-    it("keeps reserved labels on the platform", () => {
-      for (const label of ["www", "app", "admin", "api", "tutorials"]) {
+    it("keeps the other reserved labels on the platform", () => {
+      // `www` is deliberately NOT in this list any more — on the partner root
+      // it is the front door, not a reserved label.
+      for (const label of ["app", "admin", "api", "tutorials"]) {
         expect(p(`${label}.canvexia.app`).kind).toBe("platform");
       }
     });
@@ -117,5 +126,67 @@ describe("parseHost — partner root domain", () => {
       // notcanvexia.app must not be read as a subdomain of canvexia.app.
       expect(p("notcanvexia.app")).toEqual({ kind: "custom", host: "notcanvexia.app" });
     });
+  });
+});
+
+/**
+ * The domains this actually runs on (D31). Spelled out rather than left to the
+ * generic cases above, because a routing mistake between these three is not a
+ * subtle bug: it is one brand's front page served at another brand's address.
+ */
+describe("parseHost — the configured domains", () => {
+  const SERVD = "servdph.net";
+  const CANVEXIA = "canvexia.com";
+  const h = (host: string) => parseHost(host, SERVD, CANVEXIA);
+
+  it("serves Servd at its own root", () => {
+    expect(h("servdph.net").kind).toBe("platform");
+    expect(h("www.servdph.net").kind).toBe("platform");
+  });
+
+  it("serves CANVEXIA at its own root — not Servd", () => {
+    expect(h("canvexia.com").kind).toBe("partner_root");
+    expect(h("www.canvexia.com").kind).toBe("partner_root");
+  });
+
+  it("gives a partner their own subdomain of canvexia.com", () => {
+    expect(h("davao.canvexia.com")).toEqual({
+      kind: "partner",
+      slug: "davao",
+      host: "davao.canvexia.com",
+    });
+  });
+
+  it("gives a merchant a subdomain of servdph.net", () => {
+    expect(h("mango-grill.servdph.net")).toEqual({
+      kind: "subdomain",
+      subdomain: "mango-grill",
+      host: "mango-grill.servdph.net",
+    });
+  });
+
+  it("does not confuse the two roots with each other", () => {
+    // A partner slug resolving as a restaurant, or vice versa, is the failure
+    // the ordering in parseHost exists to prevent.
+    expect(h("davao.canvexia.com").kind).toBe("partner");
+    expect(h("davao.servdph.net").kind).toBe("subdomain");
+  });
+
+  it("still treats a merchant's own domain as custom", () => {
+    expect(h("order.bistro.ph")).toEqual({ kind: "custom", host: "order.bistro.ph" });
+  });
+
+  it("does not treat the OLD Servd domain as anything special", () => {
+    // servdph.com is a different business on a different database (D31). If it
+    // ever points here, it is somebody else's custom domain and nothing more.
+    expect(h("servdph.com")).toEqual({ kind: "custom", host: "servdph.com" });
+    expect(h("www.servdph.com")).toEqual({ kind: "custom", host: "www.servdph.com" });
+  });
+
+  it("treats risceta.com as a custom host here — Reseta is its own app", () => {
+    // Reseta is deployed separately and does no host routing; it never reaches
+    // this function. If the domain were pointed at Servd by mistake, it would
+    // be looked up as a restaurant and not found, which is the honest answer.
+    expect(h("risceta.com")).toEqual({ kind: "custom", host: "risceta.com" });
   });
 });
