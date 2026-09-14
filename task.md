@@ -1,93 +1,92 @@
-# Reseta is live and has sign-in
+# Where Reseta is, and what to do next
 
-`live: true` in the product registry — the partner portal will now create
-pharmacy accounts. Full notes: `docs/canvexia/reseta.md`.
+Stock can now get **in** (`/receiving`), get **sold** (`/pos`), and be **seen**
+(`/`). People sign in and are gated by role. `live: true` — the partner portal
+will create pharmacy accounts.
 
-## Sign-in
+---
 
-Session → membership → pharmacy. **Nothing takes a pharmacy id from the browser.**
+# What to do next
 
-The routes used to be `/[slug]` and `/[slug]/pos`. They are now `/`, `/pos`,
-`/staff`, `/login` — a slug in the path is a pharmacy id the browser chose, and
-having one at all invites exactly one forgotten check. `getCurrentStaff()` reads
-the Supabase session, then `pharmacy_staff`, and returns the pharmacy. There is
-no URL to tamper with because there is no URL (D30).
+## 1. Apply the four migrations to servdph.com — do this first
 
-Middleware renews the access token and does nothing else — no database, no
-gating. It runs on the Edge, and a middleware that decides who may see what
-needs the membership rows. Gating happens where the rows are.
+This has been outstanding through three pieces of work and it is the only item
+with a live customer on the other end. `docs/canvexia/deploy-runbook.md`, six
+steps, rehearsed end to end.
 
-One login can be staff at several pharmacies. The switcher writes a cookie;
-`pickPharmacy` checks it against the memberships, so a cookie naming a pharmacy
-you are not staff at is **ignored**.
+It also closes the `anon`-key hole from **D27**: Supabase grants the
+browser-side key full read/write on any table without RLS, and `prospect_leads`
+— names, phones, emails and addresses of your sales leads — is one of twelve
+tables on servdph.com that have no policy at all right now. Step 2 of the
+runbook fixes it.
 
-### Roles
+**I cannot do this one.** No credentials, and applying migrations to a live
+database is not something to run unattended.
 
-| | sell | Rx | void | stock | catalogue | reports | staff | settings |
-|---|---|---|---|---|---|---|---|---|
-| owner | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| manager | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ | — |
-| pharmacist | ✅ | ✅ | — | ✅ | — | ✅ | — | — |
-| cashier | ✅ | — | — | — | — | — | — | — |
+## 2. Get Reseta onto a real pharmacy
 
-**`dispenseRx` is law, not policy.** A cashier cannot complete a cart containing
-a prescription-only item — and neither can a manager. Seniority is not a
-licence. The server re-checks with the Rx flags read from the **database**, not
-from the form.
-
-### Your first account
+In order:
 
 ```bash
-pnpm --filter reseta staff:create -- <pharmacySlug> owner <email> <password> [name]
+# a. the three Supabase variables — see apps/reseta/.env.example
+# b. the first account (the /staff screen needs someone already signed in)
+pnpm --filter reseta staff:create -- <pharmacySlug> owner <email> <password> "Name"
+# c. sign in at /login, receive a delivery at /receiving, sell it at /pos
 ```
 
-Staff are added at `/staff` after that. The script exists because `/staff` needs
-someone already signed in.
+A pharmacy is created by a partner through the CANVEXIA portal, not by a form in
+Reseta — so you need a partner and a merchant first.
 
-Set the three Supabase variables first — see `apps/reseta/.env.example`.
-Without `SUPABASE_SERVICE_ROLE_KEY` the app still runs and signs people in; only
-*adding* staff fails, with a message saying so.
+## 3. Then the next piece of Reseta
 
-## I finally ran the DB-backed tests
+Pick one; they are independent. My order, most useful first:
 
-I stood up a throwaway PostgreSQL 16, applied the schema and `rls.sql`, and ran
-everything that had been skipping for want of a `DATABASE_URL`:
+- **Voids and returns.** `PharmacySale.status` and `voidedAt` exist and nothing
+  sets them. A void must return stock **to the batch it came from** and write
+  the compensating movement — never edit the sale. This is the biggest hole: a
+  counter that cannot correct a mistake gets corrected in the drawer instead.
+- **The receipt.** `fdaLtoNumber`, `prcLicenseNo` and `tin` are captured and
+  displayed nowhere. A PH pharmacy receipt has to show them, and an SC/PWD sale
+  has to show the beneficiary's ID.
+- **Expiry write-offs.** The dashboard shows what has expired; nothing can act
+  on it. `expiry_writeoff` is already in the movement enum.
 
-- **Reseta 76/76** — including the 14 DB-backed ones
-- **Servd 1,034/1,034** — including its 38, against the new merchant-axis RLS
-  and the renamed ledger column. No regression.
+Say which and I will build it.
 
-The connection role is not a superuser and has no `BYPASSRLS`, so those results
-mean something. That also closed the `live` gate: `provisionPharmacy()` has now
-run for real, and the three assertions `adding-a-vertical.md` asks for all pass.
+---
 
-## Two bugs that run found
+# What just landed
 
-**`pg` did not move with the script.** `apply-rls.mjs` moved to `packages/db`
-last commit; its dependency stayed in `apps/servd`. `db:rls` failed with
-`Cannot find package 'pg'` the first time I ran it from the new location —
-which is the moment you would have hit it, applying policies to your database.
+## Receiving (`/receiving`)
 
-**`pharmacy_sale_items.productId` was `Restrict`.** I copied that from Reseta's
-schema without noticing Servd had already hit the identical bug on
-`order_items.menuItemId`: there is a migration called
-`fix-orderitem-menuitem-setnull.sql` whose comment describes this exact failure.
-Restrict makes a product undeletable once anyone has bought it, and a pharmacy
-with sales undeletable entirely. Now nullable with `SET NULL` — the line already
-snapshots `nameAtTime`, so history survives. Applied to the CANVEXIA database
-too.
+Stock enters the system here and nowhere else, so it is the cheap place to catch
+a bad date or a fat-fingered quantity. Every line becomes **its own batch** —
+two deliveries of the same lot are two batches, because they carry different
+costs and FEFO breaks ties on received date.
 
-A test teardown found it. Nothing else would have.
+**Refused** (wrong, not merely unusual): already-expired stock · a new product
+with no selling price · zero, negative or fractional quantities · a negative
+cost.
 
-## Still queued
+**Warned, and it still goes through**: short-dated within 90 days · no lot
+number · no expiry printed · zero cost. Samples are real and so are cheap
+short-dated buys — and a receiving screen that blocks a real delivery gets
+worked around, which is worse than the thing it avoided.
 
-1. **Apply the four migrations to servdph.com** — `docs/canvexia/deploy-runbook.md`.
-   Unchanged, still correct, still not done. It also closes the `anon`-key hole
-   from D27, which is live on that database now.
-2. **Receiving stock.** Batches are created by fixtures and SQL. A receiving
-   screen writing a `receive` movement is the obvious next piece.
-3. **Voids and returns.** `status` and `voidedAt` exist; nothing sets them. A
-   void must return stock to the batch it came from and write the compensating
-   movement — never edit the sale.
-4. **The receipt.** `fdaLtoNumber`, `prcLicenseNo` and `tin` are captured and
-   displayed nowhere. A PH pharmacy receipt has to show them.
+**The double-submit guard.** The form mints one `deliveryRef` per delivery, not
+per submit, and the write path refuses a reference it has seen. Without it a
+slow connection plus an impatient second click doubles the stock on the shelf —
+and nothing downstream notices, because the batches and the movements are both
+internally consistent, just twice.
+
+**A pharmacist can receive but cannot create a product.** Creating one means
+pricing it, and the price is what the till charges. Manager or owner.
+
+## Numbers
+
+- **Reseta 99/99**, including 21 DB-backed
+- **Servd 1,034/1,034**, including its 38 — no regression
+- both apps typecheck and build
+
+Run against a throwaway PostgreSQL 16 whose connection role is neither a
+superuser nor `BYPASSRLS`, so the isolation results mean something.

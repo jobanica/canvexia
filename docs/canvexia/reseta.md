@@ -98,8 +98,8 @@ remove themselves.
 |---|---|
 | Tables | 9, all `pharmacy*`, all keyed on `pharmacyId` |
 | Policies | `tenant_isolation` on all 9, created by the axis loop without naming any of them |
-| Routes | `/login`, `/` (dashboard), `/pos` (counter), `/staff`, `/logout` |
-| Tests | 62 offline, 14 DB-backed |
+| Routes | `/login`, `/` (dashboard), `/pos` (counter), `/receiving`, `/staff`, `/logout` |
+| Tests | 78 offline, 21 DB-backed |
 
 **Catalogue · batches · suppliers · stock movements · POS · expiry and low-stock
 reporting.** Not in this pass: HRIS, loyalty, prescriptions as records, stock
@@ -182,10 +182,61 @@ RLS and absent from every statement, and **nothing errors to say so**.
    automatically; there is no pharmacy-specific policy to remember.
 3. Confirm zero tables without RLS, and an empty Supabase security advisor.
 
+## Receiving
+
+`/receiving`, gated on `manageStock`. Stock enters the system here and nowhere
+else, so this is the cheap place to catch a bad expiry date or a fat-fingered
+quantity — everything downstream (FEFO, the expiry report, the recall trail) is
+only as good as what this lets through.
+
+**Every line becomes its own batch row**, even when the lot number matches
+something already on the shelf. Two deliveries are two deliveries: they carry
+different costs and FEFO breaks ties on received date. Merging them would
+flatten both, and the older batch's margin would quietly become the newer one's.
+
+### Refuse versus warn
+
+The distinction is the whole design of `src/lib/pharmacy/receiving.ts`.
+
+**Refused** — wrong, not merely unusual:
+
+- stock that has **already expired** (accepting it puts a write-off on the shelf
+  and hides a supplier problem)
+- a line with no product and no name for a new one
+- a new product with **no selling price** — the till would hand it out free
+- a quantity that is zero, negative or fractional; a negative cost
+
+**Warned, and it still goes through:**
+
+- **short-dated** stock, expiring within 90 days — buying it cheap is a normal
+  trade
+- **no lot number** — a box of gauze has none, but a recall names a lot, so that
+  batch cannot be traced
+- **no expiry printed** — stated deliberately with a checkbox, and the warning
+  says what it costs: the batch is dispensed last, after all dated stock
+- **zero cost** — samples and donations are real; so are typos
+
+A receiving screen that blocks a real delivery gets worked around, and the
+workaround is worse than the thing it avoided. So the error list is short and
+every entry on it is something nobody should be doing.
+
+### The double-submit guard
+
+The form mints a `deliveryRef` **once**, not per submit, and the write path
+refuses a reference it has already seen. Without it a slow connection and an
+impatient second click would double the stock on the shelf — and nothing
+downstream would notice, because the batches and the movements would both be
+internally consistent, just twice.
+
+### Who may create a product
+
+A pharmacist has `manageStock` but not `manageCatalogue`, so they can receive
+into products that already exist and cannot add a new one. That is not
+awkwardness for its own sake: creating a product means **pricing** it, and the
+price is what the till charges. Manager or owner. The screen says so.
+
 ## What it still needs
 
-- **Receiving stock.** Batches are created by the isolation fixture and by SQL.
-  A receiving screen writing a `receive` movement is the next obvious piece.
 - **Voids and returns.** `PharmacySale.status` and `voidedAt` exist; nothing
   sets them. A void must return stock to the batch it came from and write the
   compensating movement — never edit the sale.
