@@ -14,6 +14,7 @@ import { ACTIVATION_PRICE } from "./queries";
 import { BRANCH_NOTE } from "@/server/tenancy/branch-activation";
 import { logEvent } from "@/server/bizops/events";
 import { restaurantInScope, type SettlementScope } from "@/server/billing/settlement-scope";
+import { internalLoginDomain } from "@/lib/branding/app-domain";
 
 /**
  * Turning a paid DIY preview into a real account.
@@ -28,7 +29,7 @@ import { restaurantInScope, type SettlementScope } from "@/server/billing/settle
  * activate anything.
  */
 
-const LOGIN_EMAIL_DOMAIN = process.env.INTERNAL_LOGIN_DOMAIN || "staff.servdph.com";
+const LOGIN_EMAIL_DOMAIN = internalLoginDomain();
 
 function syntheticEmail(username: string): string {
   return `${username}@${LOGIN_EMAIL_DOMAIN}`;

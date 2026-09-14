@@ -10,11 +10,16 @@
  * where the branding rules say it should; the decision lives in
  * lib/branding/powered-by.ts, never here.
  */
+import { appHost, appLink } from "@/lib/branding/app-domain";
+
 export function PoweredByServd({ className = "" }: { className?: string }) {
+  // Absent, never guessed: an unconfigured deployment links to itself rather
+  // than sending a diner to a domain it does not run. See lib/branding/app-domain.
+  const host = appHost();
   return (
     <div className={`px-4 py-6 text-center ${className}`}>
       <a
-        href="https://www.servdph.com"
+        href={appLink("/")}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex flex-col items-center gap-1 opacity-60 transition hover:opacity-100"
@@ -28,7 +33,9 @@ export function PoweredByServd({ className = "" }: { className?: string }) {
           <img src="/brand/servd-icon.svg" alt="" width={18} height={18} className="rounded-[5px]" aria-hidden />
           <span className="font-heading text-base font-extrabold tracking-tight text-current">servd</span>
         </span>
-        <span className="text-[11px] font-medium tracking-wide text-current">www.servdph.com</span>
+        {host && (
+          <span className="text-[11px] font-medium tracking-wide text-current">{host}</span>
+        )}
       </a>
     </div>
   );

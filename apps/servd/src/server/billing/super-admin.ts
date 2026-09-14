@@ -7,6 +7,7 @@ import {
   sanitizeFeatures,
   type Feature,
 } from "@/lib/billing/features";
+import { internalLoginDomain } from "@/lib/branding/app-domain";
 
 export interface BusinessRow {
   id: string;
@@ -100,7 +101,7 @@ export interface SubscriptionRow {
 }
 
 /** The @ synthetic-login domain — an owner's "email" on that domain isn't real. */
-const SYNTHETIC_LOGIN_DOMAIN = process.env.INTERNAL_LOGIN_DOMAIN || "staff.servdph.com";
+const SYNTHETIC_LOGIN_DOMAIN = internalLoginDomain();
 
 /** Every restaurant with its current (latest) subscription + plan. */
 export async function listSubscriptions(): Promise<SubscriptionRow[]> {

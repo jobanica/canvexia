@@ -1,3 +1,4 @@
+import { appUrl as publicUrl } from "@/lib/branding/app-domain";
 import { getBuildState } from "@/server/build/queries";
 import { readBuildCookie } from "@/server/build/session";
 import { BuildWizard } from "@/components/build/BuildWizard";
@@ -19,7 +20,7 @@ export default async function BuildPage({
   const { go } = await searchParams;
   const token = await readBuildCookie();
   const initial = token ? await getBuildState(token) : null;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.servdph.com";
+  const appUrl = publicUrl();
 
   return (
     <main className="min-h-screen bg-cream">

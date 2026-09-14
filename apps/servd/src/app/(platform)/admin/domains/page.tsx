@@ -1,3 +1,4 @@
+import { appUrl as publicUrl } from "@/lib/branding/app-domain";
 import Link from "next/link";
 import { requireAdminPage } from "@/server/tenancy/require-admin";
 import { tenantDb } from "@/server/tenancy/scoped-db";
@@ -23,7 +24,7 @@ export default async function DomainsPage() {
   const priceLabel = formatPeso(CUSTOM_DOMAIN_PRICE);
 
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "servd.app";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.servdph.com";
+  const appUrl = publicUrl();
 
   // Live DNS/verification records for a connected (unverified) domain.
   let verification: { type: string; domain: string; value: string }[] = [];

@@ -82,7 +82,7 @@ export interface WebOrderProps {
   bookHref?: string;
   scheduleFor?: string; // ISO — preselect "schedule for later" (from the pre-order page)
   /**
-   * Show "Powered by Servd · www.servdph.com" at the foot of the page.
+   * Show the "Powered by Servd" line at the foot of the page.
    *
    * Decided on the server (server/branding/powered-by.ts): new accounts carry
    * it, accounts that were already trading before it existed are grandfathered,

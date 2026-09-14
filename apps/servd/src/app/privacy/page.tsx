@@ -1,5 +1,8 @@
+import { supportMessengerUrl } from "@/lib/branding/app-domain";
 import Link from "next/link";
 import { AppIcon, Wordmark } from "@/components/Wordmark";
+
+const SUPPORT_MESSENGER = supportMessengerUrl();
 
 export const metadata = {
   title: "Privacy policy · Servd",
@@ -130,7 +133,7 @@ export default function PrivacyPage() {
           <Section title="Contact">
             <p>
               Questions about this policy, or about your data:{" "}
-              <a href="https://m.me/servdph" className="font-semibold text-brand-primary">
+              <a href={SUPPORT_MESSENGER} className="font-semibold text-brand-primary">
                 message us on Facebook
               </a>
               .

@@ -1,6 +1,7 @@
 import "server-only";
 import { parseBrandConfig, resolveBrand, type PartnerBrandConfig } from "@servd/core";
 import { systemDb } from "@/server/tenancy/scoped-db";
+import { appLink } from "@/lib/branding/app-domain";
 
 /**
  * The brand a MERCHANT sees: their partner's, falling back to the platform's.
@@ -33,7 +34,8 @@ export const PLATFORM_BRAND = {
   displayName: "Servd",
   primaryColor: "#FF8A1E",
   accentColor: "#FF4D6D",
-  supportUrl: "https://www.servdph.com",
+  // Relative when unset — the platform's own site, whatever domain that is.
+  supportUrl: appLink("/"),
 } as const satisfies PartnerBrandConfig &
   Required<Pick<PartnerBrandConfig, "displayName" | "primaryColor" | "accentColor">>;
 

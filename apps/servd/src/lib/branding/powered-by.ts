@@ -49,7 +49,7 @@ export interface BrandingInput {
 }
 
 export interface ServdBranding {
-  /** The "Powered by Servd · www.servdph.com" line under the ordering page and the QR menu. */
+  /** The "Powered by Servd" line under the ordering page and the QR menu. */
   showFooter: boolean;
   /** The full-screen Servd splash after a QR scan. */
   showSplash: boolean;

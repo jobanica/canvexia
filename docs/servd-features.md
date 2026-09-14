@@ -152,7 +152,8 @@ who wants the full view.
 account that wants inventory in both pays ₱1,500 twice.
 
 **What "Powered by Servd" means in practice.** Accounts opened from 21 August
-2026 carry a small "Powered by Servd · www.servdph.com" line at the foot of
+2026 carry a small "Powered by Servd" line — with the deployment's own
+address, from NEXT_PUBLIC_APP_URL — at the foot of
 their ordering website and their table/QR menu, plus the Servd splash after a
 QR scan. **Accounts that were already trading before that date are
 grandfathered** — nothing was added to their pages. The ₱800 white-label

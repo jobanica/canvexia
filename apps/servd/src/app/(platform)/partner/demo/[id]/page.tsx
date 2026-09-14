@@ -1,3 +1,4 @@
+import { appUrl as publicUrl } from "@/lib/branding/app-domain";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePartnerPage } from "@/server/partners/auth";
@@ -32,7 +33,7 @@ export default async function PartnerDemoDetailPage({ params }: { params: Promis
   const login = await demoLogin(id);
   const scanned = await demoAlreadyScanned(id);
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://servdph.com";
+  const appUrl = publicUrl();
   const url = `${appUrl}/r/${s.slug}`;
   const field = "w-full rounded-lg border border-plum-ink/15 px-3 py-2 text-sm";
   const qr = await qrPngDataUrl(url);

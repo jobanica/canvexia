@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { appHost } from "@/lib/branding/app-domain";
 
 /**
  * "Powered by Servd" welcome splash shown right after the QR scan, before the
@@ -44,7 +45,9 @@ export function BrandSplash({ onDone }: { onDone: () => void }) {
           className="mx-auto rounded-[20px] shadow-xl"
         />
         <p className="mt-5 font-heading text-4xl font-extrabold tracking-tight text-white">servd</p>
-        <p className="mt-2 text-sm font-medium tracking-wide text-white/60">www.servdph.com</p>
+        {appHost() && (
+          <p className="mt-2 text-sm font-medium tracking-wide text-white/60">{appHost()}</p>
+        )}
       </div>
       <p className="absolute bottom-10 text-xs text-white/40">Tap to continue</p>
 

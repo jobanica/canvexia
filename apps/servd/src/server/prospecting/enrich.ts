@@ -1,4 +1,5 @@
 import "server-only";
+import { outboundUserAgent } from "@/lib/branding/app-domain";
 
 /**
  * Best-effort contact enrichment: fetch a venue's OWN public website and pull
@@ -6,7 +7,7 @@ import "server-only";
  * single request, identifies itself. Returns nulls on any failure (never throws).
  */
 
-const UA = "ServdProspecting/1.0 (+https://servdph.com)";
+const UA = outboundUserAgent("ServdProspecting/1.0");
 const TIMEOUT_MS = 8000;
 const MAX_BYTES = 800_000;
 

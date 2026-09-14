@@ -50,7 +50,7 @@ export function EmailSettingsForm({
             name="fromEmail"
             type="email"
             defaultValue={initial.fromEmail}
-            placeholder="hello@servdph.com"
+            placeholder="hello@example.com"
             className="mt-1 w-full rounded-lg border border-plum-ink/15 px-3 py-2 text-sm"
           />
         </div>
@@ -63,7 +63,7 @@ export function EmailSettingsForm({
         name="replyTo"
         type="email"
         defaultValue={initial.replyTo}
-        placeholder="you@servdph.com"
+        placeholder="you@example.com"
         className="mt-1 w-full rounded-lg border border-plum-ink/15 px-3 py-2 text-sm"
       />
 

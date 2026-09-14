@@ -5,6 +5,7 @@ import { systemDb } from "@/server/tenancy/scoped-db";
 import { requireStaff, } from "@/server/tenancy/current-user";
 import { requireOwnerAction } from "@/server/tenancy/require-admin";
 import { sendFeedbackReplyEmail } from "@/server/email/transactional";
+import { internalLoginDomain } from "@/lib/branding/app-domain";
 
 export type FeedbackState = { ok?: boolean; error?: string } | null;
 
@@ -68,7 +69,7 @@ export type ReplyState = { ok?: boolean; error?: string } | null;
  * the feedback row first, which is the channel that always works: the owner
  * reads it in the dashboard they sent it from, whatever their email address is.
  * Only then is an email attempted, and only to a real inbox — plenty of these
- * accounts sign in with a synthetic address at staff.servdph.com that nobody
+ * accounts sign in with a synthetic address on the internal login domain that nobody
  * ever reads, and mailing those would look like a delivered answer that was
  * never delivered.
  *
@@ -128,12 +129,12 @@ export async function replyToFeedback(
 }
 
 /**
- * A DIY account's login is synthetic (`slug@staff.servdph.com`) — a real row in
+ * A DIY account's login is synthetic (`slug@<internal login domain>`) — a real row in
  * Supabase auth, but not an inbox anybody opens. Mailing one is worse than not
  * mailing: it looks answered and isn't.
  */
 function isRealInbox(email: string): boolean {
-  const domain = process.env.INTERNAL_LOGIN_DOMAIN || "staff.servdph.com";
+  const domain = internalLoginDomain();
   return email.includes("@") && !email.toLowerCase().endsWith(`@${domain.toLowerCase()}`);
 }
 

@@ -1,3 +1,4 @@
+import { appUrl as publicUrl } from "@/lib/branding/app-domain";
 import Link from "next/link";
 import { listDemoStorefronts } from "@/server/storefront-demo/queries";
 import { CreateStorefrontForm } from "@/components/super-admin/CreateStorefrontForm";
@@ -7,7 +8,7 @@ export const metadata = { title: "Demo storefronts · Servd" };
 
 export default async function StorefrontsPage() {
   const stores = await listDemoStorefronts();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://servdph.com";
+  const appUrl = publicUrl();
   // A QR (PNG data URL) per storefront, pointing at its live ordering page.
   const qrs = new Map(
     await Promise.all(stores.map(async (s) => [s.id, await qrPngDataUrl(`${appUrl}/r/${s.slug}`)] as const)),

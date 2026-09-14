@@ -1,3 +1,4 @@
+import { appUrl as publicUrl } from "@/lib/branding/app-domain";
 import Link from "next/link";
 import { requireAdminPage } from "@/server/tenancy/require-admin";
 import { featureLockOr } from "@/server/billing/feature-lock-gate";
@@ -17,7 +18,7 @@ export default async function StorefrontPage() {
 
   // Public ordering-website URL — prefer a verified custom domain, else the
   // platform path. Domain columns are read best-effort.
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.servdph.com";
+  const appUrl = publicUrl();
   let r: { slug: string; customDomain?: string | null; customDomainVerifiedAt?: Date | null } | null = null;
   try {
     r = await tenantDb(restaurantId, (tx) =>

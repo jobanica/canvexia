@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { ProspectResult } from "@/lib/prospecting/types";
+import { outboundUserAgent } from "@/lib/branding/app-domain";
 
 /**
  * Restaurant discovery via OpenStreetMap — no API key, no Google ToS issues.
@@ -14,7 +15,7 @@ import type { ProspectResult } from "@/lib/prospecting/types";
  */
 
 // Nominatim asks every caller to identify itself with a descriptive UA.
-const UA = "ServdProspecting/1.0 (+https://servdph.com; restaurant SaaS lead tool)";
+const UA = outboundUserAgent("ServdProspecting/1.0");
 const NOMINATIM = "https://nominatim.openstreetmap.org/search";
 const OVERPASS = "https://overpass-api.de/api/interpreter";
 

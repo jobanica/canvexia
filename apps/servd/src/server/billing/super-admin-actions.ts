@@ -17,13 +17,14 @@ import { ALL_FEATURES, type Feature } from "@/lib/billing/features";
 import { validateFloorAgainstPrice } from "@/lib/billing/price-floor";
 import { migrationHint } from "@/lib/db/migration-hint";
 import { CUSTOM_DOMAIN_ADDON, CUSTOM_DOMAIN_PRICE } from "@/server/billing/addons";
+import { internalLoginDomain } from "@/lib/branding/app-domain";
 
 export type ActionState =
   | { ok?: boolean; message?: string; error?: string; credentials?: { username: string; password: string } }
   | null;
 
 /** Synthetic email domain for username-only logins (no mail is ever sent). */
-const LOGIN_EMAIL_DOMAIN = process.env.INTERNAL_LOGIN_DOMAIN || "staff.servdph.com";
+const LOGIN_EMAIL_DOMAIN = internalLoginDomain();
 
 function syntheticEmail(username: string): string {
   return `${username}@${LOGIN_EMAIL_DOMAIN}`;

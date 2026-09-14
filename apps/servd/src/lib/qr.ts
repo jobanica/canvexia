@@ -27,7 +27,7 @@ export function restaurantOrderUrl(
   if (r.customDomain && r.customDomainVerified) {
     return `https://${r.customDomain}/t/${qrToken}`;
   }
-  // Servd subdomains are disabled (no wildcard *.servdph.com DNS) — fall back to
+  // Merchant subdomains are disabled (no wildcard DNS on the root domain) — fall back to
   // the apex path so QR codes resolve on the main domain.
   return dinerOrderUrl(r.slug, qrToken);
 }

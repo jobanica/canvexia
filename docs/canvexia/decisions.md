@@ -1115,3 +1115,77 @@ with sales undeletable entirely. Now nullable with `SET NULL`: the line already
 snapshots `nameAtTime`, so history survives without the live row.
 
 A test teardown found it, which is the only reason it was found at all.
+
+---
+
+## D31 — CANVEXIA is separate from servdph.com, and Servd here has its own domain
+
+**Settled by the owner**, and it corrects an assumption that ran through
+everything above it.
+
+`servdph.com` is a different business on a different database. CANVEXIA has its
+own Supabase project, its own schema, its own merchants, and **will not be
+connected to it**. Servd as a *product* stays — `apps/servd`, `live: true` — but
+it runs here on a **different domain**, against the CANVEXIA database, starting
+from zero merchants.
+
+### What this overturns
+
+Several earlier entries were written as though this repository would migrate
+servdph.com's live customers. It will not. Specifically:
+
+- **The deploy runbook is deleted**, not corrected. It described applying four
+  migrations and a merchant backfill to servdph.com's production database, and
+  it was the first item on the next-steps list for three rounds of work. A
+  runbook is an instruction; left in `docs/canvexia/`, someone follows it, and
+  what it instructs is modifying a production database that is not ours.
+  Replaced by `docs/canvexia/servd-is-separate.md`. The content is in git
+  history for whoever runs that system.
+- **The four "pending" migrations are not pending here.** They moved an
+  already-populated database forward. This one was built in one pass from
+  `schema.prisma` (D26), so all four columns have existed since the first table.
+  `manual/` is the record of how the schema got its shape — history, not a queue.
+- **The backfill has nothing to backfill.** No CANVEXIA merchant predates
+  `partnerId`; every one is created through the portal, which sets ownership in
+  the statement that creates the row. `backfill-house-partner.mjs` correctly
+  prints `Nothing to do.`
+
+### What survives, deliberately
+
+**D2's grandfather rule and `POWERED_BY_SINCE` are now inert, and both stay.**
+No CANVEXIA row can satisfy either — every partner is `operator` tier on a real
+share, and every restaurant is newer than the badge cutoff. They are guards, and
+a guard that never fires today is still what catches the row somebody imports by
+hand later. Deleting them would be deleting the check, not the dead weight.
+
+D2's reasoning is unaffected in principle: quietly changing the terms an
+existing paying customer signed up under is still not a thing to spring on them.
+There simply are no such customers on this database yet.
+
+### The domain, and the bug it was hiding
+
+Servd's public address was written into the source in **fourteen places** — the
+diner-facing "Powered by" badge, the QR splash, the partner support link, the
+prospecting User-Agent, and ten `?? "https://servdph.com"` fallbacks. All of it
+now comes from `NEXT_PUBLIC_APP_URL` through one module,
+`apps/servd/src/lib/branding/app-domain.ts`.
+
+**Everything there degrades to absent, never to a guess.** A wrong domain is
+worse than no domain: the badge is the one piece of Servd a diner sees, and
+pointing it at a site this deployment does not run is the failure worth
+engineering against. Unconfigured, links are relative — the page links to itself
+— and the address line does not render at all.
+
+Thirteen of the fourteen were cosmetic. **One was a live bug.** The super-admin
+feedback page decided whether a reply would reach a real inbox by testing for
+`@staff.servdph.com`, spelled out. On any other domain that test says *every*
+synthetic login is a real inbox, so the reply form would tell whoever was
+writing that their answer had been emailed when it had not — and nothing
+anywhere would say otherwise. It now calls `isSyntheticLogin()`, which reads the
+configured domain.
+
+The test that was supposed to cover this had reimplemented the rule locally with
+the domain as a default argument, so it passed against its own copy while the
+shipped page was wrong. It now exercises the shipped function. That is the
+lesson worth keeping: a test that reimplements the thing it tests is testing
+itself.

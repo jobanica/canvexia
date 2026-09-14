@@ -1,3 +1,5 @@
+import { supportMessengerUrl } from "@/lib/branding/app-domain";
+import { appUrl as publicUrl, metadataBaseUrl } from "@/lib/branding/app-domain";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AppIcon, Wordmark } from "@/components/Wordmark";
@@ -7,6 +9,8 @@ import { LazyVideo } from "@/components/media/LazyVideo";
 import { Pixel, LandingView } from "@/components/create/Pixel";
 import { PhoneMock } from "@/components/create/PhoneMock";
 import { getLandingConfig } from "@/server/landing/settings";
+
+const SUPPORT_MESSENGER = supportMessengerUrl();
 
 /**
  * The Facebook-ad landing page. One job: get a food-business owner anywhere in
@@ -33,7 +37,7 @@ import { getLandingConfig } from "@/server/landing/settings";
  * The only server read is the landing config, behind a tagged cache.
  */
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.servdph.com";
+const APP_URL = publicUrl();
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? "";
 
 const TITLE = "Create your restaurant's online ordering page — free";
@@ -41,7 +45,7 @@ const DESCRIPTION =
   "Upload your logo and menu, build your preview, and experience how your customers can order online. No credit card. ₱499 one-time to activate.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(APP_URL),
+  metadataBase: metadataBaseUrl(),
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: "/create" },
@@ -283,7 +287,7 @@ export default async function CreatePage() {
             <Link href="/terms" className="hover:text-plum-ink">
               Terms
             </Link>
-            <a href="https://m.me/servdph" className="hover:text-plum-ink">
+            <a href={SUPPORT_MESSENGER} className="hover:text-plum-ink">
               Message us
             </a>
           </div>

@@ -1,3 +1,4 @@
+import { appUrl as publicUrl } from "@/lib/branding/app-domain";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getDemoStorefront } from "@/server/storefront-demo/queries";
@@ -36,7 +37,7 @@ export default async function StorefrontDetailPage({
   const uploadFailed = (await searchParams).upload === "failed";
   const previewLogin = await getPreviewLogin(id);
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://servdph.com";
+  const appUrl = publicUrl();
   const url = `${appUrl}/r/${s.slug}`;
   const field = "w-full rounded-lg border border-plum-ink/15 px-3 py-2 text-sm";
   const qr = await qrPngDataUrl(url); // QR to the live ordering page — send to the customer

@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { previewExpiryFrom } from "@/lib/preview-login/expiry";
+import { internalLoginDomain } from "@/lib/branding/app-domain";
 
 /**
  * A throwaway merchant login for showing a demo storefront to a prospect.
@@ -25,7 +26,7 @@ import { previewExpiryFrom } from "@/lib/preview-login/expiry";
  *      handed out last week stop working.
  */
 
-const LOGIN_DOMAIN = process.env.INTERNAL_LOGIN_DOMAIN || "staff.servdph.com";
+const LOGIN_DOMAIN = internalLoginDomain();
 
 /** Marks the synthetic address so a preview login is obvious in auth.users. */
 const PREVIEW_PREFIX = "preview";

@@ -8,6 +8,7 @@ import { systemDb } from "@/server/tenancy/scoped-db";
 import { qrPngDataUrl } from "@/lib/qr";
 import { createDownloadUrl } from "@/server/outreach/storage";
 import { triggerRender } from "@/server/outreach/render";
+import { appUrl } from "@/lib/branding/app-domain";
 
 const PATH = "/super-admin/outreach";
 const TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -25,10 +26,6 @@ export interface CreateResult {
   id?: string;
   recordUrl?: string;
   qrDataUrl?: string;
-}
-
-function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? "https://www.servdph.com").replace(/\/$/, "");
 }
 
 /** Create an outreach-video row + QR to the phone record page for one prospect. */

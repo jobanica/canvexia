@@ -1,3 +1,4 @@
+import { appUrl as publicUrl } from "@/lib/branding/app-domain";
 import Link from "next/link";
 import { requireAdminPage } from "@/server/tenancy/require-admin";
 import { getDeliverySettings } from "@/server/delivery/settings";
@@ -6,7 +7,7 @@ import { DeliverySettingsForm } from "@/components/admin/DeliverySettingsForm";
 export default async function DeliverySettingsPage() {
   const { restaurantId } = await requireAdminPage();
   const settings = await getDeliverySettings(restaurantId);
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.servdph.com";
+  const appUrl = publicUrl();
   const webhookUrl = `${appUrl}/api/webhooks/delivery/${restaurantId}`;
 
   return (

@@ -409,7 +409,9 @@ Reshaped by A2 and A2b. Depends on **Q8**. This is now the largest phase, not th
   precedence rule from Q4.
 - [MODIFY] `src/lib/branding/powered-by.ts` — reconcile per-merchant unlock with per-partner
   brand mode (Q5), preserving the `POWERED_BY_SINCE` grandfathering.
-- **Gate:** `servdph.com` must render byte-identically before/after. Verified by snapshotting
+- **Gate (SUPERSEDED by D31 — CANVEXIA never touched servdph.com, and the
+  CANVEXIA database starts with no merchants):** `servdph.com` must render
+  byte-identically before/after. Verified by snapshotting
   the rendered diner page pre- and post-change, not by eyeball.
 
 ### Phase 6 — Product adapter

@@ -7,6 +7,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { normalizeUsername } from "@/lib/partners/login-username";
 import { getFreePlan, getDefaultPlan, getTopPlan, SIGNUP_TRIAL_DAYS } from "@/server/billing/subscription";
 import { revokePreviewLogin } from "./preview-login";
+import { internalLoginDomain } from "@/lib/branding/app-domain";
 
 /**
  * Turning a demo storefront into a real account.
@@ -34,7 +35,7 @@ import { revokePreviewLogin } from "./preview-login";
  * the username hostage).
  */
 
-const LOGIN_DOMAIN = process.env.INTERNAL_LOGIN_DOMAIN || "staff.servdph.com";
+const LOGIN_DOMAIN = internalLoginDomain();
 
 function syntheticEmail(username: string): string {
   return `${username}@${LOGIN_DOMAIN}`;

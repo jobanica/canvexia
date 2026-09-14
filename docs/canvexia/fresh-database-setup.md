@@ -1,7 +1,8 @@
 # Standing up a fresh CANVEXIA database
 
-For an **empty** database. If you are moving an already-populated one forward —
-servdph.com — you want `deploy-runbook.md` instead, and none of this applies.
+For an **empty** database, which is the only kind this project has. CANVEXIA is
+separate from servdph.com and will not be connected to it (D31), so there is no
+populated database to migrate and no runbook for doing so.
 
 This is what was actually run against Supabase project `Canvexia`
 (`vqiwfemnmxrzsmyncwrf`, ap-southeast-1), not a procedure written from memory.
@@ -10,10 +11,11 @@ This is what was actually run against Supabase project `Canvexia`
 
 ## Do not replay `packages/db/prisma/manual/`
 
-`manual/` is a *history* — how servdph.com got from nothing to today, false
-starts included (`fix-orderitem-menuitem-setnull`, `restore-storefront-settings`,
-`drop-referral-program`). Replaying a hundred files to reach a state you can
-state directly buys nothing and inherits every ordering hazard in it.
+`manual/` is a *history* — how the schema got from nothing to its current shape,
+false starts included (`fix-orderitem-menuitem-setnull`,
+`restore-storefront-settings`, `drop-referral-program`). Replaying a hundred
+files to reach a state you can state directly buys nothing and inherits every
+ordering hazard in it. It is a record, not a queue (D31).
 
 Generate the whole schema in one pass instead:
 

@@ -6,7 +6,7 @@ import { systemDb } from "@/server/tenancy/scoped-db";
  * A human name for a staff member, for printed reports and floor labels.
  *
  * Falls through displayName → username → the local part of the email, because
- * a DIY account's login address is synthetic (`slug@staff.servdph.com`) and
+ * a DIY account's login address is synthetic (`slug@<internal login domain>`) and
  * printing that on a Z-report the owner signs is just noise.
  *
  * Scoped by restaurantId as well as id, so a name can never be read across

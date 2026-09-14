@@ -2,17 +2,23 @@ import { listPlatformFeedback } from "@/server/platform-feedback/queries";
 import { setFeedbackResolved } from "@/server/platform-feedback/actions";
 import { manilaDateTime } from "@/lib/time/manila";
 import { FeedbackReply } from "@/components/super-admin/FeedbackReply";
+import { isSyntheticLogin } from "@/lib/branding/app-domain";
 
 /**
  * Whether an answer will also reach them by email.
  *
- * A DIY account signs in with a synthetic address at staff.servdph.com — a real
- * auth row, but not an inbox. The reply form says which it is, so nobody writes
- * a careful answer believing it was emailed when it wasn't.
+ * A DIY account signs in with a synthetic address on the internal login domain
+ * — a real auth row, but not an inbox. The reply form says which it is, so
+ * nobody writes a careful answer believing it was emailed when it wasn't.
+ *
+ * The domain comes from `isSyntheticLogin`, not from a literal here. It used to
+ * be spelled out, which meant this check silently stopped working the moment
+ * the deployment moved domain: every internal address would read as a real
+ * inbox (D31).
  */
 function isRealInbox(email: string | null): boolean {
   if (!email || !email.includes("@")) return false;
-  return !email.toLowerCase().endsWith("@staff.servdph.com");
+  return !isSyntheticLogin(email);
 }
 
 export default async function SuperAdminFeedbackPage() {
