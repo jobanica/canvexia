@@ -38,7 +38,16 @@ export default async function LeadFormPage({
   }));
 
   return (
-    <main className="min-h-screen bg-brand-surface px-5 py-12">
+    /*
+      brand-canvexia as the BASE, not Servd's cream.
+      
+      The brand tokens default to Servd's identity in globals.css, which is
+      right for Servd's own pages and wrong here: this is a CANVEXIA partner's
+      page, and a partner with no brandConfig yet should inherit CANVEXIA's
+      look rather than the restaurant product's orange. A5 overrides these same
+      five variables per partner, so this is the fallback and not a ceiling.
+    */
+    <main className="brand-canvexia min-h-screen bg-brand-surface px-5 py-12 text-brand-ink">
       <div className="mx-auto max-w-lg">
         <p className="font-heading text-xl font-bold">{name}</p>
         <h1 className="mt-6 font-heading text-3xl font-extrabold leading-tight">
