@@ -194,6 +194,67 @@ are whole pesos and deliberately never added to a centavos total.
 
 ---
 
+## 6b. The HQ console (`/hq`)
+
+CANVEXIA's own console, added in H1–H2. **A route group inside `apps/servd`,
+not a separate app** — a new Next process would need its own Prisma client,
+Supabase cookie handling, middleware and Vercel project, plus a copy of every
+`@/server/*` module the HQ screens import.
+
+- **Two consoles, one deployment.** `/hq` is CANVEXIA across every partner and
+  product. `/super-admin` is *Servd's* own back office (content engine,
+  storefronts, CRM, outreach). Screens that belong to the first are MOVED, not
+  copied: `/super-admin/partners` is a permanent redirect. Two screens that both
+  edit a partner's terms is how the terms come to disagree with themselves.
+- **Identity is `platform_admins`**, one path, no fallback — unlike the partner
+  portal's two, which exist because it had live sessions to preserve. `role` is
+  `NULL | 'ops'` and **NULL means super admin**; `parseHqRole` is the only place
+  that knows.
+- **RLS is not the boundary here.** Both HQ roles run in a super-admin context
+  and can read every row in the schema — that is what an HQ console is. The
+  capability matrix in `packages/core` is the whole of the separation, which is
+  why `requireHqAction()` re-checks at the server action and not only in the
+  layout.
+- **Path rules are for sections, not roots.** `"/hq"` in `OPS_SECTIONS` would
+  have matched `/hq/team`. The overview is in `OPS_EXACT_PATHS` instead.
+
+### "View as partner"
+
+The one flow in this repository that puts one party inside another's data. Six
+properties, each load-bearing, all in `server/hq/impersonate.ts`:
+
+1. **No role escalation.** Never touches Supabase Auth, never mints a partner
+   session. A **separate cookie** from the partner session, so code that only
+   knows about the other one cannot accept this.
+2. **A row, not just a signature** — a signature cannot be revoked and leaves
+   nothing to audit.
+3. **The SHA-256 is stored, never the token.** A row that reads back into a
+   working session turns a database leak into a login.
+4. **Single-use, 30 minutes, checked against the row** — never against the
+   cookie, which carries the token and nothing else.
+5. **Read-only enforced at the action.** `getCurrentPartner()` RESOLVES an
+   impersonated session, so calling it in an action and acting on the result is
+   *precisely the bug*. Every partner action goes through
+   `requireWritablePartner()`, which refuses impersonation **before** consulting
+   capabilities — an impersonated session presents as `admin`, so the capability
+   check would answer yes. Two source-level tests fail if a new action file
+   reaches for the old function.
+6. **The operator is told.** A banner on every portal screen, plus start, end
+   and duration in the audit log.
+
+### What the HQ screens deliberately do not show
+
+- **Two of the brief's five attention rules are absent**: domains stuck
+  unverified and escalations open. No partner domain has ever been registered
+  (no domain in this project resolves), and there is no ticket system. An
+  always-empty section reads as everything being handled.
+- **Payout account numbers never leave `server/hq/partners.ts`.** The encrypted
+  blob is selected only to answer "do details exist" and reduced to a boolean
+  before it returns. A field that never reaches the component cannot be rendered
+  by a component written later.
+
+---
+
 ## 7. Conventions worth not re-deriving
 
 - Manual migrations in `packages/db/prisma/manual/*.sql`, idempotent, run by
