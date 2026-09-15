@@ -56,6 +56,18 @@ eight.
 - [x] `maskAmounts()` strips the money SERVER-SIDE, series included
 - [x] 7 more tests; suite 1238 → 1245
 ## A7.3 — Staff directory, assignment, offboarding, activity
+
+- [x] `server/partners/staff.ts` — profile, book (both merchant tables),
+      activity merged from `staff_events` + `audit_logs`, counts
+- [x] `staff-actions.ts` — profile edit, single/bulk reassign, offboard,
+      reactivate. Offboarding is ONE transaction; session revocation runs
+      after it and records its own failure
+- [x] `/partner/team/staff/[id]` — three tabs, emergency contact withheld at
+      the SELECT
+- [x] `/api/partner/staff/[id]/activity.csv` — re-checks the permission AND
+      whose record it is; 404 not 403
+- [x] Team rows link into the record; `ops_manager` blurb added
+- [x] 13 more tests; suite 1245 → 1258
 ## A7.4 — Attendance PWA, visit log, manager view, offline queue
 ## A7.5 — Targets & scorecard
 ## A7.6 — Commissions job + views + mark paid

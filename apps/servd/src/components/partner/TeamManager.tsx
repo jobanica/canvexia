@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { PARTNER_USER_ROLES, capabilitiesOf } from "@servd/core";
 import {
@@ -14,6 +15,8 @@ const initial: TeamState = { status: "idle" };
 
 const ROLE_BLURB: Record<string, string> = {
   admin: "Everything, including revenue, pricing, brand and this page.",
+  ops_manager:
+    "Runs the team and the merchant book. No revenue, no pricing, no brand, and cannot edit permissions.",
   sales: "Pipeline and opening merchant accounts. No money, no brand, no team.",
   support: "Looks after merchants that already exist. Cannot change what anyone is charged.",
 };
@@ -41,14 +44,29 @@ export function TeamManager({ seats, invites }: { seats: SeatRow[]; invites: Inv
             {seats.map((s) => (
               <tr key={s.id}>
                 <td className="px-4 py-3">
-                  <span className="block font-semibold">{s.name ?? s.email}</span>
+                  {/* The row is the way into the staff record now: the profile,
+                      the book they are carrying, their activity, and
+                      offboarding. */}
+                  <Link href={`/partner/team/staff/${s.id}`} className="block font-semibold hover:underline">
+                    {s.name ?? s.email}
+                  </Link>
                   {s.name && <span className="block text-xs text-brand-ink/45">{s.email}</span>}
                 </td>
                 <td className="px-4 py-3 text-brand-ink/60">{s.role}</td>
                 <td className="px-4 py-3 text-brand-ink/60">{s.status}</td>
                 <td className="px-4 py-3 text-right">
+                  {/* Deactivate is the blunt version and stays: it stops a
+                      login now. Offboarding — deactivate AND hand the book over
+                      AND sign them out — lives on the staff record, because it
+                      needs to ask who is taking the work. */}
+                  <Link
+                    href={`/partner/team/staff/${s.id}`}
+                    className="mr-3 text-xs font-semibold text-brand-primary hover:underline"
+                  >
+                    Open
+                  </Link>
                   {s.status === "active" && (
-                    <form action={deactivate}>
+                    <form action={deactivate} className="inline">
                       <input type="hidden" name="seatId" value={s.id} />
                       <button className="text-xs font-semibold text-guava hover:underline">
                         Deactivate
