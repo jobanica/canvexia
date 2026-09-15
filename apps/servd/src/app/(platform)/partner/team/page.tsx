@@ -18,14 +18,24 @@ export default async function PartnerTeamPage() {
       actions={
         // Hidden, not disabled, for an ops manager: they run the team and do
         // not decide what the team is allowed to do.
-        partnerAllows(partner, "team.permissions") ? (
-          <Link
-            href="/partner/team/permissions"
-            className="rounded-full border border-brand-ink/15 bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-ink/65 hover:bg-brand-surface"
-          >
-            Permissions →
-          </Link>
-        ) : undefined
+        <>
+          {partnerAllows(partner, "hr.view_own") && (
+            <Link
+              href="/partner/team/scorecard"
+              className="rounded-full border border-brand-ink/15 bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-ink/65 hover:bg-brand-surface"
+            >
+              Scorecard →
+            </Link>
+          )}
+          {partnerAllows(partner, "team.permissions") && (
+            <Link
+              href="/partner/team/permissions"
+              className="rounded-full border border-brand-ink/15 bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-ink/65 hover:bg-brand-surface"
+            >
+              Permissions →
+            </Link>
+          )}
+        </>
       }
     >
         <p className="max-w-readable text-sm text-brand-ink/55">

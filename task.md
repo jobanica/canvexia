@@ -88,5 +88,14 @@ eight.
       check-in would have landed on yesterday's key. Same bug in `my-day.ts`.
 - [x] 19 more tests; suite 1258 → 1291
 ## A7.5 — Targets & scorecard
+
+- [x] `lib/partners/scorecard.ts` — pure; rate is null with no demos, a zero
+      target reads as met, the leaderboard ranks by closings not by rate
+- [x] `server/partners/scorecard.ts` — four flat reads, grouped in memory
+- [x] `targets-actions.ts` — upsert per (seat, month); "copy last month" does
+      NOT overwrite and says how many it skipped
+- [x] `/partner/team/scorecard` — month chips, table/leaderboard, inline target
+      editor; a seat without `hr.view_all` is filtered in the QUERY
+- [x] 14 more tests; suite 1291 → 1305
 ## A7.6 — Commissions job + views + mark paid
 ## A7.7 — Notifications + digest additions
