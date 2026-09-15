@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { headers } from "next/headers";
+import { hitRateLimitIn, RATE_WINDOW_MS } from "@servd/db";
 import { systemDb } from "@/server/tenancy/scoped-db";
 
 /**
@@ -16,7 +17,12 @@ import { systemDb } from "@/server/tenancy/scoped-db";
  * we don't need to know who they are.
  */
 
-const WINDOW_MS = 60 * 60 * 1000; // 1 hour
+// The window arithmetic and the upsert live in @servd/db now: canvexia.com's
+// waitlist form needs the same counter, and the argument above (serverless
+// processes are fresh, so memory enforces nothing) is why it is shared rather
+// than written twice. The buckets and the allowances stay here, because they
+// are this app's.
+const WINDOW_MS = RATE_WINDOW_MS;
 
 export type Bucket =
   | "build:create"
@@ -55,16 +61,8 @@ export async function clientKey(): Promise<string> {
  */
 export async function rateLimit(bucket: Bucket): Promise<{ ok: boolean; error?: string }> {
   const key = await clientKey();
-  const windowAt = new Date(Math.floor(Date.now() / WINDOW_MS) * WINDOW_MS);
   try {
-    const row = await systemDb((tx) =>
-      tx.rateLimit.upsert({
-        where: { bucket_key_windowAt: { bucket, key, windowAt } },
-        create: { bucket, key, windowAt, count: 1 },
-        update: { count: { increment: 1 } },
-        select: { count: true },
-      }),
-    );
+    const row = await systemDb((tx) => hitRateLimitIn(tx, bucket, key, WINDOW_MS));
     if (row.count > LIMITS[bucket]) {
       return { ok: false, error: "You're going a bit fast. Please try again in a little while." };
     }

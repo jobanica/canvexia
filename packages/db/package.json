@@ -10,6 +10,7 @@
     "db:migrate": "prisma migrate dev",
     "db:rls": "node scripts/apply-rls.mjs",
     "db:seed": "node prisma/seed.mjs",
+    "db:seed:territories": "node prisma/seed-territories.mjs",
     "db:drift": "node scripts/schema-drift.mjs",
     "db:setup": "prisma db push && node scripts/apply-rls.mjs && node prisma/seed.mjs"
   },

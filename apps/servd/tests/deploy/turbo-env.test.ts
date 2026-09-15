@@ -52,7 +52,9 @@ function readsByVariable(): Map<string, string[]> {
   const roots = [
     join(ROOT, "apps/servd/src"),
     join(ROOT, "apps/resceta/src"),
+    join(ROOT, "apps/www/src"),
     join(ROOT, "packages/core/src"),
+    join(ROOT, "packages/db/src"),
   ];
   const found = new Map<string, string[]>();
   for (const root of roots) {
@@ -61,6 +63,9 @@ function readsByVariable(): Map<string, string[]> {
       for (const match of text.matchAll(/process\.env\.([A-Z0-9_]+)/g)) {
         const name = match[1];
         if (AMBIENT.has(name)) continue;
+        // `process.env.NEXT_PUBLIC_*` written in a doc comment is prose, not a
+        // read. No variable's name ends in an underscore.
+        if (name.endsWith("_")) continue;
         const where = file.slice(ROOT.length + 1);
         const seen = found.get(name) ?? [];
         if (!seen.includes(where)) seen.push(where);

@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /* The sticky nav is 64px; without this every in-page link lands with its
+       heading hidden underneath it. */
+    scroll-padding-top: 5rem;
+  }
+
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Most of this page's traffic arrives from Facebook and TikTok on a phone,
+     often held one-handed on a jeepney. Nothing interactive is smaller than a
+     thumb. */
+  button,
+  [role="button"],
+  summary {
+    @apply min-h-[44px];
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-coral ring-offset-2 ring-offset-paper;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* One accent, one place it is a gradient: the logo. Everywhere else coral is
+     flat. A gradient on every button is the look the brief asked to avoid. */
+  .rule-accent {
+    @apply block h-[3px] w-10 rounded-full bg-coral;
+  }
+}

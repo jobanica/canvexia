@@ -15,3 +15,12 @@ export {
   type ProvisionPharmacyInput,
   type ProvisionedPharmacy,
 } from "./provisioning/pharmacy";
+
+export {
+  joinWaitlistIn,
+  type JoinWaitlistInput,
+  type JoinWaitlistResult,
+  type WaitlistSource,
+} from "./waitlist";
+
+export { hitRateLimitIn, hashKey, RATE_WINDOW_MS, type RateHit } from "./rate-limit";
