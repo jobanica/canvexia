@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
   }
 
   const month = previousMonth(monthKeyOf(new Date()));
+  const startedAt = new Date();
 
   const partners = await systemDb((tx) =>
     tx.partner.findMany({
@@ -50,6 +51,30 @@ export async function GET(req: NextRequest) {
     } catch {
       failed.push(p.id);
     }
+  }
+
+  // RECORDED, whatever happened.
+  //
+  // A run that fired and produced nothing looks identical to one that never
+  // fired unless somebody writes down that it happened — and that is precisely
+  // the hole this job sat in: CRON_SECRET was unset on the project, so every
+  // scheduled firing since it shipped returned 401 above, and nothing anywhere
+  // said so. /hq/billing reads this table rather than inferring a last run from
+  // the newest statement's frozenAt.
+  try {
+    await systemDb((tx) =>
+      tx.cronRun.create({
+        data: {
+          job: "freeze-statements",
+          startedAt,
+          finishedAt: new Date(),
+          ok: failed.length === 0,
+          detail: { month, partners: partners.length, created, existed, failed },
+        },
+      }),
+    );
+  } catch {
+    /* the statements are frozen either way; the record of the run is secondary */
   }
 
   return Response.json({ month, partners: partners.length, created, existed, failed });

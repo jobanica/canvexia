@@ -1335,6 +1335,7 @@ model Partner {
   announcementReads   HqAnnouncementRead[]
   impersonationGrants ImpersonationGrant[]
   outboundEmails      OutboundEmail[]
+  passthroughUsage    PassthroughUsage[]
 
   referralPartner Partner?  @relation("PartnerReferral", fields: [referralPartnerId], references: [id], onDelete: SetNull)
   referredBy      Partner[] @relation("PartnerReferral")
@@ -3459,6 +3460,50 @@ model ImpersonationGrant {
   @@index([partnerId])
   @@index([hqAdminId])
   @@map("impersonation_grants")
+}
+
+/// What the provider charges for a unit of SMS or email, and CANVEXIA's markup.
+///
+/// One row per CHANNEL, not per partner: this is a platform-wide commercial
+/// decision. Per-partner pricing, if it is ever wanted, is a `partnerId` column
+/// added the way feature_flags carries one.
+model PassthroughCost {
+  channel String @id
+  /// Centavos per 1000 units. Per-1000 because a single SMS costs well under a
+  /// peso and an integer per-unit cost would round every message to 0 or 1.
+  unitCostCentavos Int @default(0)
+  /// What CANVEXIA charges on top, as a percentage of the cost.
+  marginPct Int @default(0)
+  note      String?
+  updatedAt DateTime @updatedAt
+
+  @@map("passthrough_costs")
+}
+
+/// Units sent, per partner per month.
+///
+/// A ROLLUP written by whatever sends, not derived on read: `sms_messages` is
+/// merchant-scoped with no partner arm, and counting across it for every
+/// partner on every page load is a scan that grows forever — while the answer
+/// for a closed month never changes.
+///
+/// The peso figures are NOT stored. They are computed from PassthroughCost at
+/// read time, so correcting a rate fixes every open month rather than only the
+/// next one.
+model PassthroughUsage {
+  id        String   @id @default(uuid())
+  partnerId String
+  /// "2026-06", Asia/Manila — the same key partner_statements uses.
+  month     String
+  channel   String
+  units     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, month, channel])
+  @@index([month])
+  @@map("passthrough_usage")
 }
 
 /// One firing of a scheduled job.
