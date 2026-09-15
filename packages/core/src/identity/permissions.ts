@@ -40,8 +40,24 @@ export const CAPABILITIES = [
 
 export type Capability = (typeof CAPABILITIES)[number];
 
+/**
+ * SUPERSEDED BY `identity/partner-permissions.ts` IN A7, AND KEPT.
+ *
+ * The 29 editable permissions are what the portal gates on now. This matrix
+ * stays because it is a shipped exported type, because the merchant-side code
+ * has never used anything else, and because `partnerPermissions()` falls back
+ * to it when `partner_role_permissions` has not been migrated yet — a portal
+ * that 500s on a missing table is worse than one that runs on last month's
+ * rules.
+ *
+ * `ops_manager` is mapped onto the admin row here deliberately: this matrix has
+ * no vocabulary for the money/brand denials that define the role, so anything
+ * still reading it would be asking a question it cannot answer. The A7 gate
+ * answers it.
+ */
 const MATRIX: Record<PartnerUserRole, readonly Capability[]> = {
   admin: CAPABILITIES,
+  ops_manager: CAPABILITIES,
 
   // Sales works the pipeline and opens accounts. No money, no brand, no team —
   // and deliberately no impersonation.

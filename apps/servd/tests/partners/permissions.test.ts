@@ -54,7 +54,14 @@ describe("partner capabilities", () => {
   });
 
   it("gives nobody but admin the ability to change what a merchant pays", () => {
+    // `ops_manager` is EXCLUDED here and asserted in the A7 suite instead.
+    // This legacy matrix has no vocabulary for the money/brand denials that
+    // define that role — it maps ops_manager onto the admin row — so asking it
+    // this question gets an answer it cannot give. The A7 grid answers it:
+    // `pricing.edit` is admin-only there, and `merchants.change_plan` is
+    // admin + ops_manager, which is the brief's own table.
     for (const role of PARTNER_USER_ROLES) {
+      if (role === "ops_manager") continue;
       expect(can(role, "merchants.manage"), role).toBe(role === "admin");
       expect(can(role, "revenue.pricing"), role).toBe(role === "admin");
     }
@@ -77,7 +84,7 @@ describe("partner capabilities", () => {
 
 describe("the stored role vocabulary", () => {
   it("stores short names and refuses anything else", () => {
-    expect(PARTNER_USER_ROLES).toEqual(["admin", "sales", "support"]);
+    expect(PARTNER_USER_ROLES).toEqual(["admin", "ops_manager", "sales", "support"]);
     for (const bad of ["partner_admin", "partner_staff", "owner", "", "ADMIN"]) {
       expect(isPartnerUserRole(bad), bad).toBe(false);
     }
@@ -92,21 +99,39 @@ describe("the stored role vocabulary", () => {
 
   it("widens to the platform vocabulary without losing the level", () => {
     expect(toRole("admin")).toBe("partner_admin");
+    expect(toRole("ops_manager")).toBe("partner_ops_manager");
     expect(toRole("sales")).toBe("partner_sales");
     expect(toRole("support")).toBe("partner_support");
   });
 
   it("matches the database CHECK constraint", () => {
-    // packages/db/prisma/manual/add-partner-portal.sql spells this set out in a
-    // CHECK. If one side gains a role and the other does not, inserts start
-    // failing in production and nothing here would have said so.
-    const sql = require("node:fs").readFileSync(
-      require("node:path").join(process.cwd(), "../../packages/db/prisma/manual/add-partner-portal.sql"),
-      "utf8",
-    ) as string;
-    const match = sql.match(/partner_users_role_check[\s\S]*?CHECK \("role" IN \(([^)]+)\)\)/);
-    expect(match, "the CHECK constraint moved or was renamed").toBeTruthy();
-    const inSql = match![1].split(",").map((s) => s.trim().replace(/'/g, ""));
+    // If one side gains a role and the other does not, inserts start failing in
+    // production and nothing here would have said so.
+    //
+    // Reads the LAST file that defines the constraint, not the first. A7 drops
+    // and re-adds it in add-partner-staff.sql to make room for ops_manager;
+    // pinning this to add-partner-portal.sql would assert a constraint that no
+    // longer exists on any database that has run both.
+    const fs = require("node:fs") as typeof import("node:fs");
+    const path = require("node:path") as typeof import("node:path");
+    const dir = path.join(process.cwd(), "../../packages/db/prisma/manual");
+    const re = /partner_users_role_check[\s\S]*?CHECK \("role" IN \(([^)]+)\)\)/;
+
+    const defining = fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .map((f) => ({ file: f, sql: fs.readFileSync(path.join(dir, f), "utf8") }))
+      .filter((f) => re.test(f.sql));
+
+    // Both files must still be found: if the later one is ever deleted this
+    // silently falls back to asserting the three-role set and passes.
+    expect(defining.map((d) => d.file).sort()).toEqual([
+      "add-partner-portal.sql",
+      "add-partner-staff.sql",
+    ]);
+
+    const latest = defining.find((d) => d.file === "add-partner-staff.sql")!;
+    const inSql = latest.sql.match(re)![1].split(",").map((s) => s.trim().replace(/'/g, ""));
     expect(inSql.sort()).toEqual([...PARTNER_USER_ROLES].sort());
   });
 });

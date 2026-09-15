@@ -68,6 +68,47 @@ create or replace function app.current_pharmacy_id() returns text
     select nullif(current_setting('app.current_pharmacy_id', true), '')
 $$;
 
+-- The partner SEAT the current request is scoped to (A7), NULL if unset. Set by
+-- partnerDb() alongside the partner id.
+--
+-- A SECOND AXIS, NOT A REPLACEMENT. Every policy written before A7 asks one
+-- question — does this row belong to the partner in the GUC — and that is the
+-- boundary that keeps one city operator out of another's book. The staff tables
+-- at the end of this file ask a second question too, because there the SEAT is
+-- the boundary: a salesperson has no business in a colleague's GPS trail.
+--
+-- The older policies are deliberately NOT widened to consult this. Making one
+-- policy answer both questions doubles the number of ways the TENANT boundary
+-- can be got wrong, in the file where a mistake leaks a rival operator's
+-- commercial terms. Per-seat rules everywhere else are enforced at the
+-- requireWritablePartner() chokepoint, with cross-role tests.
+create or replace function app.current_partner_user_id() returns text
+  language sql stable as $$
+    select nullif(current_setting('app.current_partner_user_id', true), '')
+$$;
+
+-- Does the seat in the GUC hold this permission, for the partner in the GUC?
+--
+-- Answers from an explicit OVERRIDE row only. The defaults live in
+-- packages/core and this function cannot see them, so it means "explicitly
+-- granted", not "allowed". The policies use it only where an explicit grant is
+-- the whole rule; anything subtler is the chokepoint's job.
+--
+-- STABLE, so Postgres evaluates it once per statement rather than once per row.
+-- SECURITY DEFINER with a pinned search_path so it can read the permission
+-- table under a policy that would otherwise recurse into it.
+create or replace function app.has_permission(perm text) returns boolean
+  language sql stable security definer set search_path = public, pg_temp as $$
+    select coalesce(
+      (select p."allowed"
+         from public.partner_role_permissions p
+         join public.partner_users u on u."id" = app.current_partner_user_id()
+        where p."partnerId" = app.current_partner_id()
+          and p."role" = u."role"
+          and p."permission" = perm),
+      false)
+$$;
+
 -- ----------------------------------------------------------------------------
 -- app_user: a NON-privileged role (no BYPASSRLS) that tenantDb() switches to,
 -- so Row-Level Security is always enforced even if the pooled connection role
@@ -750,6 +791,122 @@ begin
     execute format('revoke all on %I from authenticated;', t);
   end loop;
 end $$;
+
+-- ----------------------------------------------------------------------------
+-- A7 — the staff tables. TWO ARMS: the partner, and the seat.
+--
+-- These are the only tables in this schema where the seat is also a policy arm,
+-- because here it is a real data-separation rule rather than a feature flag.
+-- "Own rows vs. everyone's" is what separates a salesperson from a colleague's
+-- location history; getting it wrong leaks a GPS trail, not a rival operator's
+-- revenue.
+--
+-- The seat arm is: the row is mine, OR my seat holds the explicit see-everyone
+-- permission. `app.has_permission` answers from an explicit override row only —
+-- the defaults live in packages/core — so this policy is a FLOOR, not the
+-- feature. The screens read through systemDb with a where clause derived from
+-- the resolved permissions, exactly as /hq does; this is what stops a seat
+-- reaching the table any other way.
+--
+-- Listed explicitly rather than swept, because the backstop below would
+-- otherwise lock all eight to super-admin and the portal would 500 on screens
+-- that have no business being HQ-only.
+-- ----------------------------------------------------------------------------
+do $$
+declare
+  t text;
+  seat_perm text;
+begin
+  for t, seat_perm in
+    select v.tbl, v.perm from (values
+      ('staff_events',          'hr.view_all'),
+      ('staff_targets',         'hr.view_all'),
+      ('attendance_sessions',   'attendance.view_all'),
+      ('staff_visits',          'attendance.view_all'),
+      ('commission_rules',      'commissions.manage'),
+      ('commission_statements', 'commissions.manage')
+    ) as v(tbl, perm)
+  loop
+    execute format('alter table %I enable row level security;', t);
+    execute format('alter table %I force row level security;', t);
+    execute format('drop policy if exists super_only on %I;', t);
+    execute format('drop policy if exists partner_seat_read on %I;', t);
+    execute format('drop policy if exists partner_seat_write on %I;', t);
+
+    execute format($f$
+      create policy partner_seat_read on %1$I for select
+        using (
+          app.is_super_admin()
+          or (
+            "partnerId" = app.current_partner_id()
+            and (
+              "partnerUserId" = app.current_partner_user_id()
+              or app.has_permission(%2$L)
+            )
+          )
+        );
+    $f$, t, seat_perm);
+
+    -- Writes are narrower than reads on purpose: a manager may READ the team's
+    -- attendance and may not WRITE somebody else's check-in. Rows for another
+    -- seat are created by the server under systemDb, which is audited, rather
+    -- than by a policy that would let any manager forge one.
+    execute format($f$
+      create policy partner_seat_write on %1$I for all
+        using (
+          app.is_super_admin()
+          or ("partnerId" = app.current_partner_id()
+              and "partnerUserId" = app.current_partner_user_id())
+        )
+        with check (
+          app.is_super_admin()
+          or ("partnerId" = app.current_partner_id()
+              and "partnerUserId" = app.current_partner_user_id())
+        );
+    $f$, t);
+
+    execute format('revoke all on %I from anon;', t);
+    execute format('revoke all on %I from authenticated;', t);
+  end loop;
+end $$;
+
+-- commission_lines has no partnerId of its own — it hangs off a statement the
+-- way order_items hang off an order. The policy is a semi-join, which is what
+-- keeps a line and its statement from ever disagreeing about who may read them.
+alter table "commission_lines" enable row level security;
+alter table "commission_lines" force row level security;
+drop policy if exists super_only on "commission_lines";
+drop policy if exists commission_lines_scope on "commission_lines";
+create policy commission_lines_scope on "commission_lines" for all
+  using (
+    app.is_super_admin()
+    or exists (
+      select 1 from public.commission_statements s
+       where s."id" = "commission_lines"."statementId"
+         and s."partnerId" = app.current_partner_id()
+         and (s."partnerUserId" = app.current_partner_user_id()
+              or app.has_permission('commissions.manage'))
+    )
+  )
+  with check (app.is_super_admin());
+revoke all on "commission_lines" from anon;
+revoke all on "commission_lines" from authenticated;
+
+-- partner_role_permissions is PARTNER-scoped only, deliberately not seat-scoped:
+-- every seat may read the grid that decides what it can do, because hiding the
+-- rules from the person they apply to buys nothing. Only team.permissions may
+-- CHANGE it, which is the chokepoint's job, so writes go through systemDb.
+alter table "partner_role_permissions" enable row level security;
+alter table "partner_role_permissions" force row level security;
+drop policy if exists super_only on "partner_role_permissions";
+drop policy if exists partner_permissions_read on "partner_role_permissions";
+create policy partner_permissions_read on "partner_role_permissions" for select
+  using (app.is_super_admin() or "partnerId" = app.current_partner_id());
+drop policy if exists partner_permissions_write on "partner_role_permissions";
+create policy partner_permissions_write on "partner_role_permissions" for all
+  using (app.is_super_admin()) with check (app.is_super_admin());
+revoke all on "partner_role_permissions" from anon;
+revoke all on "partner_role_permissions" from authenticated;
 
 -- ----------------------------------------------------------------------------
 -- Backstop: lock down every remaining table.

@@ -28,6 +28,15 @@ export const ROLES = [
   "hq_ops",
   "hq_admin",
   "partner_admin",
+  /**
+   * The operations manager: everything an admin has except the money, the
+   * brand, and the ability to change what anyone is allowed to do.
+   *
+   * Added in A7. It is the role a partner's business actually needs and the
+   * flat three did not have — somebody who runs the team and the merchant book
+   * without seeing the revenue share or editing the permission grid.
+   */
+  "partner_ops_manager",
   "partner_sales",
   "partner_support",
   /**
@@ -58,6 +67,7 @@ const LEVEL: Record<Role, RoleLevel> = {
   hq_ops: "hq",
   hq_admin: "hq",
   partner_admin: "partner",
+  partner_ops_manager: "partner",
   partner_sales: "partner",
   partner_support: "partner",
   partner_staff: "partner",
@@ -75,7 +85,18 @@ const LEVEL: Record<Role, RoleLevel> = {
  * `partner_staff` is NOT here: it is the legacy synonym above and nothing new
  * should be written holding it.
  */
-export const PARTNER_USER_ROLES = ["admin", "sales", "support"] as const;
+export const PARTNER_USER_ROLES = ["admin", "ops_manager", "sales", "support"] as const;
+
+/**
+ * Admin is NOT renamed to `partner_admin`, and the brief's
+ * `partner_sales → sales` migration is a no-op.
+ *
+ * There is nothing named `partner_sales` in this database to rename: the CHECK
+ * constraint has said `admin | sales | support` since `add-partner-portal.sql`.
+ * What A7 adds is the fourth value. Renaming `admin` would touch every seat
+ * row, the CHECK, `parseRole`, six action files and the HQ console, for a
+ * column that already knows it belongs to a partner.
+ */
 
 /**
  * What `platform_admins.role` may contain.
@@ -121,9 +142,23 @@ export function isPartnerUserRole(value: string): value is PartnerUserRole {
 
 /** The stored short name, widened to the platform-wide vocabulary. */
 export function toRole(role: PartnerUserRole): Role {
-  return { admin: "partner_admin", sales: "partner_sales", support: "partner_support" }[
-    role
-  ] as Role;
+  return {
+    admin: "partner_admin",
+    ops_manager: "partner_ops_manager",
+    sales: "partner_sales",
+    support: "partner_support",
+  }[role] as Role;
+}
+
+/**
+ * The stored value, widened to a seat role.
+ *
+ * Fails closed, unlike `parseHqRole`: an unrecognised string becomes `sales`,
+ * the least privileged role that can still do the job it was hired for. The
+ * opposite default would turn a typo in a column into an admin.
+ */
+export function parseRole(raw: string | null | undefined): PartnerUserRole {
+  return raw && isPartnerUserRole(raw) ? raw : "sales";
 }
 
 export function levelOf(role: Role): RoleLevel {

@@ -527,6 +527,12 @@ model Restaurant {
   /// scripts/backfill-house-partner.mjs. A null here after that point is a bug,
   /// not a state to design around.
   partnerId     String?
+  /// The partner SEAT that signed this merchant, and the one that supports it.
+  /// Distinct from partnerId, which names the operator company. A7 uses these
+  /// for "merchants assigned to me"; both are null for everything that existed
+  /// before, which reads as unassigned and is correct.
+  assignedSalesUserId   String?
+  assignedSupportUserId String?
   // When a partner ran the AI menu scan on this storefront. One scan per demo:
   // it's an AI vision call billed to us, and a partner opens unlimited demos.
   // Nullable with NO default — a static default would be sent by Prisma on
@@ -698,7 +704,11 @@ model Restaurant {
   storefront         StorefrontSetting?
   pushSubscriptions  PushSubscription[]
 
+  assignedSales   PartnerUser? @relation("RestaurantSalesAssignee", fields: [assignedSalesUserId], references: [id], onDelete: SetNull)
+  assignedSupport PartnerUser? @relation("RestaurantSupportAssignee", fields: [assignedSupportUserId], references: [id], onDelete: SetNull)
+
   @@index([demoPartnerId])
+  @@index([assignedSalesUserId])
   @@map("restaurants")
 }
 
@@ -1337,6 +1347,20 @@ model Partner {
   outboundEmails      OutboundEmail[]
   passthroughUsage    PassthroughUsage[]
 
+  // --- A7: staff, field work, commissions ------------------------------------
+  /// Where a public lead goes when no active sales seat can take it by
+  /// round-robin. Null means "leave it unassigned", which is honest: inventing
+  /// an owner for a lead nobody is responsible for is how leads go cold
+  /// silently rather than visibly.
+  defaultLeadUserId    String?
+  rolePermissions      PartnerRolePermission[]
+  staffEvents          StaffEvent[]
+  staffTargets         StaffTarget[]
+  attendanceSessions   AttendanceSession[]
+  staffVisits          StaffVisit[]
+  commissionRules      CommissionRule[]
+  commissionStatements CommissionStatement[]
+
   referralPartner Partner?  @relation("PartnerReferral", fields: [referralPartnerId], references: [id], onDelete: SetNull)
   referredBy      Partner[] @relation("PartnerReferral")
 
@@ -1384,9 +1408,33 @@ model PartnerUser {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // --- Staff record (A7) ----------------------------------------------------
+  // On this table rather than a parallel staff_profiles: a seat and a staff
+  // member are the same person here, and a 1:1 table would add a join and a way
+  // for the two to disagree.
+  mobile    String?
+  zone      String?
+  startDate DateTime?
+  /// Storage PATH in the private partner-attendance bucket, never a URL.
+  photoPath String?
+  /// Read ONLY by a seat holding hr.view_all. Never selected otherwise — a
+  /// value that reaches the client hidden is a value in the payload.
+  emergencyName   String?
+  emergencyMobile String?
+
   partner           Partner            @relation(fields: [partnerId], references: [id], onDelete: Cascade)
   notificationPrefs NotificationPref[]
   assignedProspects Prospect[]         @relation("ProspectAssignee")
+  staffEvents       StaffEvent[]
+  staffTargets      StaffTarget[]
+  attendance        AttendanceSession[]
+  visits            StaffVisit[]
+  commissionRules   CommissionRule[]
+  commissionStatements CommissionStatement[]
+  assignedRestaurantsSales   Restaurant[] @relation("RestaurantSalesAssignee")
+  assignedRestaurantsSupport Restaurant[] @relation("RestaurantSupportAssignee")
+  assignedPharmaciesSales    Pharmacy[]   @relation("PharmacySalesAssignee")
+  assignedPharmaciesSupport  Pharmacy[]   @relation("PharmacySupportAssignee")
 
   /// One seat per email per partner. The same person may hold a seat at two
   /// partners — rare, but an HQ operator who also runs a city is exactly that.
@@ -1721,6 +1769,10 @@ model AuditLog {
   actorType    String?
   actorStaffId String? // StaffUser.id of who did it (null = system)
   actorEmail   String? // snapshot of the actor's email for display
+  /// The role the actor held AT THE TIME. Snapshotted for the same reason
+  /// actorEmail is: a seat promoted to admin next month must not retroactively
+  /// make every action it ever took an admin action.
+  actorRole    String?
   action       String // e.g. "order.void", "order.item_void", "table.status"
   entityType   String // "order", "table", "order_item", …
   entityId     String?
@@ -2907,6 +2959,15 @@ model Pharmacy {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// The partner SEAT that signed and supports this merchant. Same meaning as
+  /// Restaurant.assignedSalesUserId; two columns on two tables because there
+  /// are two merchant tables (D29).
+  assignedSalesUserId   String?
+  assignedSupportUserId String?
+
+  assignedSales   PartnerUser? @relation("PharmacySalesAssignee", fields: [assignedSalesUserId], references: [id], onDelete: SetNull)
+  assignedSupport PartnerUser? @relation("PharmacySupportAssignee", fields: [assignedSupportUserId], references: [id], onDelete: SetNull)
+
   staff      PharmacyStaff[]
   categories PharmacyCategory[]
   products   PharmacyProduct[]
@@ -2917,6 +2978,7 @@ model Pharmacy {
   returns    PharmacyReturn[]
 
   @@index([partnerId])
+  @@index([assignedSalesUserId])
   @@map("pharmacies")
 }
 
@@ -3635,4 +3697,264 @@ model OutboundEmail {
 
   @@index([partnerId])
   @@map("outbound_emails")
+}
+
+// ============================================================================
+// Partner Portal A7 — staff, field attendance, targets, commissions.
+//
+// Every table here is scoped by partnerId AND carries partnerUserId, because
+// both boundaries are real: partnerId keeps Davao out of Tagum, partnerUserId
+// keeps a salesperson out of a colleague's GPS trail. rls.sql enforces both —
+// the only tables in this schema where the seat is also a policy arm.
+// ============================================================================
+
+/// One partner's override of one role's answer to one permission.
+///
+/// OVERRIDES ONLY. A missing row means "use the default in packages/core", not
+/// "denied" — so adding a permission key in a later release cannot silently
+/// deny it to every partner that was seeded before the key existed.
+model PartnerRolePermission {
+  partnerId  String
+  /// "admin" | "ops_manager" | "sales" | "support". A CHECK enforces the set.
+  role       String
+  /// A key from packages/core/src/identity/partner-permissions.ts.
+  permission String
+  allowed    Boolean
+  updatedAt  DateTime @default(now()) @updatedAt
+  /// The seat that last changed it. For the audit trail, not a foreign key:
+  /// the row must survive that seat being deleted.
+  updatedBy  String?
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@id([partnerId, role, permission])
+  @@map("partner_role_permissions")
+}
+
+/// What a staff member DID — including the things that changed nothing.
+///
+/// Deliberately not audit_logs. An audit row answers "what changed and who
+/// changed it"; half of what the activity tab shows changed nothing at all — a
+/// call placed, a visit where the owner was out. Writing those into audit_logs
+/// would bury the rows that exist to be reviewed.
+model StaffEvent {
+  id            String @id @default(uuid())
+  partnerId     String
+  partnerUserId String
+  /// A CHECK enforces the vocabulary; see add-partner-staff.sql §4.
+  kind          String
+
+  /// What it was about, when there is one. Product-scoped for merchants,
+  /// because a merchant id is unique only within its product (D29).
+  subjectType String?
+  productId   String?
+  subjectId   String?
+  detail      Json?
+
+  occurredAt DateTime @default(now())
+
+  partner Partner     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  user    PartnerUser @relation(fields: [partnerUserId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, occurredAt])
+  @@index([partnerUserId, occurredAt])
+  @@map("staff_events")
+}
+
+/// One staff member's targets for one month.
+model StaffTarget {
+  id            String @id @default(uuid())
+  partnerId     String
+  partnerUserId String
+  /// "YYYY-MM". A key, not a date, for the reason PartnerStatement.month is
+  /// one: anything derived from an instant lands in the wrong month for the
+  /// eight hours a day Manila and UTC disagree.
+  month         String
+
+  targetMerchants Int @default(0)
+  targetVisits    Int @default(0)
+  targetDemos     Int @default(0)
+
+  setByUserId String?
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  partner Partner     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  user    PartnerUser @relation(fields: [partnerUserId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerUserId, month])
+  @@index([partnerId, month])
+  @@map("staff_targets")
+}
+
+/// One day's check-in and check-out for one staff member.
+///
+/// Shaped after TimeEntry, which does this for a merchant's own restaurant
+/// staff. Different axis — that one is scoped by restaurantId — so separate
+/// tables, but the open/closed pair and the selfie handling are proven.
+model AttendanceSession {
+  id            String @id @default(uuid())
+  partnerId     String
+  partnerUserId String
+  /// The MANILA day, computed by the caller. A unique index on
+  /// (partnerUserId, dayKey) is what enforces one open session per day; two
+  /// taps on a flaky connection is the normal case, not the edge case.
+  dayKey        String
+
+  checkInAt       DateTime @default(now())
+  checkInLat      Float?
+  checkInLng      Float?
+  checkInAccuracy Float?
+  /// Storage PATH in the private partner-attendance bucket, never a URL.
+  checkInPhoto    String?
+
+  checkOutAt       DateTime?
+  checkOutLat      Float?
+  checkOutLng      Float?
+  checkOutAccuracy Float?
+  checkOutPhoto    String?
+
+  /// Set when the 23:59 Manila sweep closed it instead of the person. A day
+  /// that was never checked out of is a fact a manager needs, not one to paper
+  /// over by writing a plausible time.
+  autoClosed Boolean @default(false)
+  device     String?
+  /// Minted on the device before it has a connection. Unique, so a replayed
+  /// sync is a no-op rather than a second session.
+  clientRef  String?
+
+  partner Partner     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  user    PartnerUser @relation(fields: [partnerUserId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerUserId, dayKey])
+  @@unique([clientRef])
+  @@index([partnerId, dayKey])
+  @@map("attendance_sessions")
+}
+
+/// A geotagged call on a prospect or a merchant.
+model StaffVisit {
+  id            String @id @default(uuid())
+  partnerId     String
+  partnerUserId String
+
+  /// "prospect" | "merchant".
+  subjectType String
+  /// Set for merchants only — the id is unique only within its product (D29).
+  productId   String?
+  subjectId   String
+  /// Snapshotted so the log still reads after a prospect is deleted.
+  subjectName String?
+
+  lat      Float?
+  lng      Float?
+  accuracy Float?
+  /// NULL when the subject has no stored address. The screen says "no address
+  /// on file" rather than showing a distance of zero: those are not the same
+  /// fact and only one of them is a flag.
+  distanceMeters Float?
+
+  /// "met_owner" | "not_available" | "follow_up" | "signed".
+  outcome   String
+  notes     String?
+  photoPath String?
+
+  occurredAt DateTime @default(now())
+  /// See AttendanceSession.clientRef.
+  clientRef  String?
+
+  partner Partner     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  user    PartnerUser @relation(fields: [partnerUserId], references: [id], onDelete: Cascade)
+
+  @@unique([clientRef])
+  @@index([partnerId, occurredAt])
+  @@index([partnerUserId, occurredAt])
+  @@map("staff_visits")
+}
+
+/// How one staff member is paid on what they sell.
+///
+/// Several may be active at once — per_signup plus pct_recurring is the
+/// ordinary arrangement — so this is a list, not a column on the seat.
+model CommissionRule {
+  id            String @id @default(uuid())
+  partnerId     String
+  partnerUserId String
+
+  /// "per_signup" | "pct_first_month" | "pct_recurring" | "none".
+  type      String
+  /// Centavos for per_signup; BASIS POINTS for the two percentages. An integer
+  /// either way: 2.5% stored as 0.025 in a float is how a statement ends up a
+  /// centavo short of the sum of its own lines.
+  value     Int    @default(0)
+  /// "all_products" | "product". A CHECK requires productId with the second
+  /// and forbids it with the first.
+  appliesTo String @default("all_products")
+  productId String?
+
+  startsAt  DateTime  @default(now())
+  endsAt    DateTime?
+  createdAt DateTime  @default(now())
+  createdBy String?
+
+  partner Partner     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  user    PartnerUser @relation(fields: [partnerUserId], references: [id], onDelete: Cascade)
+
+  @@index([partnerUserId])
+  @@index([partnerId])
+  @@map("commission_rules")
+}
+
+/// One staff member's commission for one month, frozen.
+///
+/// A rule edited in March must not rewrite January, so every line snapshots the
+/// rule that produced it. Same reasoning as PartnerLedgerEntry.sharePct.
+model CommissionStatement {
+  id            String @id @default(uuid())
+  partnerId     String
+  partnerUserId String
+  /// "YYYY-MM".
+  month         String
+
+  totalCentavos Int      @default(0)
+  frozenAt      DateTime @default(now())
+
+  paidAt        DateTime?
+  paidReference String?
+  paidBy        String?
+
+  partner Partner          @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  user    PartnerUser      @relation(fields: [partnerUserId], references: [id], onDelete: Cascade)
+  lines   CommissionLine[]
+
+  @@unique([partnerUserId, month])
+  @@index([partnerId, month])
+  @@map("commission_statements")
+}
+
+/// One merchant's contribution to one commission statement.
+model CommissionLine {
+  id          String @id @default(uuid())
+  statementId String
+
+  productId    String
+  merchantId   String
+  merchantName String?
+
+  /// The rule AS IT WAS when the statement froze.
+  ruleType  String
+  ruleValue Int
+
+  /// What the percentage was taken of. Equal to amountCentavos for per_signup.
+  basisCentavos  Int @default(0)
+  amountCentavos Int @default(0)
+
+  /// The settlement this line was computed from. Unique per statement, so a
+  /// replayed job cannot pay twice.
+  ledgerEntryId String?
+
+  statement CommissionStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  @@unique([statementId, ledgerEntryId])
+  @@index([statementId])
+  @@map("commission_lines")
 }

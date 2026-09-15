@@ -32,6 +32,15 @@ export interface AuditEntry {
   reason?: string | null;
   before?: unknown;
   after?: unknown;
+  /**
+   * The role the actor held AT THE TIME (A7).
+   *
+   * Snapshotted for the same reason `actorEmail` is: a seat promoted to admin
+   * next month must not retroactively make every action it ever took an admin
+   * action. Optional, because merchant-side callers have no partner role and a
+   * row with none reads exactly as every row written before the column existed.
+   */
+  actorRole?: string | null;
 }
 
 /**
@@ -81,6 +90,7 @@ async function createAuditRow(
       actorType: s.actorType ?? (s.partnerId ? "partner" : "merchant"),
       actorStaffId: entry.actorStaffId ?? null,
       actorEmail: entry.actorEmail ?? null,
+      actorRole: entry.actorRole ?? null,
       action: entry.action,
       entityType: entry.entityType,
       entityId: entry.entityId ?? null,
@@ -129,6 +139,25 @@ export async function writePartnerAudit(
 ): Promise<void> {
   const { actorType, ...rest } = entry;
   await createAuditRow(tx, { partnerId, actorType: actorType ?? "partner" }, rest);
+}
+
+/**
+ * A partner action, with the actor and the role they held, from one object.
+ *
+ * The A7 brief asks for the role on every write. Threading it through 30 call
+ * sites by hand is how half of them end up without it, so this takes the actor
+ * object the gate already returns and fills both fields from it.
+ */
+export async function writeSeatAudit(
+  tx: Prisma.TransactionClient,
+  actor: { partnerId: string; email: string; partner: { user: { role: string } } },
+  entry: AuditEntry,
+): Promise<void> {
+  await createAuditRow(
+    tx,
+    { partnerId: actor.partnerId, actorType: "partner" },
+    { ...entry, actorEmail: entry.actorEmail ?? actor.email, actorRole: actor.partner.user.role },
+  );
 }
 
 /**

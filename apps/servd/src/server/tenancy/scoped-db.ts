@@ -65,6 +65,22 @@ function scopeStatement(gucName: string, scopeValue: string): string {
   );
 }
 
+/**
+ * The seat GUC, appended to the partner scope statement.
+ *
+ * SET EXPLICITLY TO THE EMPTY STRING when there is no seat, never left unset.
+ * `set_config` is transaction-local but the CONNECTION is pooled, and a value
+ * left over from the previous transaction on the same backend would be read by
+ * the next one. Writing '' every time is what makes "no seat" mean no seat
+ * rather than whoever held this connection a moment ago.
+ */
+function seatStatement(partnerUserId: string | null): string {
+  if (partnerUserId !== null && !UUID_RE.test(partnerUserId)) {
+    throw new Error("scopeStatement: partnerUserId is not a UUID");
+  }
+  return `SELECT set_config('${GUC.partnerUserId}', '${partnerUserId ?? ""}', true)`;
+}
+
 export async function tenantDb<T>(
   restaurantId: string,
   fn: (tx: Tx) => Promise<T>,
@@ -94,12 +110,23 @@ export async function tenantDb<T>(
 export async function partnerDb<T>(
   partnerId: string,
   fn: (tx: Tx) => Promise<T>,
+  /**
+   * The signed-in seat, when there is one (A7).
+   *
+   * Optional, and the default is null rather than "the caller forgot". Most
+   * partner reads do not touch a seat-scoped table and passing the seat to
+   * them would be noise; the seven that do are the ones that pass it. A null
+   * seat reads the staff tables as EMPTY, which is the safe direction: a
+   * screen with nothing on it, not a colleague's GPS trail.
+   */
+  partnerUserId: string | null = null,
 ): Promise<T> {
   if (!UUID_RE.test(partnerId)) {
     throw new Error("partnerDb: invalid partnerId");
   }
   return prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(scopeStatement(GUC.partnerId, partnerId));
+    await tx.$executeRawUnsafe(seatStatement(partnerUserId));
     return fn(tx);
   });
 }

@@ -19,6 +19,23 @@ export const GUC = {
   pharmacyId: "app.current_pharmacy_id",
   /** The CANVEXIA partner the request is scoped to. Set by partnerDb(). */
   partnerId: "app.current_partner_id",
+  /**
+   * The partner SEAT the request is scoped to. Set by partnerDb() alongside
+   * the partner id, and read only by the A7 staff tables.
+   *
+   * A second axis, not a replacement. Every policy that existed before A7 asks
+   * one question — does this row belong to the partner in the GUC — and that
+   * is the boundary that keeps Davao out of Tagum. The seven staff tables ask
+   * a second one, because there the seat IS the boundary: a salesperson has no
+   * business in a colleague's GPS trail. Nothing else consults this, and
+   * widening the older policies to consult it would double the number of ways
+   * the TENANT boundary can be got wrong.
+   *
+   * Empty string when the caller has no seat — a legacy partner login with no
+   * partner_users row. Policies treat that as "no seat", which reads as empty
+   * rather than as everybody's rows.
+   */
+  partnerUserId: "app.current_partner_user_id",
   /** Trusted system context. Set by systemDb(). Bypasses every tenant policy. */
   superAdmin: "app.is_super_admin",
 } as const;

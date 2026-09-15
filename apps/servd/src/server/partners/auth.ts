@@ -3,10 +3,14 @@ import { redirect } from "next/navigation";
 import {
   can,
   requireCapability,
+  defaultPermissionsOf,
+  isPartnerPermission,
   type Capability,
+  type PartnerPermission,
   type PartnerUserRole,
   isPartnerUserRole,
 } from "@servd/core";
+import { resolvePermissions } from "@/server/partners/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { getImpersonation } from "@/server/hq/impersonate";
@@ -56,6 +60,23 @@ export interface CurrentPartner {
    * and an operator discovering it.
    */
   impersonatedBy?: { hqAdminEmail: string; expiresAt: Date };
+
+  /**
+   * What this seat may do, resolved for THIS REQUEST (A7).
+   *
+   * Defaults from `packages/core` with this partner's overrides applied. Not
+   * cached in the session and not in the token, which is what makes a role or
+   * grid change take effect on the next request with nothing to invalidate.
+   */
+  permissions: Set<PartnerPermission>;
+}
+
+/** Does this seat hold a permission? For rendering; not a gate on its own. */
+export function partnerAllows(
+  partner: CurrentPartner,
+  permission: PartnerPermission,
+): boolean {
+  return partner.permissions.has(permission);
 }
 
 /** Does this seat hold a capability? For rendering; not a gate on its own. */
@@ -107,6 +128,12 @@ export async function getCurrentPartner(): Promise<CurrentPartner | null> {
       // is the point of looking. It grants no WRITE anywhere, because every
       // action refuses an impersonated session before it consults a capability.
       user: { id: null, email: viewing.hqAdminEmail, name: "CANVEXIA HQ", role: "admin" },
+      // The admin DEFAULTS, not this partner's overrides. HQ is looking at
+      // every screen the partner's own admin can see, which is the point; an
+      // operator who had hidden a screen from their own admins would otherwise
+      // hide it from the person investigating their account. It grants no
+      // write: every action refuses an impersonated session first.
+      permissions: new Set(defaultPermissionsOf("admin")),
       impersonatedBy: {
         hqAdminEmail: viewing.hqAdminEmail,
         expiresAt: viewing.expiresAt,
@@ -151,6 +178,7 @@ export async function getCurrentPartner(): Promise<CurrentPartner | null> {
       return {
         ...seat.partner,
         user: { id: seat.id, email: seat.email, name: seat.name, role: seat.role },
+        permissions: await resolvePermissions(seat.partner.id, seat.role),
       };
     }
     if (seat) return null;
@@ -177,6 +205,11 @@ export async function getCurrentPartner(): Promise<CurrentPartner | null> {
     return {
       ...partner,
       user: { id: null, email: partner.email, name: partner.name, role: "admin" },
+      // A legacy login has no `partner_users` row, so it has no seat for the
+      // grid to be about. It resolves through the partner's own admin
+      // overrides anyway: the account IS the admin, and reading the defaults
+      // instead would let a legacy login keep a screen its own grid turned off.
+      permissions: await resolvePermissions(partner.id, "admin"),
     };
   } catch {
     return null;
@@ -218,19 +251,64 @@ export async function requirePartnerPageWith(
  * and a thrown error mid-submit reads as a broken form.
  */
 export async function requireWritablePartner(
-  capability?: Capability,
-): Promise<{ partnerId: string; email: string; partner: CurrentPartner } | null> {
+  /**
+   * A7 PERMISSION or a legacy capability.
+   *
+   * Both, during the changeover, and the union is deliberate rather than a
+   * migration left half-done: `packages/core`'s 14 capabilities are still what
+   * the merchant-side code and six shipped action files name, and rewriting
+   * them all in the same commit that introduces the grid would mean one change
+   * nobody can review. A permission is resolved against this seat's grid; a
+   * capability falls back to the fixed matrix.
+   */
+  need?: PartnerPermission | Capability,
+): Promise<{
+  partnerId: string;
+  email: string;
+  partner: CurrentPartner;
+  /** The seat's own id, for the A7 tables. Null on a legacy login. */
+  userId: string | null;
+} | null> {
   const partner = await getCurrentPartner();
   if (!partner || partner.status !== "approved") return null;
-  // Before the capability check, not after. An impersonated session resolves as
-  // `admin`, so asking about the capability first would answer "yes".
+  // Before the permission check, not after. An impersonated session resolves as
+  // `admin` with the admin defaults, so asking about the permission first would
+  // answer "yes".
   if (partner.impersonatedBy) return null;
-  if (capability) {
-    try {
-      requireCapability(partner.user.role, capability);
-    } catch {
-      return null;
+
+  if (need) {
+    if (isPartnerPermission(need)) {
+      if (!partner.permissions.has(need)) return null;
+    } else {
+      try {
+        requireCapability(partner.user.role, need);
+      } catch {
+        return null;
+      }
     }
   }
-  return { partnerId: partner.id, email: partner.user.email, partner };
+  return {
+    partnerId: partner.id,
+    email: partner.user.email,
+    partner,
+    userId: partner.user.id,
+  };
+}
+
+/**
+ * The seat-scoped read gate: the partner id AND the seat id, for `partnerDb`.
+ *
+ * Separate from `requireWritablePartner` because reads are not writes — an HQ
+ * "view as" session must still be able to LOOK at a staff screen, and the write
+ * gate refuses it outright. Returns a null seat for an impersonated session,
+ * which reads the staff tables as empty rather than as somebody's GPS trail.
+ */
+export async function partnerReadScope(): Promise<{
+  partnerId: string;
+  userId: string | null;
+  partner: CurrentPartner;
+} | null> {
+  const partner = await getCurrentPartner();
+  if (!partner || partner.status !== "approved") return null;
+  return { partnerId: partner.id, userId: partner.user.id, partner };
 }
