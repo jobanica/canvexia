@@ -16,7 +16,7 @@ import { SITE, portalIsExternal } from "@/lib/site";
  */
 export function Footer() {
   return (
-    <footer className="bg-ink py-14 text-paper">
+    <footer className="bg-midnight py-14 text-paper">
       <Container>
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr]">
           <div>

@@ -18,7 +18,8 @@ export function ScreenFrame({
   className = "",
 }: {
   brand?: string;
-  label: string;
+  /** Omit it when the caption belongs to a CLUSTER of frames rather than one. */
+  label?: string;
   className?: string;
 }) {
   return (
@@ -52,9 +53,11 @@ export function ScreenFrame({
         <div className="h-9 w-full rounded-md bg-ink/[0.9]" />
       </div>
 
-      <figcaption className="border-t border-line px-4 py-2.5 text-[0.7rem] text-ink-faint">
-        {label}
-      </figcaption>
+      {label && (
+        <figcaption className="border-t border-line px-4 py-2.5 text-[0.7rem] text-ink-faint">
+          {label}
+        </figcaption>
+      )}
     </figure>
   );
 }

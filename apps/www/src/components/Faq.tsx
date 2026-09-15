@@ -98,7 +98,7 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
 export function Faq() {
   return (
     <Section id="faq" tone="white" className="border-y border-line">
-      <SectionHead eyebrow="FAQ" title="The eight questions everybody asks." />
+      <SectionHead centered eyebrow="FAQ" title="The eight questions everybody asks." />
 
       <div className="mt-10 max-w-readable divide-y divide-line border-y border-line">
         {FAQS.map((f) => (

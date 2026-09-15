@@ -21,6 +21,7 @@ export function ForWhom() {
   return (
     <Section>
       <SectionHead
+        centered
         eyebrow="Who this is for"
         title="Read the second list first."
       />

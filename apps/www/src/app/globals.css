@@ -5,9 +5,9 @@
 @layer base {
   html {
     scroll-behavior: smooth;
-    /* The sticky nav is 64px; without this every in-page link lands with its
+    /* The sticky nav is 72px; without this every in-page link lands with its
        heading hidden underneath it. */
-    scroll-padding-top: 5rem;
+    scroll-padding-top: 5.5rem;
   }
 
   body {
@@ -42,9 +42,32 @@
 }
 
 @layer components {
-  /* One accent, one place it is a gradient: the logo. Everywhere else coral is
-     flat. A gradient on every button is the look the brief asked to avoid. */
+  /* The one gradient, defined once. Every accent surface on the page points
+     here, so re-tuning the brand is this declaration and nothing else. */
+  .accent-gradient {
+    background-image: linear-gradient(115deg, #e8536a 0%, #f2894e 100%);
+  }
+
+  .accent-text {
+    background-image: linear-gradient(115deg, #e8536a 0%, #f2894e 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    /* A fallback for the moment before the font paints, and for anything that
+       cannot clip a background to text — without it the word is invisible
+       rather than merely un-gradiented. */
+    -webkit-text-fill-color: transparent;
+  }
+
   .rule-accent {
-    @apply block h-[3px] w-10 rounded-full bg-coral;
+    @apply block h-[3px] w-10 rounded-full;
+    background-image: linear-gradient(115deg, #e8536a 0%, #f2894e 100%);
+  }
+
+  /* The dotted grid in the reference's margins. Drawn with a gradient rather
+     than an image so it costs no request and recolours with the surface. */
+  .dot-grid {
+    background-image: radial-gradient(currentColor 1.2px, transparent 1.2px);
+    background-size: 14px 14px;
   }
 }

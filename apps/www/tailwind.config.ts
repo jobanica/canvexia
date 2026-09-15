@@ -1,16 +1,23 @@
 import type { Config } from "tailwindcss";
 
 /**
- * CANVEXIA's palette — deliberately not Servd's.
+ * CANVEXIA's palette, extended for a darker layout.
  *
- * Servd is plum/mango; this is near-black on warm paper with one accent. They
- * share a database and a monorepo and nothing visual: canvexia.com sells the
- * partner programme, servdph.net sells restaurant ordering, and a visitor who
- * cannot tell them apart is a visitor in the wrong place.
+ * The identity is still the logo's: near-black ink, warm paper, a coral→ember
+ * accent. What this adds is the deep surface the new layout needs — the hero
+ * blob, the four-column band, the footer — and a tint scale for icon tiles.
  *
- * The coral→ember gradient exists ONCE, in the logo mark. Everywhere else the
- * accent is flat coral. A gradient in the logo and a gradient on every button
- * is the look this brief asked to avoid.
+ * `midnight` is ink pushed toward blue and brightened just enough to sit under
+ * white text at AA. Pure #1A1A1E across a full-bleed band reads as a printing
+ * error rather than a colour; this reads as deliberate and still belongs to the
+ * same family.
+ *
+ * NOTE ON THE GRADIENT. Earlier this file said the coral→ember gradient exists
+ * once, in the logo. That rule came from the original brief's "not a US startup
+ * clone". The reference design this page was later asked to follow is
+ * gradient-forward, so the gradient is now an accent system: the primary
+ * button, the icon tiles and the CTA bar. It is still the ONLY gradient — no
+ * second hue enters anywhere.
  */
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
@@ -24,13 +31,22 @@ const config: Config = {
         line: "#E5E4E0",
         coral: "#E8536A",
         ember: "#F2894E",
+        // The deep surface family.
+        midnight: "#14141C",
+        "midnight-soft": "#1E1E29",
+        "midnight-line": "#2E2E3C",
       },
       fontFamily: {
-        // A grotesque for headlines, matching the wordmark's weight and width.
         display: ["var(--font-display)", "system-ui", "sans-serif"],
         sans: ["var(--font-body)", "system-ui", "sans-serif"],
       },
       maxWidth: { readable: "68ch" },
+      borderRadius: { card: "1.25rem", pill: "999px" },
+      boxShadow: {
+        card: "0 1px 0 rgba(26,26,30,0.04), 0 18px 40px -28px rgba(26,26,30,0.45)",
+        lift: "0 1px 0 rgba(26,26,30,0.04), 0 26px 60px -30px rgba(26,26,30,0.55)",
+        glow: "0 18px 50px -20px rgba(232,83,106,0.45)",
+      },
     },
   },
 };

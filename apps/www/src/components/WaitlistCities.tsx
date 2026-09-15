@@ -23,6 +23,7 @@ export function WaitlistCities({
   return (
     <Section>
       <SectionHead
+        centered
         eyebrow="On the waitlist"
         title="Where people have already asked."
         lead="Applications are not open yet. This is who has raised their hand."

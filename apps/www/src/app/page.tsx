@@ -12,8 +12,10 @@ import { WaitlistCities } from "@/components/WaitlistCities";
 import { Faq } from "@/components/Faq";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { Footer } from "@/components/Footer";
+import { CtaBanner, ContactBar } from "@/components/CtaBanner";
 import { CityProvider } from "@/components/city-context";
 import { Section, SectionHead } from "@/components/ui";
+import { SITE } from "@/lib/site";
 import { getTerritories, getWaitlistCities } from "@/server/territories";
 
 /**
@@ -45,6 +47,11 @@ export default async function HomePage() {
         <WhatYouGet />
         <Products />
         <Calculator />
+        <CtaBanner
+          title="Have a city in mind?"
+          line="Tell us which one. No fee, no application, no commitment."
+          action="Join the waitlist"
+        />
         <Cities territories={territories} />
         <Compare />
         <ForWhom />
@@ -54,6 +61,7 @@ export default async function HomePage() {
 
         <Section id="waitlist" tone="white" className="border-t border-line scroll-mt-20">
           <SectionHead
+            centered
             eyebrow="Join the waitlist"
             title="Tell us your city."
             lead="No fee, no application, no commitment. When the partner system opens we contact this list in order."
@@ -62,6 +70,8 @@ export default async function HomePage() {
             <WaitlistForm />
           </div>
         </Section>
+
+        <ContactBar email={SITE.email} site="canvexia.com" />
       </main>
       <Footer />
     </CityProvider>

@@ -37,7 +37,7 @@ export function Nav() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-line bg-paper/90 backdrop-blur">
-      <Container className="flex h-16 items-center justify-between gap-4">
+      <Container className="flex h-[72px] items-center justify-between gap-4">
         <Link href="/" aria-label="CANVEXIA home" className="shrink-0">
           <Wordmark size={24} />
         </Link>
@@ -55,11 +55,21 @@ export function Nav() {
         </nav>
 
         <div className="hidden items-center gap-3 lg:flex">
-          <Cta href={SITE.portalUrl} variant="outline" external={portalIsExternal} className="!min-h-[42px] px-4 text-sm">
+          <Cta
+            href={SITE.portalUrl}
+            variant="outline"
+            external={portalIsExternal}
+            className="!min-h-[44px] !px-5 text-sm"
+          >
             Partner login
           </Cta>
           {SITE.bookingUrl && (
-            <Cta href={SITE.bookingUrl} external className="!min-h-[42px] px-4 text-sm">
+            <Cta
+              href={SITE.bookingUrl}
+              external
+              arrow
+              className="!min-h-[44px] !pl-5 !pr-1.5 text-sm"
+            >
               Book a call
             </Cta>
           )}
