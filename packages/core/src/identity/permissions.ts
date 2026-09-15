@@ -1,4 +1,4 @@
-import { type PartnerUserRole } from "./roles";
+import { type HqUserRole, type PartnerUserRole } from "./roles";
 
 /**
  * What each partner seat may do.
@@ -76,6 +76,84 @@ export function capabilitiesOf(role: PartnerUserRole): readonly Capability[] {
  */
 export function requireCapability(role: PartnerUserRole, capability: Capability): void {
   if (!can(role, capability)) {
+    throw new Error("FORBIDDEN");
+  }
+}
+
+// ----------------------------------------------------------------------------
+// HQ
+//
+// A SECOND matrix rather than more rows in the one above, because the two
+// vocabularies do not overlap and never should. `merchants.read` means "the
+// merchants this partner owns"; an HQ screen reads every merchant there is.
+// Merging them would produce one capability whose meaning depends on who is
+// asking, which is the kind of thing that is right until it is catastrophically
+// wrong.
+//
+// Named for the action, same rule as above.
+// ----------------------------------------------------------------------------
+
+export const HQ_CAPABILITIES = [
+  "partners.read",
+  "partners.write",
+  /** Suspend, revoke exclusivity, reassign every merchant away. */
+  "partners.suspend",
+  "territories.write",
+  "applications.write",
+  "merchants.reassign",
+  /** Change a plan's floor price, which re-prices other people's businesses. */
+  "plans.floor",
+  "products.write",
+  /** Freeze a statement run, mark a payout sent or an invoice paid. */
+  "billing.run",
+  /** Credit, debit, refund, waiver — money out of CANVEXIA's pocket. */
+  "billing.adjust",
+  "hq.team",
+  /**
+   * Open a partner's portal in a read-only impersonation session.
+   *
+   * The HQ twin of `merchants.impersonate`, and the same warning applies twice
+   * over: it puts HQ inside an operator's own console. Super admin only, and
+   * the session it grants cannot write — see server/hq/impersonate.ts.
+   */
+  "hq.impersonate",
+  "announcements.write",
+  "audit.read",
+] as const;
+
+export type HqCapability = (typeof HQ_CAPABILITIES)[number];
+
+/**
+ * The brief names four things ops may not do: billing adjustments, plan-floor
+ * changes, partner suspension/revocation, and HQ team management. Those four,
+ * plus impersonation — which the brief does not list because the flow did not
+ * exist when it was written, and which is plainly in the same class.
+ */
+const HQ_DENIED_TO_OPS: readonly HqCapability[] = [
+  "partners.suspend",
+  "plans.floor",
+  "billing.adjust",
+  "hq.team",
+  "hq.impersonate",
+];
+
+const HQ_MATRIX: Record<HqUserRole, readonly HqCapability[]> = {
+  super_admin: HQ_CAPABILITIES,
+  ops: HQ_CAPABILITIES.filter((c) => !HQ_DENIED_TO_OPS.includes(c)),
+};
+
+export function hqCan(role: HqUserRole, capability: HqCapability): boolean {
+  return HQ_MATRIX[role].includes(capability);
+}
+
+/** Every capability an HQ role holds. For rendering a nav, not for a gate. */
+export function hqCapabilitiesOf(role: HqUserRole): readonly HqCapability[] {
+  return HQ_MATRIX[role];
+}
+
+/** Throwing form, for server actions. Same reasoning as requireCapability. */
+export function requireHqCapability(role: HqUserRole, capability: HqCapability): void {
+  if (!hqCan(role, capability)) {
     throw new Error("FORBIDDEN");
   }
 }

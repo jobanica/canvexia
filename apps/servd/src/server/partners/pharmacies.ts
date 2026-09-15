@@ -1,5 +1,6 @@
 import "server-only";
 import { partnerDb, systemDb } from "@/server/tenancy/scoped-db";
+import { writePartnerAudit } from "@/server/audit/log";
 import {
   canActivatePharmacy,
   type ActivationCheck,
@@ -109,20 +110,16 @@ export async function activatePharmacy(input: {
       where: { id: found.id },
       data: { status: "active", updatedAt: new Date() },
     });
-    await tx.auditLog.create({
-      data: {
-        actorType: "partner",
-        partnerId: input.partnerId,
-        actorEmail: input.actorEmail,
-        action: "pharmacy.activate",
-        entityType: "pharmacy",
-        entityId: found.id,
-        // What was asserted, and on what basis. "Activated" alone does not
-        // answer the question an inspection asks.
-        reason: `FDA LTO on file: ${found.fdaLtoNumber}`,
-        before: { status: found.status },
-        after: { status: "active" },
-      },
+    await writePartnerAudit(tx, input.partnerId, {
+      actorEmail: input.actorEmail,
+      action: "pharmacy.activate",
+      entityType: "pharmacy",
+      entityId: found.id,
+      // What was asserted, and on what basis. "Activated" alone does not answer
+      // the question an inspection asks.
+      reason: `FDA LTO on file: ${found.fdaLtoNumber}`,
+      before: { status: found.status },
+      after: { status: "active" },
     });
   });
 

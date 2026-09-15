@@ -16,6 +16,16 @@
  */
 
 export const ROLES = [
+  /**
+   * HQ, in two levels.
+   *
+   * `hq_admin` is KEPT for the same reason `partner_staff` below is kept: it is
+   * part of a shipped exported type and nothing is gained by breaking anything
+   * narrowing on `Role`. It reads as a synonym for `hq_super_admin`, which is
+   * what it has always meant — until now HQ was one binary door.
+   */
+  "hq_super_admin",
+  "hq_ops",
   "hq_admin",
   "partner_admin",
   "partner_sales",
@@ -44,6 +54,8 @@ export type Role = (typeof ROLES)[number];
 export type RoleLevel = "hq" | "partner" | "merchant";
 
 const LEVEL: Record<Role, RoleLevel> = {
+  hq_super_admin: "hq",
+  hq_ops: "hq",
   hq_admin: "hq",
   partner_admin: "partner",
   partner_sales: "partner",
@@ -64,6 +76,42 @@ const LEVEL: Record<Role, RoleLevel> = {
  * should be written holding it.
  */
 export const PARTNER_USER_ROLES = ["admin", "sales", "support"] as const;
+
+/**
+ * What `platform_admins.role` may contain.
+ *
+ * NULL is the third value and means `super_admin`. That is not an oversight to
+ * tidy up later: every HQ row that existed before this file has NULL there, and
+ * a backfill that rewrote them would be a migration whose only purpose is to
+ * make a column look neater. `parseHqRole` below is the one place that knows.
+ *
+ * Short names, because the row already knows it is an HQ row — storing
+ * "hq_super_admin" on a table called platform_admins is the prefix twice.
+ */
+export const HQ_USER_ROLES = ["super_admin", "ops"] as const;
+
+export type HqUserRole = (typeof HQ_USER_ROLES)[number];
+
+export function isHqUserRole(value: string): value is HqUserRole {
+  return (HQ_USER_ROLES as readonly string[]).includes(value);
+}
+
+/**
+ * The stored value, widened to a role.
+ *
+ * Fails closed in one direction only: an unrecognised string is NOT treated as
+ * `ops`, because the column's existing meaning for "unset" is full access and
+ * silently demoting the founder mid-session is its own outage. A typo is caught
+ * by the CHECK constraint on the column, which is where it belongs.
+ */
+export function parseHqRole(raw: string | null | undefined): HqUserRole {
+  return raw === "ops" ? "ops" : "super_admin";
+}
+
+/** The stored short name, widened to the platform-wide vocabulary. */
+export function toHqRole(role: HqUserRole): Role {
+  return role === "ops" ? "hq_ops" : "hq_super_admin";
+}
 
 export type PartnerUserRole = (typeof PARTNER_USER_ROLES)[number];
 

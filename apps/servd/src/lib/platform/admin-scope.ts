@@ -41,7 +41,38 @@ export const OPS_SECTIONS = [
   "/super-admin/storefronts", // demo storefronts
   "/super-admin/subscriptions",
   "/super-admin/crm", // the lead records the follow-up list points at
+
+  // --- The CANVEXIA HQ console (Phase H1) ----------------------------------
+  //
+  // Path-level access only. WITHIN these sections the HQ capability matrix in
+  // packages/core decides what ops may actually do — it is not the case that
+  // reaching /hq/billing means being allowed to adjust a ledger. That check is
+  // at the server action, because a server action is reachable by its id from
+  // any page and "which screen was open" is not a permission.
+  //
+  // /hq/team is absent on purpose and the omission IS the rule: it is super
+  // admin only. The bare "/hq" overview is absent from THIS list for a
+  // different reason — it is a prefix of every path above, so listing it here
+  // would admit /hq/team too. It is in OPS_EXACT_PATHS instead.
+  "/hq/partners",
+  "/hq/territories",
+  "/hq/applications",
+  "/hq/merchants",
+  "/hq/products",
+  "/hq/billing",
+  "/hq/announcements",
+  "/hq/audit",
 ] as const;
+
+/**
+ * Paths an ops admin may open EXACTLY, with nothing below them.
+ *
+ * One entry, and it exists because of a near-miss worth naming: "/hq" in the
+ * prefix list above would match "/hq/team" as well, quietly handing an ops
+ * admin the screen that creates HQ seats. Prefix rules are the right shape for
+ * a section and the wrong shape for a root.
+ */
+export const OPS_EXACT_PATHS = ["/hq"] as const;
 
 /** Where an ops admin lands, and where they're sent when they overreach. */
 export const OPS_HOME = "/super-admin/bizops";
@@ -74,6 +105,7 @@ export function canAccessPath(role: AdminRole, pathname: string): boolean {
   if (role === "owner") return true;
 
   const path = normalize(pathname);
+  if ((OPS_EXACT_PATHS as readonly string[]).includes(path)) return true;
   return OPS_SECTIONS.some((s) => path === s || path.startsWith(`${s}/`));
 }
 

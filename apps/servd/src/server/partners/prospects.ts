@@ -2,6 +2,7 @@ import "server-only";
 import { PRODUCTS, type ProductId } from "@servd/core";
 import { partnerDb, systemDb } from "@/server/tenancy/scoped-db";
 import type { ProspectInputValues, Stage } from "@/lib/partners/prospect-input";
+import { writePartnerAudit } from "@/server/audit/log";
 
 /**
  * The pipeline, partner-scoped.
@@ -102,16 +103,12 @@ export async function createProspect(
         },
         select: { id: true, businessName: true },
       });
-      await tx.auditLog.create({
-        data: {
-          actorType: "partner",
-          partnerId: actor.partnerId,
-          actorEmail: actor.email,
-          action: "prospect.create",
-          entityType: "prospect",
-          entityId: row.id,
-          after: { businessName: row.businessName, stage: "lead", productId: input.productId },
-        },
+      await writePartnerAudit(tx, actor.partnerId, {
+        actorEmail: actor.email,
+        action: "prospect.create",
+        entityType: "prospect",
+        entityId: row.id,
+        after: { businessName: row.businessName, stage: "lead", productId: input.productId },
       });
       return row.id;
     });
@@ -154,18 +151,14 @@ export async function moveProspect(
       });
       if (updated.count === 0) return { ok: false, message: "That prospect no longer exists." };
 
-      await tx.auditLog.create({
-        data: {
-          actorType: "partner",
-          partnerId: actor.partnerId,
-          actorEmail: actor.email,
-          action: "prospect.stage",
-          entityType: "prospect",
-          entityId: prospectId,
-          reason: stage === "lost" ? (lostReason?.trim() || null) : null,
-          before: { stage: before.stage },
-          after: { stage },
-        },
+      await writePartnerAudit(tx, actor.partnerId, {
+        actorEmail: actor.email,
+        action: "prospect.stage",
+        entityType: "prospect",
+        entityId: prospectId,
+        reason: stage === "lost" ? (lostReason?.trim() || null) : null,
+        before: { stage: before.stage },
+        after: { stage },
       });
       return { ok: true };
     });
@@ -201,16 +194,12 @@ export async function linkProspectToMerchant(
         },
       });
       if (updated.count === 0) return;
-      await tx.auditLog.create({
-        data: {
-          actorType: "partner",
-          partnerId: actor.partnerId,
-          actorEmail: actor.email,
-          action: "prospect.convert",
-          entityType: "prospect",
-          entityId: prospectId,
-          after: { productId, merchantId, stage: "trial" },
-        },
+      await writePartnerAudit(tx, actor.partnerId, {
+        actorEmail: actor.email,
+        action: "prospect.convert",
+        entityType: "prospect",
+        entityId: prospectId,
+        after: { productId, merchantId, stage: "trial" },
       });
     });
   } catch {

@@ -565,6 +565,129 @@ alter function app.is_super_admin() set search_path = '';
 alter function app.current_partner_id() set search_path = '';
 
 -- ----------------------------------------------------------------------------
+-- The HQ console's own tables (Phase H1).
+--
+-- packages/db/prisma/manual/add-hq-admin.sql creates these and carries the same
+-- policies; they are repeated here so that a re-run of THIS script does not
+-- quietly replace them with the backstop's super-admin-only lock. Three groups,
+-- because the tables are not the same shape:
+--
+--   partner-scoped  — territory_assignments, hq_announcement_reads
+--   partner-READ    — feature_flags, hq_announcements (HQ writes, partner reads)
+--   HQ-only         — impersonation_grants, cron_runs
+--
+-- Each block skips a table that is not migrated yet, so db:rls does not fail on
+-- a fresh clone.
+-- ----------------------------------------------------------------------------
+do $$
+declare t text;
+begin
+  foreach t in array array['territory_assignments', 'hq_announcement_reads']
+  loop
+    if to_regclass(format('public.%I', t)) is null then
+      continue;
+    end if;
+    execute format('alter table %I enable row level security;', t);
+    execute format('alter table %I force row level security;', t);
+    execute format('drop policy if exists partner_scope on %I;', t);
+    execute format($f$
+      create policy partner_scope on %1$I for all
+        using (app.is_super_admin() or "partnerId" = app.current_partner_id())
+        with check (app.is_super_admin() or "partnerId" = app.current_partner_id());
+    $f$, t);
+    execute format('revoke all on %I from anon;', t);
+    execute format('revoke all on %I from authenticated;', t);
+  end loop;
+end $$;
+
+-- feature_flags: a partner's own app has to know whether a feature is on, so
+-- the GLOBAL rows (partnerId is null) are readable in any app context. A
+-- per-partner override is readable only by that partner — "Cebu has the beta
+-- and you do not" is not information Cebu's competitor should be able to pull.
+do $$
+begin
+  if to_regclass('public.feature_flags') is null then return; end if;
+  alter table feature_flags enable row level security;
+  alter table feature_flags force row level security;
+  drop policy if exists flags_read on feature_flags;
+  drop policy if exists flags_write on feature_flags;
+  create policy flags_read on feature_flags for select
+    using (app.is_super_admin()
+           or "partnerId" is null
+           or "partnerId" = app.current_partner_id());
+  create policy flags_write on feature_flags for all
+    using (app.is_super_admin()) with check (app.is_super_admin());
+  revoke all on feature_flags from anon;
+  revoke all on feature_flags from authenticated;
+end $$;
+
+-- hq_announcements: the SEGMENT is evaluated in the app, not here. A policy that
+-- parses JSON to decide visibility is a policy nobody can verify. What this does
+-- guarantee is that an UNPUBLISHED announcement is invisible to every partner,
+-- which is the part that would actually leak — a draft naming a city that is
+-- about to lose its licence, read by that city.
+do $$
+begin
+  if to_regclass('public.hq_announcements') is null then return; end if;
+  alter table hq_announcements enable row level security;
+  alter table hq_announcements force row level security;
+  drop policy if exists announcement_read on hq_announcements;
+  drop policy if exists announcement_write on hq_announcements;
+  create policy announcement_read on hq_announcements for select
+    using (app.is_super_admin()
+           or ("publishedAt" is not null and app.current_partner_id() is not null));
+  create policy announcement_write on hq_announcements for all
+    using (app.is_super_admin()) with check (app.is_super_admin());
+  revoke all on hq_announcements from anon;
+  revoke all on hq_announcements from authenticated;
+end $$;
+
+-- territories: reference data — 143 Philippine cities and what they cost. It
+-- carried no policy before H1, which meant the backstop below locked it to
+-- super-admin and nothing else could read the city list at all. Readable in any
+-- app context now; writable only by HQ, because a row here says who owns a city.
+do $$
+begin
+  if to_regclass('public.territories') is null then return; end if;
+  alter table territories enable row level security;
+  alter table territories force row level security;
+  drop policy if exists territory_read on territories;
+  drop policy if exists territory_write on territories;
+  -- And the backstop's own lock, which this table carried until H1.
+  drop policy if exists super_only on territories;
+  create policy territory_read on territories for select using (true);
+  create policy territory_write on territories for all
+    using (app.is_super_admin()) with check (app.is_super_admin());
+  -- "Any app context" means a session this codebase opened, NOT the browser.
+  revoke all on territories from anon;
+  revoke all on territories from authenticated;
+end $$;
+
+-- HQ-only. A partner must not be able to enumerate the grants that let HQ into
+-- its console, nor see when a job last ran. These would be caught by the
+-- backstop anyway; they are spelled out so that adding a column to either does
+-- not depend on the sweep still being there.
+do $$
+declare t text;
+begin
+  foreach t in array array['impersonation_grants', 'cron_runs']
+  loop
+    if to_regclass(format('public.%I', t)) is null then
+      continue;
+    end if;
+    execute format('alter table %I enable row level security;', t);
+    execute format('alter table %I force row level security;', t);
+    execute format('drop policy if exists super_only on %I;', t);
+    execute format($f$
+      create policy super_only on %1$I for all
+        using (app.is_super_admin()) with check (app.is_super_admin());
+    $f$, t);
+    execute format('revoke all on %I from anon;', t);
+    execute format('revoke all on %I from authenticated;', t);
+  end loop;
+end $$;
+
+-- ----------------------------------------------------------------------------
 -- Backstop: lock down every remaining table.
 --
 -- Supabase grants `anon` full DML on the whole public schema by default, and the

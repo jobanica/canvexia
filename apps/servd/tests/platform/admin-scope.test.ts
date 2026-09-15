@@ -7,6 +7,7 @@ import {
   visibleNav,
   type AdminRole,
 } from "@/lib/platform/admin-scope";
+import { hqCan } from "@servd/core";
 
 /**
  * These rules decide whether a hired staff member can change what Servd
@@ -144,5 +145,48 @@ describe("visibleNav", () => {
 
   it("every declared section is reachable by ops", () => {
     for (const s of OPS_SECTIONS) expect(canAccessPath("ops", s)).toBe(true);
+  });
+});
+
+describe("the HQ console sections", () => {
+  it("lets ops open the HQ overview and the sections it is allowed", () => {
+    for (const p of [
+      "/hq",
+      "/hq/partners",
+      "/hq/partners/abc-123",
+      "/hq/territories",
+      "/hq/applications",
+      "/hq/merchants",
+      "/hq/products",
+      "/hq/billing",
+      "/hq/announcements",
+      "/hq/audit",
+    ]) {
+      expect(canAccessPath("ops", p), p).toBe(true);
+    }
+  });
+
+  it("keeps ops out of /hq/team", () => {
+    // The near-miss this guards: "/hq" as a PREFIX in OPS_SECTIONS would match
+    // "/hq/team" too, and hand an ops admin the screen that creates HQ seats.
+    // The overview is an exact path for exactly this reason.
+    expect(canAccessPath("ops", "/hq/team")).toBe(false);
+    expect(canAccessPath("ops", "/hq/team/invite")).toBe(false);
+    expect(canAccessPath("owner", "/hq/team")).toBe(true);
+  });
+
+  it("does not let a near-miss path through", () => {
+    // Same segment rule as the Servd sections: a plain startsWith would admit
+    // "/hq/partners-export" on the strength of "/hq/partners".
+    expect(canAccessPath("ops", "/hq/partners-export")).toBe(false);
+    expect(canAccessPath("ops", "/hq-admin")).toBe(false);
+  });
+
+  it("is a path gate only, not the capability matrix", () => {
+    // Reaching /hq/billing is not being allowed to adjust a ledger. That check
+    // lives in requireHqAction, at the server action, because an action is
+    // reachable by its id from any page.
+    expect(canAccessPath("ops", "/hq/billing")).toBe(true);
+    expect(hqCan("ops", "billing.adjust")).toBe(false);
   });
 });

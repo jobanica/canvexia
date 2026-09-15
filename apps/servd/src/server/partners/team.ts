@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { PARTNER_USER_ROLES, isPartnerUserRole, type PartnerUserRole } from "@servd/core";
 import { partnerDb } from "@/server/tenancy/scoped-db";
+import { writePartnerAudit } from "@/server/audit/log";
 
 /**
  * Seats and invitations.
@@ -108,16 +109,12 @@ export async function inviteSeat(
           expiresAt: new Date(Date.now() + INVITE_DAYS * 864e5),
         },
       });
-      await tx.auditLog.create({
-        data: {
-          actorType: "partner",
-          partnerId: actor.partnerId,
-          actorEmail: actor.email,
-          action: "team.invite",
-          entityType: "partner_invite",
-          // The EMAIL and the role, never the token.
-          after: { email: clean, role },
-        },
+      await writePartnerAudit(tx, actor.partnerId, {
+        actorEmail: actor.email,
+        action: "team.invite",
+        entityType: "partner_invite",
+        // The EMAIL and the role, never the token.
+        after: { email: clean, role },
       });
     });
     return { ok: true, token };
@@ -140,15 +137,11 @@ export async function revokeInvite(
         data: { revokedAt: new Date() },
       });
       if (updated.count === 0) return { ok: false, message: "That invite is already gone." };
-      await tx.auditLog.create({
-        data: {
-          actorType: "partner",
-          partnerId: actor.partnerId,
-          actorEmail: actor.email,
-          action: "team.revoke_invite",
-          entityType: "partner_invite",
-          entityId: inviteId,
-        },
+      await writePartnerAudit(tx, actor.partnerId, {
+        actorEmail: actor.email,
+        action: "team.revoke_invite",
+        entityType: "partner_invite",
+        entityId: inviteId,
       });
       return { ok: true };
     });
@@ -193,17 +186,13 @@ export async function deactivateSeat(
         where: { id: seatId },
         data: { status: "deactivated", deactivatedAt: new Date() },
       });
-      await tx.auditLog.create({
-        data: {
-          actorType: "partner",
-          partnerId: actor.partnerId,
-          actorEmail: actor.email,
-          action: "team.deactivate",
-          entityType: "partner_user",
-          entityId: seatId,
-          before: { email: seat.email, role: seat.role, status: seat.status },
-          after: { status: "deactivated" },
-        },
+      await writePartnerAudit(tx, actor.partnerId, {
+        actorEmail: actor.email,
+        action: "team.deactivate",
+        entityType: "partner_user",
+        entityId: seatId,
+        before: { email: seat.email, role: seat.role, status: seat.status },
+        after: { status: "deactivated" },
       });
       return { ok: true };
     });

@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { hitRateLimitIn, RATE_WINDOW_MS } from "@servd/db";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import type { LeadInputValues } from "@/lib/partners/prospect-input";
+import { writePartnerAudit } from "@/server/audit/log";
 
 /**
  * The public lead form's write.
@@ -76,15 +77,14 @@ export async function submitLead(
       // No actorEmail: nobody was signed in. actorType "system" is the honest
       // record — a stranger filled in a form, and pretending a partner did it
       // would make the audit trail wrong in the one place it is read.
-      await tx.auditLog.create({
-        data: {
-          actorType: "system",
-          partnerId,
-          action: "prospect.lead_form",
-          entityType: "prospect",
-          entityId: row.id,
-          after: { businessName: row.businessName, source: "lead_form" },
-        },
+      // actorType "system": nobody at the partner did this. A member of the
+      // public filled in the operator's own lead form.
+      await writePartnerAudit(tx, partnerId, {
+        actorType: "system",
+        action: "prospect.lead_form",
+        entityType: "prospect",
+        entityId: row.id,
+        after: { businessName: row.businessName, source: "lead_form" },
       });
     });
     return { ok: true };

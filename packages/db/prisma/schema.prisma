@@ -118,6 +118,15 @@ model PlatformAdmin {
   /// written into the INSERT of every admin row, and NULL already means the
   /// right thing for every admin that existed before roles did.
   role        String?
+  /// "active" | "deactivated". A deactivated seat is KEPT — the audit log names
+  /// an actor, and deleting the row makes every past HQ action anonymous — but
+  /// it does not sign in. Same trade as PartnerUser.status.
+  status        String    @default(dbgenerated("'active'"))
+  /// platform_admins.id of whoever sent the invite. Null for the bootstrap seat,
+  /// which nobody invited.
+  invitedBy     String?
+  lastSeenAt    DateTime?
+  deactivatedAt DateTime?
   createdAt   DateTime @default(now())
 
   @@map("platform_admins")
@@ -1278,12 +1287,58 @@ model Partner {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // --- HQ console (Phase H1) -----------------------------------------------
+  /// CANVEXIA's own account. Exactly one row may hold it — a partial unique
+  /// index enforces that — and it is the target "reassign to the house partner"
+  /// and "flag as a national account" resolve to. Without it nothing in this
+  /// schema distinguishes CANVEXIA Davao from any other operator.
+  isHouse           Boolean @default(dbgenerated("false"))
+  /// On a national account, the partner who introduced the merchant and is owed
+  /// a referral line on their statement. The merchant itself belongs to the
+  /// house account.
+  referralPartnerId String?
+  legalName         String?
+  businessName      String?
+  /// Business registration number. Deliberately NOT encrypted and not masked: a
+  /// TIN appears on every invoice this partner issues. The secrets here are
+  /// payoutDetailsEnc and taxInfoEnc.
+  tin               String?
+  address           String?
+  contactMobile     String?
+  /// Supabase Storage PATH in the private `partner-agreements` bucket, never a
+  /// URL. Served through a signed URL, same as employee-documents.
+  agreementPath       String?
+  agreementUploadedAt DateTime?
+  /// Centavos — unlike Territory.licenseFee, which is whole pesos. They are
+  /// different quantities: that is a quoted price, this is money that arrived.
+  licenseFeePaidCentavos Int?
+  licenseFeePaidAt       DateTime?
+  licenseFeeRef          String?
+  /// The licensed territory, once HQ has mapped it. `territory` above stays as
+  /// the free text it has always been — same trade as authUserId.
+  territoryId     String?
+  /// Which products this partner may provision into, as `["servd", …]`. NULL
+  /// means every live product, which is what every existing partner has; an
+  /// empty array would silently switch them all off.
+  enabledProducts Json?
+
   users      PartnerUser[]
   invites    PartnerInvite[]
   prospects  Prospect[]
   statements PartnerStatement[]
   planPrices PartnerPlanPrice[]
 
+  territoryRow        Territory?            @relation("PartnerTerritory", fields: [territoryId], references: [id], onDelete: SetNull)
+  territories         Territory[]           @relation("TerritoryHolder")
+  territoryAssignments TerritoryAssignment[]
+  featureFlags        FeatureFlag[]
+  announcementReads   HqAnnouncementRead[]
+  impersonationGrants ImpersonationGrant[]
+
+  referralPartner Partner?  @relation("PartnerReferral", fields: [referralPartnerId], references: [id], onDelete: SetNull)
+  referredBy      Partner[] @relation("PartnerReferral")
+
+  @@index([territoryId])
   @@map("partners")
 }
 
@@ -1548,7 +1603,14 @@ model PartnerLedgerEntry {
   /// pharmacies.id for pharmacy. Not a foreign key, and cannot be one — the
   /// table it points at depends on productId.
   merchantId    String
-  /// "subscription" | "addon" | "feature" | "activation"
+  /// Money that ARRIVED: "subscription" | "addon" | "feature" | "activation".
+  /// Money moved BY HAND: "credit" | "debit" | "refund" | "waiver".
+  /// A referral fee on a national account: "referral".
+  ///
+  /// The adjustment kinds live on this table rather than a parallel one because
+  /// this table is already append-only and immutable and is what
+  /// computeStatement reads. A separate adjustments table is how a statement and
+  /// its explanation come to disagree.
   kind          String
   /// The gateway reference this settlement came from. UNIQUE, which is what
   /// makes recording idempotent: a replayed webhook — and gateways do replay —
@@ -1567,6 +1629,18 @@ model PartnerLedgerEntry {
   currency      String   @default(dbgenerated("'PHP'"))
   occurredAt    DateTime @default(now())
 
+  // --- Adjustments only (Phase H1) ------------------------------------------
+  // NULL on every settlement row. A CHECK constraint requires both of the first
+  // two on the four hand-moved kinds: an adjustment with no reason is an
+  // unexplained movement of money, and the person who would have to explain it
+  // is not the person who made it.
+  /// Why HQ moved this money. Required on credit/debit/refund/waiver.
+  adjustmentReason String?
+  /// The HQ admin who did it. Required on the same four.
+  actorEmail       String?
+  /// Optional supporting document, as a private Storage path. Never a URL.
+  attachmentPath   String?
+
   @@index([partnerId, occurredAt])
   @@index([productId, merchantId])
   @@map("partner_ledger_entries")
@@ -1584,6 +1658,14 @@ model ProgramSetting {
   /// Partner onboarding video shown on the partner dashboard. A YouTube/Vimeo
   /// link or a direct video URL (super-admin sets it).
   partnerTrainingUrl String?
+  /// Days after a statement is frozen before its payout or invoice reads as
+  /// overdue. Config rather than a constant: "when is this late" is a
+  /// commercial decision and changing it should not be a deploy.
+  overdueDays        Int      @default(dbgenerated("15"))
+  /// HQ's own booking link, used by /hq/applications. Deliberately separate
+  /// from canvexia.com's NEXT_PUBLIC_BOOKING_URL — they are different calendars
+  /// for different conversations.
+  hqBookingUrl       String?
   updatedAt          DateTime @updatedAt
 
   @@map("program_settings")
@@ -3211,14 +3293,186 @@ model Territory {
   licenseFee Int
   status     TerritoryStatus @default(available)
 
+  // --- Assignment and splitting (Phase H1) ----------------------------------
+  /// The operator licensed for this city, once assigned. The authoritative
+  /// answer; `partners.territory` is the free text it has always been.
+  partnerId  String?
+  /// Set on a child created by a split (Quezon City → its districts).
+  parentId   String?
+  /// False on a parent that has been split: the districts are for sale, the
+  /// whole is not. Default true, so all 143 seeded rows are exactly as
+  /// assignable as they were before this column existed.
+  assignable Boolean         @default(dbgenerated("true"))
+  assignedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   waitlist PartnerWaitlist[]
 
+  holder   Partner?  @relation("TerritoryHolder", fields: [partnerId], references: [id], onDelete: SetNull)
+  /// Partners whose profile points here. Distinct from `holder`: a partner row
+  /// records the territory it was licensed for, and this side of that.
+  licensees Partner[] @relation("PartnerTerritory")
+  parent   Territory?  @relation("TerritorySplit", fields: [parentId], references: [id], onDelete: SetNull)
+  children Territory[] @relation("TerritorySplit")
+  assignments TerritoryAssignment[]
+
   @@index([tier])
   @@index([status])
+  @@index([partnerId])
+  @@index([parentId])
   @@map("territories")
+}
+
+/// Who held a territory, when, and why they stopped.
+///
+/// APPEND-ONLY, for the same reason the ledger is. "Who had Cebu before this
+/// operator and why did they stop" is a question asked during a dispute, which
+/// is exactly when a mutable row would have been overwritten. Releasing sets
+/// `releasedAt`; it never deletes.
+model TerritoryAssignment {
+  id          String    @id @default(uuid())
+  territoryId String
+  partnerId   String
+  assignedAt  DateTime  @default(now())
+  releasedAt  DateTime?
+  /// Required when releasing. A territory taken back with no reason recorded is
+  /// the one an operator will contest.
+  reason      String?
+  actorEmail  String?
+  createdAt   DateTime  @default(now())
+
+  territory Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  partner   Partner   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([territoryId])
+  @@index([partnerId])
+  @@map("territory_assignments")
+}
+
+/// A product capability HQ can switch on or off.
+///
+/// Global in this phase. `partnerId` is nullable and present from the start so
+/// that a per-partner flag is a row rather than a migration during a launch —
+/// the same reasoning as NotificationPref.messenger.
+model FeatureFlag {
+  id        String   @id @default(uuid())
+  productId String
+  key       String
+  enabled   Boolean  @default(false)
+  /// NULL = the global value for this product. A row WITH a partnerId overrides
+  /// it for that partner only. Two partial unique indexes enforce this in the
+  /// database, because NULL is not equal to NULL in a plain unique index and one
+  /// would happily accept two global rows for the same flag.
+  partnerId String?
+  note      String?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  partner Partner? @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@map("feature_flags")
+}
+
+/// A notice from HQ to its partners.
+///
+/// SEPARATE from `Announcement`, which is Servd's merchant-facing notice board
+/// and keys its read receipts on a staff user. The audience here is partners,
+/// the receipt is per partner, and the targeting is a segment. One table whose
+/// rows mean different things depending on a column is the thing to avoid.
+model HqAnnouncement {
+  id           String    @id @default(uuid())
+  title        String
+  /// Markdown. Rendered by the portal, never through dangerouslySetInnerHTML.
+  body         String
+  level        String    @default("info")
+  /// NULL = every partner. Otherwise `{ tier, status, productId }` — the shape
+  /// lives in packages/core. Evaluated in the app, not in the RLS policy: a
+  /// policy that parses JSON to decide visibility is one nobody can verify.
+  segment      Json?
+  scheduledFor DateTime?
+  /// Null while a draft. Only published notices are visible to a partner, and
+  /// that part IS enforced by the policy.
+  publishedAt  DateTime?
+  authorEmail  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  reads HqAnnouncementRead[]
+
+  @@index([publishedAt])
+  @@map("hq_announcements")
+}
+
+/// One row per partner per HQ announcement they have seen.
+model HqAnnouncementRead {
+  id             String   @id @default(uuid())
+  announcementId String
+  /// Per PARTNER, not per seat: the receipt answers "has Cebu seen this", which
+  /// is what HQ is actually asking.
+  partnerId      String
+  /// Which seat happened to open it. For the audit trail, not for the receipt.
+  partnerUserId  String?
+  readAt         DateTime @default(now())
+
+  announcement HqAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  partner      Partner        @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, partnerId])
+  @@index([partnerId])
+  @@map("hq_announcement_reads")
+}
+
+/// One HQ "view as partner" session.
+///
+/// A ROW rather than only a signed token. A signature cannot be revoked and
+/// leaves nothing to audit; this can be killed, listed, and pointed at from the
+/// audit log. `usedAt` makes it single-use, `expiresAt` bounds it at 30 minutes,
+/// and `readOnly` is stored rather than assumed so that a writable grant — if
+/// one is ever justified — is a different value here and not a silent change of
+/// meaning for every row already written.
+model ImpersonationGrant {
+  id           String    @id @default(uuid())
+  /// PlatformAdmin.id of the HQ seat that asked.
+  hqAdminId    String
+  hqAdminEmail String
+  partnerId    String
+  /// SHA-256 of the token, never the token. A row that can be read back into a
+  /// working session turns a database leak into a login.
+  tokenHash    String    @unique
+  readOnly     Boolean   @default(true)
+  expiresAt    DateTime
+  usedAt       DateTime?
+  endedAt      DateTime?
+  revokedAt    DateTime?
+  reason       String?
+  createdAt    DateTime  @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@index([hqAdminId])
+  @@map("impersonation_grants")
+}
+
+/// One firing of a scheduled job.
+///
+/// So the billing screen reads a fact. Inferring the last run from the newest
+/// statement's `frozenAt` is wrong in exactly the case that matters: a run that
+/// fired and produced nothing looks identical to a run that never fired — and
+/// the freeze cron on this project has never once succeeded.
+model CronRun {
+  id         String    @id @default(uuid())
+  job        String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  ok         Boolean?
+  /// Counts and failures as JSON, not prose: this is read by a screen.
+  detail     Json?
+
+  @@index([job, startedAt])
+  @@map("cron_runs")
 }
 
 /// Somebody asking for a city. No fee, no application, no account — a name

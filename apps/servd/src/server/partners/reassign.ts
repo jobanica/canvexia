@@ -1,6 +1,7 @@
 import "server-only";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { planReassignment } from "@/lib/partners/reassign";
+import { writeHqAudit } from "@/server/audit/log";
 
 /**
  * Move a merchant from one partner to another.
@@ -71,23 +72,20 @@ export async function reassignMerchant(input: {
       //                          where "restaurantId" = ${restaurantId}`;
       // with a test asserting no row anywhere still names decision.from.
 
-      await tx.auditLog.create({
-        data: {
-          restaurantId,
-          // The INCOMING partner. The outgoing one is deliberately not given a
-          // copy: they have just lost access to this merchant entirely, and a
-          // row naming a merchant they can no longer read is a worse answer than
-          // asking HQ, who can see the whole trail.
-          partnerId: decision.to,
-          actorType: "hq",
-          actorEmail,
-          action: "merchant.reassigned",
-          entityType: "restaurant",
-          entityId: restaurantId,
-          reason: reason ?? null,
-          before: { partnerId: decision.from },
-          after: { partnerId: decision.to },
-        },
+      await writeHqAudit(tx, {
+        restaurantId,
+        // The INCOMING partner. The outgoing one is deliberately not given a
+        // copy: they have just lost access to this merchant entirely, and a row
+        // naming a merchant they can no longer read is a worse answer than
+        // asking HQ, who can see the whole trail.
+        partnerId: decision.to,
+        actorEmail,
+        action: "merchant.reassigned",
+        entityType: "restaurant",
+        entityId: restaurantId,
+        reason: reason ?? null,
+        before: { partnerId: decision.from },
+        after: { partnerId: decision.to },
       });
 
       return { ok: true as const, moved: true, from: decision.from, to: decision.to };

@@ -8,6 +8,7 @@ import {
 } from "@servd/db";
 import { PRODUCTS } from "@servd/core";
 import { partnerDb, systemDb } from "@/server/tenancy/scoped-db";
+import { writePartnerAudit } from "@/server/audit/log";
 
 /**
  * Revenue, read through the partner's own scope.
@@ -174,17 +175,13 @@ export async function setPlanPrice(
         },
         update: { priceMonthly: priceCentavos, applyToExisting, updatedAt: new Date() },
       });
-      await tx.auditLog.create({
-        data: {
-          actorType: "partner",
-          partnerId: actor.partnerId,
-          actorEmail: actor.email,
-          action: "pricing.set",
-          entityType: "plan",
-          entityId: planId,
-          before: { priceMonthly: before?.priceMonthly ?? null },
-          after: { priceMonthly: priceCentavos, applyToExisting },
-        },
+      await writePartnerAudit(tx, actor.partnerId, {
+        actorEmail: actor.email,
+        action: "pricing.set",
+        entityType: "plan",
+        entityId: planId,
+        before: { priceMonthly: before?.priceMonthly ?? null },
+        after: { priceMonthly: priceCentavos, applyToExisting },
       });
     });
     return { ok: true };
