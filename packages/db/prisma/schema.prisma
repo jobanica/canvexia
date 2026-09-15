@@ -435,9 +435,9 @@ model ContentGenerationLog {
 }
 
 model Plan {
-  id           String   @id @default(uuid())
-  name         String
-  priceMonthly Int // store money in centavos (integers) to avoid float errors
+  id            String             @id @default(uuid())
+  name          String
+  priceMonthly  Int // store money in centavos (integers) to avoid float errors
   /// The least a partner may charge for this plan, in centavos. HQ sets it;
   /// partners price at or above it.
   ///
@@ -448,12 +448,14 @@ model Plan {
   ///
   /// 0 means no floor, which is what every existing plan gets: a floor applied
   /// retroactively to live plans would invalidate prices already being charged.
-  priceFloor   Int      @default(dbgenerated("0"))
-  limits       Json // e.g. { maxTables, maxStaff, smsIncluded }
-  features     String[] @default([]) // gateable feature keys this plan grants (super-admin controlled)
-  trialDays    Int      @default(30) // free-trial length for new signups
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  priceFloor    Int                @default(dbgenerated("0"))
+  /// Partner overrides of this plan's price. See PartnerPlanPrice.
+  partnerPrices PartnerPlanPrice[]
+  limits        Json // e.g. { maxTables, maxStaff, smsIncluded }
+  features      String[]           @default([]) // gateable feature keys this plan grants (super-admin controlled)
+  trialDays     Int                @default(30) // free-trial length for new signups
+  isActive      Boolean            @default(true)
+  createdAt     DateTime           @default(now())
 
   restaurants   Restaurant[]
   subscriptions Subscription[]
@@ -1276,9 +1278,11 @@ model Partner {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users     PartnerUser[]
-  invites   PartnerInvite[]
-  prospects Prospect[]
+  users      PartnerUser[]
+  invites    PartnerInvite[]
+  prospects  Prospect[]
+  statements PartnerStatement[]
+  planPrices PartnerPlanPrice[]
 
   @@map("partners")
 }
@@ -1422,6 +1426,73 @@ model Prospect {
   @@index([partnerId, nextFollowUpAt])
   @@index([assignedToId])
   @@map("prospects")
+}
+
+/// A partner's month, frozen.
+///
+/// Holds ONLY what recomputation cannot produce: the moment the month was
+/// closed and the payout status HQ edits. Every number in it is derivable from
+/// `partner_ledger_entries` — which is append-only, and carries the share
+/// percentage that applied when each payment settled — so this table is a cache
+/// of an answer, never the answer. `packages/db/src/statements.ts` owns both.
+///
+/// Read-only to the partner. A partner able to write here is a partner writing
+/// their own statement.
+model PartnerStatement {
+  id        String @id @default(uuid())
+  partnerId String
+  /// "2026-06", in Asia/Manila. Every merchant and peso here is in one time
+  /// zone, and computing the boundary in UTC puts eight hours of 31 December
+  /// into January.
+  month     String
+
+  grossCentavos   Int
+  partnerCentavos Int
+  hqCentavos      Int
+  merchantCount   Int
+
+  frozenAt     DateTime  @default(now())
+  /// "pending" | "paid" | "overdue". HQ moves it; the portal displays it.
+  payoutStatus String    @default("pending")
+  paidAt       DateTime?
+  /// HQ's note when a payout is late or short. Shown to the partner.
+  note         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, month])
+  @@index([partnerId, month])
+  @@map("partner_statements")
+}
+
+/// A partner's price for one plan, above the HQ floor.
+///
+/// Absent means "charge the plan's own price". A row here is an override, which
+/// is why the table is sparse rather than one row per partner per plan — a
+/// partner who has never touched pricing should not acquire rows that then have
+/// to be kept in step with the catalogue.
+model PartnerPlanPrice {
+  id              String  @id @default(uuid())
+  partnerId       String
+  planId          String
+  /// Centavos per month. Validated against Plan.priceFloor on write.
+  priceMonthly    Int
+  /// Apply to merchants already on this plan at their next cycle, not just to
+  /// new ones. Stored because the decision is made when the price is set and
+  /// acted on later, by the billing pass.
+  applyToExisting Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  plan    Plan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, planId])
+  @@map("partner_plan_prices")
 }
 
 /// One notification channel choice, per user, per event.

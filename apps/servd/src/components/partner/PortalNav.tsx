@@ -20,6 +20,10 @@ const LINKS: { href: string; label: string; need?: Capability }[] = [
   { href: "/partner", label: "Overview" },
   { href: "/partner/pipeline", label: "Pipeline", need: "pipeline.read" },
   { href: "/partner/merchants", label: "Merchants", need: "merchants.read" },
+  { href: "/partner/revenue", label: "Revenue", need: "revenue.read" },
+  { href: "/partner/brand", label: "Brand", need: "brand.write" },
+  { href: "/partner/team", label: "Team", need: "team.read" },
+  { href: "/partner/settings", label: "Settings", need: "settings.write" },
 ];
 
 export function PortalNav({ partner }: { partner: CurrentPartner }) {

@@ -453,7 +453,8 @@ create policy ledger_write on partner_ledger_entries for all
 do $$
 declare t text;
 begin
-  foreach t in array array['partner_users', 'partner_invites', 'prospects', 'notification_prefs']
+  foreach t in array array['partner_users', 'partner_invites', 'prospects',
+                           'notification_prefs', 'partner_plan_prices']
   loop
     if to_regclass(format('public.%I', t)) is null then
       continue;  -- table not migrated yet; db:rls must not fail on a fresh clone
@@ -469,6 +470,25 @@ begin
     execute format('revoke all on %I from anon;', t);
     execute format('revoke all on %I from authenticated;', t);
   end loop;
+end $$;
+
+-- partner_statements: the partner who earned it may READ it and nothing more.
+-- A partner able to write here is a partner writing their own statement — the
+-- same reason partner_ledger_entries is read-only to them. HQ freezes the row
+-- and moves the payout status.
+do $$
+begin
+  if to_regclass('public.partner_statements') is not null then
+    alter table partner_statements enable row level security;
+    alter table partner_statements force row level security;
+    drop policy if exists statement_read on partner_statements;
+    drop policy if exists statement_write on partner_statements;
+    create policy statement_read on partner_statements for select
+      using (app.is_super_admin() or "partnerId" = app.current_partner_id());
+    create policy statement_write on partner_statements for all
+      using (app.is_super_admin()) with check (app.is_super_admin());
+    revoke all on partner_statements from anon, authenticated;
+  end if;
 end $$;
 
 -- platform_feedback / crm_clients / customer_events: the three tables excluded

@@ -35,6 +35,20 @@ export interface PartnerBrandConfig {
   supportUrl?: string;
   /** Appears under customer-facing pages in full white-label mode. */
   legalFooter?: string;
+
+  // --- Sender identity (A5) -------------------------------------------------
+  /** The From name on mail to this partner's merchants. Not CANVEXIA. */
+  senderName?: string;
+  /** Where a merchant's reply goes. */
+  replyTo?: string;
+  /**
+   * The SMS sender name a partner WANTS.
+   *
+   * Recorded, not applied. Philippine aggregators approve sender IDs one by one
+   * and can refuse; storing a preference the platform cannot yet honour is
+   * honest, storing it as though it were live is not. The form says so.
+   */
+  smsSenderName?: string;
 }
 
 export const EMPTY_BRAND_CONFIG: PartnerBrandConfig = {};
@@ -51,6 +65,9 @@ const STRING_FIELDS = [
   "supportPhone",
   "supportUrl",
   "legalFooter",
+  "senderName",
+  "replyTo",
+  "smsSenderName",
 ] as const;
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -61,6 +78,11 @@ const MAX: Partial<Record<(typeof STRING_FIELDS)[number], number>> = {
   legalName: 120,
   legalFooter: 500,
   supportPhone: 40,
+  // An SMS sender ID is 11 characters on every PH aggregator. Capping it here
+  // rather than at 500 means a partner finds out in the form, not in a rejection
+  // weeks later.
+  smsSenderName: 11,
+  senderName: 80,
 };
 const DEFAULT_MAX = 500;
 

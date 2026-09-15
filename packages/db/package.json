@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "@servd/core": "workspace:*"
   },
   "devDependencies": {
     "@types/pg": "^8.11.10",

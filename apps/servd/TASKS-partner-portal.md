@@ -115,7 +115,57 @@ RLS, so this can never be invisible again.
       does not yet thread the id back. Small, and it belongs with the merchant
       actions in A2's deferred set.
 
-## A4 — Revenue + pricing + statements  ⬜ NEXT
+## A4 — Revenue + pricing + statements  ✅ DONE
+
+- [x] `packages/db/src/statements.ts` — computed from the ledger, Manila months
+- [x] `PartnerStatement` (frozen month + payout status) and `PartnerPlanPrice`
+- [x] `/partner/revenue`, `/partner/revenue/[month]`, `.../print`, `/pricing`
+- [x] CSV at `/api/partner/statement/[month].csv`, session + capability checked
+- [x] Freeze cron, idempotent, `0 1 1 * *` UTC = 09:00 Manila on the 1st
+- [x] 13 tests on the month arithmetic
+
+**The bug the tests caught.** The first cut scheduled the freeze at 16:00 UTC on
+the 1st, reasoning that Manila is UTC+8 — but that is the **2nd** in Manila, and
+"now minus a day" then resolved to the month that had just STARTED. It would
+have frozen an empty month and never closed the real one. Replaced with
+`previousMonth(monthKeyOf(now))`, which has no time zone in it at all, and the
+schedule moved to 09:00 Manila.
+
+**PDF is print CSS**, per the approved plan: no playwright, puppeteer,
+@react-pdf or jspdf is a dependency of any app here, and every other document in
+this repo — including every BIR receipt — prints the same way.
+
+## A5 — Brand + domains + sender identity  ✅ DONE (partial, stated)
+
+- [x] `packages/core/src/branding/contrast.ts` + 9 tests — WCAG ratio, rounds
+      DOWN so a failing pair is never labelled passing
+- [x] `senderName`, `replyTo`, `smsSenderName` on the brand config (SMS sender
+      capped at 11 — every PH aggregator's limit)
+- [x] `/partner/domains`, reusing the existing `DomainProvider` interface
+- [ ] **Adding a custom domain is NOT wired.** Half of it is a domain stuck in
+      "verifying" with no way back. The read side ships; the page says so.
+- [ ] The live brand preview panel. The editor and the contrast check exist.
+
+## A6 — Team + settings + digest  ✅ DONE (send deferred, stated)
+
+- [x] `server/partners/team.ts` — invite, revoke, deactivate, each audited
+- [x] `/partner/team` with the role matrix explained in the UI
+- [x] `/partner/settings` — agreement, milestones, payout, notification list
+- [x] `packages/db/src/digest.ts` + 7 tests — composition, and `worthSending`
+- [ ] **Sending.** `CREDENTIALS_ENCRYPTION_KEY` is unset and no Resend key has
+      ever been entered. The digest composes and the prefs are stored; nothing
+      sends, and every surface says so rather than implying otherwise.
+
+### Decisions worth keeping
+
+- **The invite token is never stored** — only a SHA-256. It is shown once to the
+  admin, who passes it on, because this deployment cannot email it.
+- **The last admin cannot be deactivated.** A partner with no admin is locked
+  out of their own brand, pricing and team.
+- **A deactivated seat is kept, never deleted.** The audit log names an actor.
+- **An unreadable role fails closed to `support`**, the least-privileged seat.
+- **The digest says nothing on a quiet day.** A daily email that always arrives
+  is an email people filter — and then the one that matters is filtered too.
 ## A3 — Pipeline + lead form  ⬜
 ## A4 — Revenue + pricing + statements  ⬜
 ## A5 — Brand + domains + sender identity  ⬜
