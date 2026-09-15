@@ -72,8 +72,10 @@ into /hq.
 
 ## Still to do
 
-- [ ] Run `bootstrap-hq-admin.sql` with a real Supabase auth user id — nothing
-      in /hq is reachable until somebody has an HQ seat.
+- [x] Run `bootstrap-hq-admin.sql` — done 2026-09-15. One active super admin:
+      hirestaff25@gmail.com. It is the ONLY HQ seat, and `setHqSeatStatusAction`
+      refuses to deactivate the last one, so adding a second from /hq/team is
+      the thing that makes this recoverable if that login is ever lost.
 - [ ] `CREDENTIALS_ENCRYPTION_KEY` is still unset: email cannot be configured,
       so queued welcome emails sit in `outbound_emails` and nothing drains them.
 - [ ] Geocode the 143 territories if the map is wanted.
