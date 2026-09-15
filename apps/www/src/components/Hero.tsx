@@ -44,17 +44,20 @@ export function Hero() {
           </p>
         </div>
 
-        <div className="relative">
+        <div className="flex flex-col items-end">
           <ScreenFrame
             brand="YourBrand"
             label="Every product carries the partner's name, not ours."
+            className="w-full"
           />
-          {/* A second frame, offset, to say "products" rather than "a product"
-              — hidden on phones, where it would only crowd the first. */}
+          {/* A second frame to say "products" rather than "a product", offset
+              left and BELOW rather than overlapping: laid over the first it
+              covered that caption, and a decorative offset is not worth a line
+              of copy. Hidden on phones, where it would only crowd the first. */}
           <ScreenFrame
             brand="YourBrand"
             label="Same software, your storefront."
-            className="absolute -bottom-10 -left-6 hidden w-2/5 sm:block lg:-left-10"
+            className="mt-6 hidden w-2/5 self-start sm:block"
           />
         </div>
       </Container>
