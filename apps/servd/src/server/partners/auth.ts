@@ -231,10 +231,14 @@ export async function requirePartnerPage(): Promise<CurrentPartner> {
  * bouncing them to a login form would read as a broken session.
  */
 export async function requirePartnerPageWith(
-  capability: Capability,
+  /** An A7 permission or a legacy capability. See `requireWritablePartner`. */
+  need: PartnerPermission | Capability,
 ): Promise<CurrentPartner> {
   const partner = await requirePartnerPage();
-  if (!can(partner.user.role, capability)) redirect("/partner");
+  const held = isPartnerPermission(need)
+    ? partner.permissions.has(need)
+    : can(partner.user.role, need);
+  if (!held) redirect("/partner");
   return partner;
 }
 

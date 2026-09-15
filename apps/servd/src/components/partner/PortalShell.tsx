@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { can, type Capability } from "@servd/core";
+import { type PartnerPermission } from "@servd/core";
 import type { CurrentPartner } from "@/server/partners/auth";
 import { signOutPartner } from "@/server/partners/login-action";
 import { Mark } from "@servd/ui";
@@ -42,7 +42,16 @@ type Item = {
   href: string;
   label: string;
   icon: React.ReactNode;
-  need?: Capability;
+  /**
+   * The A7 PERMISSION this link needs.
+   *
+   * Was a `Capability` from the fixed matrix. It is a permission now because a
+   * partner admin can change the answer at /team/permissions, and a nav
+   * derived from a matrix nobody can edit would show links the server then
+   * refuses — which is worse than hiding them, because it teaches people the
+   * portal is broken rather than that they lack the permission.
+   */
+  need?: PartnerPermission;
   count?: number;
 };
 
@@ -68,27 +77,29 @@ export function PortalShell({
       href: "/partner/pipeline",
       label: "Pipeline",
       icon: <IconFunnel />,
-      need: "pipeline.read",
+      need: "pipeline.view_own",
       count: counts?.pipeline,
     },
     {
       href: "/partner/merchants",
       label: "Merchants",
       icon: <IconStore />,
-      need: "merchants.read",
+      need: "merchants.view_assigned",
       count: counts?.merchants,
     },
-    { href: "/partner/revenue", label: "Revenue", icon: <IconWallet />, need: "revenue.read" },
-    { href: "/partner/brand", label: "Brand", icon: <IconPalette />, need: "brand.write" },
+    { href: "/partner/revenue", label: "Revenue", icon: <IconWallet />, need: "revenue.view" },
+    { href: "/partner/brand", label: "Brand", icon: <IconPalette />, need: "brand.edit" },
     { href: "/partner/domains", label: "Domains", icon: <IconGlobe />, need: "domains.write" },
   ];
 
   const lower: Item[] = [
-    { href: "/partner/team", label: "Team", icon: <IconUsers />, need: "team.read" },
+    { href: "/partner/team", label: "Team", icon: <IconUsers />, need: "team.manage" },
     { href: "/partner/settings", label: "Settings", icon: <IconGear />, need: "settings.write" },
   ];
 
-  const allowed = (i: Item) => !i.need || can(partner.user.role, i.need);
+  // The seat's RESOLVED permissions — defaults with this partner's overrides on
+  // top — not the fixed matrix. Same hide-don't-disable rule as before.
+  const allowed = (i: Item) => !i.need || partner.permissions.has(i.need);
   const main = items.filter(allowed);
   const secondary = lower.filter(allowed);
 

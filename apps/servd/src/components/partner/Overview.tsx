@@ -14,9 +14,24 @@ import { Avatar, Bars, Donut, StatCard, TONE, peso } from "@/components/canvexia
 
 export { peso };
 
-export function StatCards({ o }: { o: PartnerOverview }) {
+/**
+ * The four stat cards.
+ *
+ * `showAmounts` is `overview.revenue_amounts`. When it is off — the default for
+ * an ops manager — the two money cards keep their SHAPE and lose their figures:
+ * the donut still shows what share of merchants are paying, the label still
+ * says which way settlement flows, and the number reads "—".
+ *
+ * That is the brief's own rule ("MRR trend shape but ₱ amounts masked") and it
+ * is the right one: an ops manager needs to know the book is growing without
+ * knowing what the operator clears on it. The masking happens HERE and in the
+ * server module, never by hiding a rendered number — a masked figure that
+ * reached the client is a figure in the page source.
+ */
+export function StatCards({ o, showAmounts = true }: { o: PartnerOverview; showAmounts?: boolean }) {
   const payingRatio = o.merchants.length > 0 ? o.payingCount / o.merchants.length : 0;
   const attention = o.attention.length;
+  const money = (centavos: number | null) => (centavos === null ? "—" : peso(centavos));
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -30,8 +45,8 @@ export function StatCards({ o }: { o: PartnerOverview }) {
       <StatCard
         label="MRR"
         tone="coral"
-        value={peso(o.mrrCentavos)}
-        note="What merchants pay, per month"
+        value={money(showAmounts ? o.mrrCentavos : null)}
+        note={showAmounts ? "What merchants pay, per month" : "Hidden for your role"}
         visual={<Donut pct={payingRatio} className="stroke-brand-primary" />}
       />
       <StatCard
@@ -44,8 +59,11 @@ export function StatCards({ o }: { o: PartnerOverview }) {
       <StatCard
         label={o.settlementDirection === "payout" ? "Your payout" : "Your share"}
         tone="gradient"
-        value={peso(o.partnerShareCentavos)}
+        value={money(showAmounts ? o.partnerShareCentavos : null)}
         note={
+          !showAmounts
+            ? "Hidden for your role"
+            :
           // partner_collects means the money never passes through HQ, so what is
           // owed flows the other way. Labelling both "payout" would tell half of
           // all partners they are owed money they actually owe.

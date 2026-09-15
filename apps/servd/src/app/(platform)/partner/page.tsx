@@ -1,6 +1,13 @@
 import Link from "next/link";
-import { partnerCan, requirePartnerPage } from "@/server/partners/auth";
-import { getPartnerOverview, getPartnerProfile, onboardingChecklist } from "@/server/partners/overview";
+import { partnerAllows, partnerCan, requirePartnerPage } from "@/server/partners/auth";
+import { getMyDay } from "@/server/partners/my-day";
+import { MyDay } from "@/components/partner/MyDay";
+import {
+  getPartnerOverview,
+  getPartnerProfile,
+  maskAmounts,
+  onboardingChecklist,
+} from "@/server/partners/overview";
 import { getPartnerTrainingUrl } from "@/server/partners/portal";
 import { getHqBookingUrl } from "@/server/hq/applications";
 import { listPartnerDemos } from "@/server/partners/demo-queries";
@@ -51,10 +58,46 @@ export default async function PartnerPortalPage() {
     );
   }
 
+  /**
+   * THE FORK (A7). Four roles, two overviews.
+   *
+   * A seat without `merchants.view_all` is a salesperson or a support person:
+   * they get "My day" — their own follow-ups, their own merchants, their own
+   * target — rather than a cut-down version of the operator's. The two answer
+   * different questions, and only the second one is actionable by the person
+   * reading it.
+   *
+   * Keyed on the PERMISSION, not the role name, so an operator who grants their
+   * salespeople `merchants.view_all` gets the partner-wide overview for them
+   * without a code change. A legacy login has no seat id and therefore cannot
+   * have a personal overview; it takes the partner-wide one, which is what it
+   * has always had.
+   */
+  if (partner.user.id && !partnerAllows(partner, "merchants.view_all")) {
+    const day = await getMyDay(partner.id, partner.user.id);
+    return (
+      <PortalShell
+        partner={partner}
+        title={`Hi, ${(partner.user.name ?? partner.user.email).split(/[\s@]/)[0]}`}
+        subtitle="Your day at a glance."
+      >
+        <AnnouncementBanner items={await announcementsForPartner(partner.id).catch(() => [])} />
+        <div className="mt-4">
+          <MyDay
+            day={day}
+            canSeeCommission={partnerAllows(partner, "commissions.view_own")}
+            canCheckIn={partnerAllows(partner, "attendance.checkin")}
+            canSeePipeline={partnerAllows(partner, "pipeline.view_own")}
+          />
+        </div>
+      </PortalShell>
+    );
+  }
+
   // Every one of these opens its own scoped transaction, so awaiting them in
   // sequence paid for each round trip end to end. Nothing here depends on
   // anything else here, so they go out together.
-  const [overview, profile, demos, trainingUrl, pharmacies, bookingUrl] = await Promise.all([
+  const [rawOverview, profile, demos, trainingUrl, pharmacies, bookingUrl] = await Promise.all([
     getPartnerOverview(partner.id),
     getPartnerProfile(partner.id),
     listPartnerDemos(partner.id),
@@ -68,6 +111,11 @@ export default async function PartnerPortalPage() {
   // Separate from the Promise.all above because it is best-effort: an
   // announcement table that is not migrated must not take the dashboard down.
   const announcements = await announcementsForPartner(partner.id).catch(() => []);
+  // Masked HERE, not in the component. Hiding a number the server already put
+  // in the props leaves it in the page source, readable by exactly the person
+  // the rule is about.
+  const showAmounts = partnerAllows(partner, "overview.revenue_amounts");
+  const overview = showAmounts ? rawOverview : maskAmounts(rawOverview);
   const territory = profile?.territory ?? null;
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   // From the registry, not a list written here: a vertical appears in the form
@@ -109,7 +157,15 @@ export default async function PartnerPortalPage() {
         the page that recruited them. A partner reading both would be right to
         wonder which one is true.
       */}
-      {partner.tier === "operator" ? (
+      {!showAmounts ? (
+        // An ops manager is told the shape of the arrangement without the
+        // number. "You keep 70%" is the operator's commercial term with HQ and
+        // is not a manager's to know — it is the same fact as the payout,
+        // expressed as a ratio.
+        <p className="text-sm text-brand-ink/55">
+          Set up as many merchants as you like. Revenue figures are hidden for your role.
+        </p>
+      ) : partner.tier === "operator" ? (
         <p className="text-sm text-brand-ink/55">
           Set up as many merchants as you like. You keep{" "}
           <strong className="font-semibold text-brand-ink/80">{partner.revenueSharePct}%</strong>{" "}
@@ -123,7 +179,7 @@ export default async function PartnerPortalPage() {
       )}
 
       <div className="mt-5">
-        <StatCards o={overview} />
+        <StatCards o={overview} showAmounts={showAmounts} />
       </div>
 
       {profile && (

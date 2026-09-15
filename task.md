@@ -45,6 +45,16 @@ into another partner. `anon` and `authenticated` hold no grant on any of the
 eight.
 
 ## A7.2 — Permission grid + role-scoped overviews
+
+- [x] `/partner/team/permissions` — 29×4 toggle grid, one form per cell
+- [x] `permissions-actions.ts` — audited flips, per-role reset, seat counts
+- [x] Grid cells say `default` vs `yours`; locked cells render as text
+- [x] `PortalShell` nav derives from resolved permissions, not the matrix
+- [x] `requirePartnerPageWith` widened to accept a permission
+- [x] The overview forks: partner-wide for admin/ops, **My day** for sales and
+      support — keyed on `merchants.view_all`, not on a role name
+- [x] `maskAmounts()` strips the money SERVER-SIDE, series included
+- [x] 7 more tests; suite 1238 → 1245
 ## A7.3 — Staff directory, assignment, offboarding, activity
 ## A7.4 — Attendance PWA, visit log, manager view, offline queue
 ## A7.5 — Targets & scorecard

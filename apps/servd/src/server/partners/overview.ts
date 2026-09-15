@@ -175,6 +175,29 @@ export async function getPartnerOverview(
 }
 
 /**
+ * Strip the peso figures from an overview before it reaches the client.
+ *
+ * `overview.revenue_amounts` is off for ops_manager by default. Hiding the
+ * numbers in the component alone would leave them in the serialised props —
+ * visible in the page source to exactly the person the rule is about — so they
+ * are removed here, and the component is told to render "—" rather than the
+ * zeroes it would otherwise show.
+ *
+ * The SHAPE is kept on purpose: merchant counts, the paying ratio and the
+ * growth series all survive, because an ops manager has to know whether the
+ * book is growing. What they do not get is what the operator clears on it.
+ */
+export function maskAmounts(o: PartnerOverview): PartnerOverview {
+  return {
+    ...o,
+    mrrCentavos: 0,
+    partnerShareCentavos: 0,
+    hqShareCentavos: 0,
+    series: o.series.map((p) => ({ ...p, mrrCentavos: 0 })),
+  };
+}
+
+/**
  * The onboarding checklist's six steps, and which are done.
  *
  * Five are DERIVED rather than ticked — a checklist a partner marks themselves
