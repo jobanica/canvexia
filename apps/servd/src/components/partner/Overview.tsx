@@ -3,6 +3,10 @@ import type { MilestoneProgress } from "@servd/core";
 import type { AttentionItem } from "@/lib/partners/attention";
 import type { PartnerOverview } from "@/server/partners/overview";
 import type { OnboardingStep } from "@/server/partners/overview";
+import {
+  setOnboardingStepAction,
+  dismissOnboardingAction,
+} from "@/server/partners/onboarding-actions";
 // Extracted to components/canvexia when the HQ console needed the same four-card
 // rhythm. Copying them would have produced two sets that drift, and the first
 // symptom of that is two screens in one product that stop looking like one.
@@ -215,16 +219,60 @@ export function AttentionList({ items }: { items: AttentionItem[] }) {
   );
 }
 
-export function OnboardingChecklist({ steps }: { steps: OnboardingStep[] }) {
+/**
+ * The "Get set up" card.
+ *
+ * Four of the six steps are DERIVED from real state and tick themselves. The
+ * other two — the training and the kickoff call — are things nothing in this
+ * system can observe, so they carry a tick control and the partner asserts
+ * them. Before this they were read-only flags that nothing wrote, which meant
+ * the card could never reach 6 of 6 no matter what a partner did.
+ *
+ * `canEdit` is `settings.write`. A seat without it still sees the checklist —
+ * knowing what is outstanding is not privileged — and gets no controls, which
+ * is the same hide-don't-disable rule the rest of the portal follows.
+ */
+export function OnboardingChecklist({
+  steps,
+  canEdit = false,
+  dismissed = false,
+}: {
+  steps: OnboardingStep[];
+  canEdit?: boolean;
+  dismissed?: boolean;
+}) {
   const done = steps.filter((s) => s.done).length;
+
+  // Dismissed but not finished: one line with the way back, rather than nothing
+  // at all. A card that vanishes with no trace is a card a partner cannot
+  // recover when they change their mind.
+  if (dismissed && done < steps.length) {
+    return canEdit ? (
+      <form action={dismissOnboardingAction} className="text-xs text-brand-ink/45">
+        <input type="hidden" name="restore" value="true" />
+        <button className="underline underline-offset-2 hover:text-brand-ink/70">
+          Show setup checklist ({done} of {steps.length} done)
+        </button>
+      </form>
+    ) : null;
+  }
   if (done === steps.length) return null;
 
   return (
     <div className="rounded-tile border border-brand-primary/25 bg-brand-primary/[0.04] p-5">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-heading text-lg font-bold">Get set up</h2>
-        <span className="text-xs tabular-nums text-brand-ink/50">
-          {done} of {steps.length}
+        <span className="flex items-baseline gap-3">
+          <span className="text-xs tabular-nums text-brand-ink/50">
+            {done} of {steps.length}
+          </span>
+          {canEdit && (
+            <form action={dismissOnboardingAction}>
+              <button className="text-xs text-brand-ink/40 underline underline-offset-2 hover:text-brand-ink/70">
+                Hide
+              </button>
+            </form>
+          )}
         </span>
       </div>
       <ul className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -242,14 +290,41 @@ export function OnboardingChecklist({ steps }: { steps: OnboardingStep[] }) {
               <span className={s.done ? "line-through" : "font-medium"}>{s.label}</span>
             </span>
           );
-          return (
-            <li key={s.key}>
-              {s.href && !s.done ? (
+
+          const link =
+            s.href && !s.done ? (
+              s.external ? (
+                <a
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-lg px-1 py-1.5 hover:bg-white"
+                >
+                  {body}
+                </a>
+              ) : (
                 <Link href={s.href} className="block rounded-lg px-1 py-1.5 hover:bg-white">
                   {body}
                 </Link>
-              ) : (
-                <span className="block px-1 py-1.5">{body}</span>
+              )
+            ) : (
+              <span className="block px-1 py-1.5">{body}</span>
+            );
+
+          return (
+            <li key={s.key} className="flex items-center justify-between gap-2">
+              {link}
+              {/* The tick, and the way back out of it. Untickable on purpose:
+                  a checklist you cannot correct starts lying the first time
+                  somebody mis-clicks. */}
+              {canEdit && s.selfAsserted && (
+                <form action={setOnboardingStepAction} className="shrink-0">
+                  <input type="hidden" name="key" value={s.key} />
+                  <input type="hidden" name="done" value={s.done ? "false" : "true"} />
+                  <button className="rounded-full border border-brand-ink/15 bg-white px-2.5 py-1 text-[0.7rem] font-semibold text-brand-ink/60 hover:bg-brand-surface">
+                    {s.done ? "Undo" : "Mark done"}
+                  </button>
+                </form>
               )}
             </li>
           );

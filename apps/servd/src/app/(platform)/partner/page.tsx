@@ -2,6 +2,7 @@ import Link from "next/link";
 import { partnerCan, requirePartnerPage } from "@/server/partners/auth";
 import { getPartnerOverview, getPartnerProfile, onboardingChecklist } from "@/server/partners/overview";
 import { getPartnerTrainingUrl } from "@/server/partners/portal";
+import { getHqBookingUrl } from "@/server/hq/applications";
 import { listPartnerDemos } from "@/server/partners/demo-queries";
 import { listPartnerPharmacies } from "@/server/partners/pharmacies";
 import { provisionableProducts } from "@/server/products";
@@ -53,13 +54,16 @@ export default async function PartnerPortalPage() {
   // Every one of these opens its own scoped transaction, so awaiting them in
   // sequence paid for each round trip end to end. Nothing here depends on
   // anything else here, so they go out together.
-  const [overview, profile, demos, trainingUrl, pharmacies] = await Promise.all([
+  const [overview, profile, demos, trainingUrl, pharmacies, bookingUrl] = await Promise.all([
     getPartnerOverview(partner.id),
     getPartnerProfile(partner.id),
     listPartnerDemos(partner.id),
     getPartnerTrainingUrl(),
     // Resceta merchants live on their own axis (D29), so they are a second query.
     listPartnerPharmacies(partner.id),
+    // HQ's kickoff calendar, for the checklist's last step. It already swallows
+    // its own failure and returns null, so it joins the parallel batch.
+    getHqBookingUrl(),
   ]);
   // Separate from the Promise.all above because it is best-effort: an
   // announcement table that is not migrated must not take the dashboard down.
@@ -124,7 +128,11 @@ export default async function PartnerPortalPage() {
 
       {profile && (
         <div className="mt-4">
-          <OnboardingChecklist steps={onboardingChecklist(overview, profile)} />
+          <OnboardingChecklist
+            steps={onboardingChecklist(overview, profile, bookingUrl)}
+            canEdit={partnerCan(partner, "settings.write")}
+            dismissed={!!overview.onboarding.dismissedAt}
+          />
         </div>
       )}
 
@@ -140,7 +148,8 @@ export default async function PartnerPortalPage() {
       </div>
 
       {trainingUrl && (
-        <div className="mt-4">
+        // The checklist's "Finish the training" step links to this anchor.
+        <div id="training" className="mt-4 scroll-mt-20">
           <TrainingVideo url={trainingUrl} />
         </div>
       )}

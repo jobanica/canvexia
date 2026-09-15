@@ -4,6 +4,10 @@ import { requirePartnerPageWith } from "@/server/partners/auth";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { PortalShell } from "@/components/partner/PortalShell";
 import { peso } from "@/components/partner/Overview";
+import {
+  getNotificationPrefs,
+  setNotificationPrefAction,
+} from "@/server/partners/notifications-actions";
 
 /**
  * Settings: notifications, payout details, and the agreement.
@@ -39,6 +43,10 @@ export default async function PartnerSettingsPage() {
 
   const ladder = parseMilestones(row?.milestones);
   const canEncrypt = !!process.env.CREDENTIALS_ENCRYPTION_KEY;
+  const prefs = await getNotificationPrefs(partner.id, partner.user.id);
+  // A legacy login has no `partner_users` row, so there is no seat to store a
+  // preference against. It sees the list and no switches, which is the truth.
+  const canChoose = !!partner.user.id && !partner.impersonatedBy;
 
   return (
     <PortalShell
@@ -114,26 +122,50 @@ export default async function PartnerSettingsPage() {
         <section className="mt-6 rounded-tile border border-brand-ink/10 bg-white p-5">
           <h2 className="font-heading text-lg font-bold">Notifications</h2>
           <p className="mt-1 text-sm text-brand-ink/55">
-            What we would email you about, once email is switched on.
+            What we email you about. These are yours, not your team&rsquo;s — each seat
+            chooses for itself.
           </p>
           <ul className="mt-4 space-y-2">
-            {NOTIFICATION_EVENTS.map((e) => (
-              <li key={e} className="flex items-center justify-between gap-3 text-sm">
-                <span>{NOTIFICATION_LABELS[e]}</span>
-                <span className="text-xs text-brand-ink/40">email</span>
-              </li>
-            ))}
+            {NOTIFICATION_EVENTS.map((e) => {
+              const on = prefs[e] !== false;
+              return (
+                <li key={e} className="flex items-center justify-between gap-3 text-sm">
+                  <span className={on ? "" : "text-brand-ink/40"}>{NOTIFICATION_LABELS[e]}</span>
+                  {canChoose ? (
+                    <form action={setNotificationPrefAction}>
+                      <input type="hidden" name="event" value={e} />
+                      <input type="hidden" name="on" value={on ? "false" : "true"} />
+                      <button
+                        aria-pressed={on}
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                          on
+                            ? "border-brand-primary/40 bg-brand-primary/10 text-brand-primary"
+                            : "border-brand-ink/15 text-brand-ink/45 hover:bg-brand-surface"
+                        }`}
+                      >
+                        {on ? "Email on" : "Email off"}
+                      </button>
+                    </form>
+                  ) : (
+                    <span className="text-xs text-brand-ink/40">{on ? "email" : "off"}</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
           <p className="mt-4 text-xs leading-relaxed text-brand-ink/45">
             {/*
-              The toggles are not interactive yet, and saying so is the point.
-              CREDENTIALS_ENCRYPTION_KEY is unset and no Resend key has ever been
-              entered, so nothing can send — and a switch that silently controls
-              nothing is worse than a list that admits it.
+              These switches were inert until the digest had something to control.
+              They now decide who the daily digest is QUEUED for — and queued is
+              still the honest word: CREDENTIALS_ENCRYPTION_KEY is unset on this
+              deployment, so no Resend key can even be stored and nothing leaves
+              the queue yet. Turning one off means you will not be in the queue
+              when it drains.
             */}
-            These are not switchable yet, because nothing can send. When email is
-            configured you will be able to turn each one off, and the daily digest with
-            them. Messenger is on the list for later.
+            The daily digest is composed every morning and queued for whoever has email
+            on here. Nothing leaves the queue yet — email sending is not configured on
+            this deployment — so turning one off decides what you get the day it is.
+            Messenger is on the list for later.
           </p>
         </section>
 

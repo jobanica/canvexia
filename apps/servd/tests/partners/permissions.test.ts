@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import {
   CAPABILITIES,
   PARTNER_USER_ROLES,
@@ -106,5 +108,54 @@ describe("the stored role vocabulary", () => {
     expect(match, "the CHECK constraint moved or was renamed").toBeTruthy();
     const inSql = match![1].split(",").map((s) => s.trim().replace(/'/g, ""));
     expect(inSql.sort()).toEqual([...PARTNER_USER_ROLES].sort());
+  });
+});
+
+describe("partner pages hide rather than disable", () => {
+  /**
+   * Every screen under /partner whose whole purpose needs a capability must ask
+   * for it at the page, not only at the action.
+   *
+   * `/partner/brand` rendered the full brand form for a `sales` seat and then
+   * rejected the submit, and `/partner/demo/[id]` did worse — a full menu
+   * editor whose every button silently no-opped. Both are the same miss: the
+   * sidebar hid the link, and a typed URL did not care.
+   *
+   * Only pages that actually reach for the bare session gate are checked, so
+   * the public ones (apply, login, forgot-password) need no entry here. The one
+   * deliberate exception is named rather than pattern-matched, so adding a
+   * second is a decision somebody makes on purpose.
+   */
+  const OPEN = new Set([
+    // The dashboard. Every seat sees it — that is what it is for, and the cards
+    // on it hide their own controls per capability.
+    "page.tsx",
+  ]);
+
+  const pagesUnder = (dir: string, prefix = ""): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory()
+        ? pagesUnder(join(dir, e.name), `${prefix}${e.name}/`)
+        : e.name === "page.tsx"
+          ? [`${prefix}${e.name}`]
+          : [],
+    );
+
+  it("no /partner page falls back to the bare session gate", () => {
+    const root = join(process.cwd(), "src/app/(platform)/partner");
+    const offenders = pagesUnder(root).filter(
+      (rel) => !OPEN.has(rel) && readFileSync(join(root, rel), "utf8").includes("requirePartnerPage()"),
+    );
+    expect(
+      offenders,
+      `these render without a capability: ${offenders.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("still sees the pages, so the guard is not scanning an empty directory", () => {
+    const found = pagesUnder(join(process.cwd(), "src/app/(platform)/partner"));
+    expect(found).toContain("brand/page.tsx");
+    expect(found).toContain("demo/[id]/page.tsx");
+    expect(found.length).toBeGreaterThan(6);
   });
 });

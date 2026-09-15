@@ -76,7 +76,7 @@ column is browser-verified; `sales`/`support` are derived.
 | `/partner/team` | `team.read` | PASS | BLOCKED | BLOCKED | |
 | `/partner/settings` | `settings.write` | PASS | BLOCKED | BLOCKED | |
 | `/partner/domains` | `domains.write` | PASS | BLOCKED | BLOCKED | |
-| **`/partner/brand`** | **session only** | PASS | **FAIL** | **FAIL** | **Bug 4** — page opens for every seat; only the save is gated |
+| **`/partner/brand`** | `brand.write` | PASS | PASS | PASS | ~~Bug 4~~ — fixed |
 | **`/partner/demo/[id]`** | **session only** | PASS | **FAIL** | **FAIL** | **Bug 2** — opens for every seat, and its writes are ungated |
 | `/partner/view-as/[token]` | token | n/a | n/a | n/a | route handler; exercised in §3.1 |
 | `/partner/view-as/end` | session | PASS | PASS | PASS | |
@@ -216,7 +216,7 @@ is the *only* gate on this path.
 
 ---
 
-### Bug 3 — the onboarding checklist has two steps that can never be completed · **major**
+### Bug 3 — the onboarding checklist has two steps that can never be completed · **major** · FIXED
 
 **Steps.** Open `/partner` as an approved partner. The checklist shows six
 steps, two of which ("Finish the training", "Book your HQ kickoff call") read
@@ -230,9 +230,21 @@ and the checklist can never reach 6/6. The other four are derived and do work.
 
 **Screenshot.** `screenshots/desktop-overview.png`.
 
+**Fixed.** `server/partners/onboarding-actions.ts` writes the column. The two
+steps stay SELF-ASSERTED — an embedded YouTube iframe does not report that it
+finished and Google's booking pages send no webhook, so the alternative was to
+invent a signal — but ticking is now audited (`partner.onboarding_step`), so HQ's
+Activity tab shows an operator claiming the training rather than the platform
+claiming it for them. Both are untickable as well as tickable: a checklist you
+cannot correct starts lying the first time somebody mis-clicks. The kickoff step
+now links to HQ's own calendar from program settings, and the training step to
+the video further down the same page. `dismissedAt` was the third half-wired
+field in the same JSON object — read, typed, threaded to the page and never set
+— so the card now has a Hide, and a one-line way back.
+
 ---
 
-### Bug 4 — `/partner/brand` opens for seats that cannot use it · **minor**
+### Bug 4 — `/partner/brand` opens for seats that cannot use it · **minor** · FIXED
 
 **Steps.** Sign in as `sales` or `support`; navigate directly to `/partner/brand`.
 
@@ -245,11 +257,14 @@ changed — but the portal's own stated rule is *hide, don't disable*, and this
 shows a salesperson a form that will reject them. `/partner/demo/[id]` has the
 same missing gate, with the worse consequence in Bug 2.
 
-**Fix shape:** `requirePartnerPageWith("brand.write")`.
+**Fixed.** `requirePartnerPageWith("brand.write")`. A drift guard in
+`tests/partners/permissions.test.ts` now fails on any `/partner` page that
+reaches for the bare session gate, with the dashboard named as the one
+deliberate exception — it fails against the unfixed `brand/page.tsx`.
 
 ---
 
-### Bug 5 — the daily digest is built, tested, and never sent · **major**
+### Bug 5 — the daily digest is built, tested, and never sent · **major** · FIXED
 
 `composeDigest` / `worthSending` exist in `packages/db` with a test file, and
 `notification_prefs` records eight event preferences per seat. **Nothing calls
@@ -257,6 +272,31 @@ either.** There is no digest cron route (`/api/cron/` has billing,
 cart-recovery, email-followup, freeze-statements, preview-cleanup) and no
 reference to `composeDigest` outside its own test. Every notification toggle on
 `/partner/settings` therefore controls nothing.
+
+**Fixed, with one honest limit.** `server/partners/digest.ts` gathers the facts,
+calls `composeDigest`, and **queues** into `outbound_emails`;
+`/api/cron/partner-digest` runs it at 23:00 UTC — 07:00 Manila — behind
+`CRON_SECRET` and records the run in `cron_runs`.
+
+Queued, not sent, and that is not a shortcut: Resend's key lives in
+`platform_settings.emailCredsEnc` behind `CREDENTIALS_ENCRYPTION_KEY`, which is
+unset on this project, so **no code path in this repository can put mail on the
+wire today**. The choice was between a job that does nothing and one that writes
+the row a sender drains the day that key exists — and the queued row is visible,
+so "the digest is not going out" and "the digest has nothing to say" stop
+producing identical evidence.
+
+The settings toggles are now real and per seat, and they decide who the digest is
+queued for. A missing `notification_prefs` row counts as ON, matching the column
+default — treating absence as "off" would silently opt out every partner who has
+never opened that screen, including from the payment-failure notice.
+
+The Manila window is computed, not approximated: `manilaYesterday()` has four
+tests, including the one that would have caught the same off-by-a-day that put
+the freeze-statements job a month out of place.
+
+**Still open:** nothing drains `outbound_emails`, and `/hq/billing` surfaces the
+last `freeze-statements` run but not this one.
 
 ---
 
@@ -352,7 +392,7 @@ check is missing.
   currently accomplish anything.
 - **Revenue with an empty ledger** shows ₱0 with no explanation that no payment
   has ever settled — indistinguishable from a bug.
-- Bug 4's brand form is a visible dead end for two of three roles.
+- ~~Bug 4's brand form is a visible dead end for two of three roles.~~ Fixed.
 
 ---
 
@@ -360,7 +400,7 @@ check is missing.
 
 | Gap | Detail |
 |---|---|
-| `partners.onboardingSteps` | read ×3, written ×0 — Bug 3 |
+| `partners.onboardingSteps` | ~~read ×3, written ×0~~ — Bug 3, fixed |
 | `partners.enabledProducts` | written on conversion, read nowhere |
 | `partners.referralPartnerId` | on the PARTNER, so the house account records one referrer in total, not one per national merchant |
 | `notification_prefs` | eight events stored; no sender consults them |
@@ -384,14 +424,13 @@ check is missing.
    against the fixed one. It also now strips comments before scanning, so a
    file can neither pass by *mentioning* the gate it lacks nor fail for
    explaining why it moved off `getCurrentPartner`.
-4. **Bug 4** — `requirePartnerPageWith("brand.write")` on `/partner/brand`.
-   The `/partner/demo/[id]` half of this item was done with 1–3, since leaving
-   that page open to every seat would have meant a full menu editor whose every
-   button silently no-ops.
-5. **Bug 3** — write `onboardingSteps` when training is watched and the kickoff
-   is booked, or remove the two steps.
-6. **Bug 5** — wire the digest to a cron route, or delete it and the
-   preference toggles it implies.
+4. ~~**Bug 4** — `requirePartnerPageWith("brand.write")` on `/partner/brand`.~~
+   **Done**, both halves: `/partner/demo/[id]` landed with 1–3, `/partner/brand`
+   after, with a drift guard over every page in the route group.
+5. ~~**Bug 3** — write `onboardingSteps`.~~ **Done**, as audited self-assertions
+   plus a working dismiss.
+6. ~~**Bug 5** — wire the digest to a cron route.~~ **Done**, composing and
+   queueing daily; the queue still has no drain, which is item 8.
 7. Invitation acceptance route (§4.1) — without it no partner can be onboarded.
 8. `CREDENTIALS_ENCRYPTION_KEY` + an `outbound_emails` drain (§4.2).
 9. `enabledProducts` read by `provisionableProducts()` (§4.7).

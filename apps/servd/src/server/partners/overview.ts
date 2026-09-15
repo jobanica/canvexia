@@ -186,25 +186,55 @@ export interface OnboardingStep {
   label: string;
   done: boolean;
   href?: string;
+  /** Opens in a new tab — an outside link, not a portal route. */
+  external?: boolean;
+  /**
+   * True for the two steps nobody can observe, which the partner ticks itself.
+   *
+   * The component uses this to decide which rows get a tick control. Derived
+   * steps must NOT get one: a tick on "Add payout details" would either lie
+   * about a column that is still empty or need a second source of truth for
+   * the same fact.
+   */
+  selfAsserted?: boolean;
 }
 
 export function onboardingChecklist(
   overview: PartnerOverview,
   partner: { slug: string | null; brandConfig: unknown; payoutMethod: string | null },
+  /** HQ's own calendar, from program settings. Null when none is configured. */
+  bookingUrl: string | null = null,
 ): OnboardingStep[] {
   const stored = overview.onboarding.steps;
   return [
     { key: "brand", label: "Set your brand", done: !!partner.brandConfig, href: "/partner/brand" },
     { key: "subdomain", label: "Confirm your subdomain", done: !!partner.slug, href: "/partner/brand" },
     { key: "payout", label: "Add payout details", done: !!partner.payoutMethod, href: "/partner/settings" },
-    { key: "training", label: "Finish the training", done: !!stored.training },
+    {
+      key: "training",
+      label: "Finish the training",
+      done: !!stored.training,
+      // An anchor on this same page — the video is further down it.
+      href: "/partner#training",
+      selfAsserted: true,
+    },
     {
       key: "first_merchant",
       label: "Open your first merchant account",
       done: overview.merchants.length > 0,
       href: "/partner/merchants",
     },
-    { key: "kickoff", label: "Book your HQ kickoff call", done: !!stored.kickoff },
+    {
+      key: "kickoff",
+      label: "Book your HQ kickoff call",
+      done: !!stored.kickoff,
+      // HQ's calendar when one is set. Google sends no webhook when a slot is
+      // booked, which is exactly why this step is self-asserted: the link opens
+      // the calendar, the partner ticks it once they have a slot.
+      href: bookingUrl ?? undefined,
+      external: !!bookingUrl,
+      selfAsserted: true,
+    },
   ];
 }
 

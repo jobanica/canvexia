@@ -1,10 +1,17 @@
 import Link from "next/link";
-import { requirePartnerPage } from "@/server/partners/auth";
+import { requirePartnerPageWith } from "@/server/partners/auth";
 import { getPartnerBrand } from "@/server/partners/brand-actions";
 import { PartnerBrandForm } from "@/components/partner/PartnerBrandForm";
 
 export default async function PartnerBrandPage() {
-  const partner = await requirePartnerPage();
+  // `brand.write` is the only thing this page does. The sidebar already hides
+  // the link for a seat that lacks it and `savePartnerBrand` already refuses —
+  // but the portal's rule is hide, don't disable, and without this a
+  // salesperson got the full brand form and a rejection on submit.
+  //
+  // `requirePartnerPageWith` redirects to /partner rather than to login: they
+  // are signed in correctly and simply do not hold it.
+  const partner = await requirePartnerPageWith("brand.write");
 
   if (partner.status !== "approved") {
     return (
