@@ -1,8 +1,10 @@
 import { requirePartnerPage } from "@/server/partners/auth";
 import { getPartnerDashboard, getPartnerTrainingUrl } from "@/server/partners/portal";
 import { listPartnerDemos } from "@/server/partners/demo-queries";
+import { listPartnerPharmacies } from "@/server/partners/pharmacies";
 import { signOutPartner } from "@/server/partners/login-action";
 import { PartnerDemos } from "@/components/partner/PartnerDemos";
+import { PartnerPharmacies } from "@/components/partner/PartnerPharmacies";
 import { TrainingVideo } from "@/components/partner/TrainingVideo";
 import { AppIcon, Wordmark } from "@/components/Wordmark";
 
@@ -37,6 +39,8 @@ export default async function PartnerPortalPage() {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const demos = await listPartnerDemos(partner.id);
   const trainingUrl = await getPartnerTrainingUrl();
+  // Resceta merchants live on their own axis (D29), so they are a second query.
+  const pharmacies = await listPartnerPharmacies(partner.id);
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
@@ -107,6 +111,8 @@ export default async function PartnerPortalPage() {
           </ul>
         )}
       </div>
+
+      <PartnerPharmacies pharmacies={pharmacies} />
 
       <p className="mt-6 text-xs text-plum-ink/40">
         There is no cap on how many restaurants you can set up, and no commission in either

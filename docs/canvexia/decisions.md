@@ -1491,3 +1491,75 @@ A credit note needs the pharmacy's TIN, address, LTO and PRC number, and none of
 the beneficiary checks — those belong to the sale, not to its correction. So
 `receiptGaps` is now `identityGaps` plus the beneficiary rules, and both
 documents print **NOT AN OFFICIAL …** on the same basis (D33).
+
+---
+
+## D36 — The merchant lifecycle belongs to the partner portal, in every product
+
+**Settled, and standing.** Creating a merchant and switching it on are **partner
+portal** actions, for Servd, Resceta, and every vertical added later. Not psql,
+not a script, not an HQ-only screen.
+
+The reason is ownership, not convenience. A CANVEXIA merchant is owned by a
+partner (D1); the partner is who signed them, who bills them, and who answers
+for them. An operation that changes what a merchant may do therefore has to be
+performed by that partner, under their login, and land in `audit_logs` with
+their email on it. A SQL statement satisfies none of that.
+
+`task.md` told the operator to run
+
+```sql
+update pharmacies set status = 'active' where slug = '…';
+```
+
+which worked and was wrong: no actor, no reason, no record, and no check that
+the thing it asserts is true.
+
+### Activation is gated on the licence, which is what makes D30 real
+
+A pharmacy is provisioned `pending` because it cannot legally dispense before
+its FDA Licence to Operate is on file. That reasoning only holds if something
+checks — otherwise "pending on purpose" is a comment in a provisioning script.
+
+So `canActivatePharmacy` refuses until `fdaLtoNumber` is recorded. Not the
+platform verifying a licence with the FDA, which it cannot do: **the pharmacy
+asserting it has one, and the partner acting on that assertion, both recorded.**
+That is a control an inspection can use. The audit row carries the number that
+was on file at the moment of activation, because "activated" alone does not
+answer the question an inspection asks.
+
+Two refusals beyond the licence, and both are about not erasing a decision
+somebody else made:
+
+- **already active** — nothing to do, and a second audit row would imply there was
+- **suspended** — a suspension is a decision; a partner clearing it by pressing
+  Activate would undo it without recording anything
+
+### Scoped by the database, not by a `where` clause
+
+`listPartnerPharmacies` and `activatePharmacy` run under `partnerDb`, so a
+partner naming another partner's pharmacy id gets **zero rows** — and the action
+answers "not found" rather than "not yours", because probing ids should not be
+a directory. A DB-backed test asserts exactly that, including that the other
+pharmacy's status is unchanged afterwards.
+
+The update and its audit row are written in **one transaction**. A status change
+on a regulated merchant that is not attributable to a person is the single
+outcome this must not produce, so it cannot depend on a second call happening.
+
+### What this means for the next vertical
+
+The machinery already exists and is the thing to use: `PRODUCTS` in
+`packages/core/src/products/registry.ts`, the `ProductAdapter` contract, and
+`provisionMerchantForPartner`. A new product registers an adapter and the portal
+can provision into it **without the portal importing anything from the
+vertical** — which is the whole point of the registry, and why `live: false`
+exists on a product whose adapter is not there yet.
+
+Creation from the portal is **not yet wired for pharmacies**: Resceta's adapter
+registers inside `apps/resceta`, and the portal runs in `apps/servd`, so that
+process has no pharmacy adapter to dispatch to. Activation is done; provisioning
+from the portal is the next build, and the fix is a Servd-side adapter over
+shared provisioning logic rather than a second copy of it — merchant creation
+drifting into two implementations is precisely the failure this decision exists
+to prevent.

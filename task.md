@@ -2,7 +2,7 @@
 
 CANVEXIA is separate from servdph.com — its own database, its own merchants, its
 own domains (D31). Two products live: **Servd** (restaurants) and **Resceta**
-(pharmacy). 1,274 tests pass, none skipped.
+(pharmacy). 1,287 tests pass, none skipped.
 
 | Domain | Serves | Deployment |
 |---|---|---|
@@ -31,14 +31,13 @@ cannot legally dispense before its FDA Licence to Operate is on file, so
 provisioning creates it pending and defaulting to active would mean the platform
 had enabled it. Everything works except selling.
 
-The licence numbers themselves now go in through **Settings** in the app — no
-SQL. Activation is still deliberate and separate:
+The licence numbers go in through **Settings** in Resceta. **Activation is done
+in the CANVEXIA partner portal** — `/partner`, under *Your pharmacies* — not in
+psql (D36). The portal refuses until the FDA LTO is on file, and writes an audit
+row naming the partner who did it and the licence number they acted on.
 
-```sql
-update pharmacies
-   set status = 'active', "updatedAt" = now()
- where slug = 'canvexia-pharmacy-davao';
-```
+So the order is: record the LTO in Resceta's Settings, then press **Activate**
+in the partner portal.
 
 Rename it freely — Resceta has no slug in its URLs (D30), so the name and slug
 are display only.
@@ -167,7 +166,7 @@ of field names, because what an audit asks is what the TIN *used to be*.
 ## Numbers
 
 - **Resceta 161 offline + 45 DB-backed**
-- **Servd 1,030 offline + 38 DB-backed**
+- **Servd 1,043 offline + 38 DB-backed**
 - both typecheck, both build
 
 One more thing turned up while verifying: `turbo run test` was **hiding
