@@ -38,3 +38,13 @@ export {
   type StatementLine,
 } from "./statements";
 export { composeDigest, DIGEST_EVENTS, type Digest, type DigestFacts } from "./digest";
+export {
+  computeCommission,
+  describeRule,
+  ruleApplies,
+  type CommissionFact,
+  type CommissionLineFact,
+  type CommissionRuleFact,
+  type CommissionRuleType,
+  type CommissionStatementDraft,
+} from "./commissions";

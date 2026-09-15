@@ -98,4 +98,14 @@ eight.
       editor; a seat without `hr.view_all` is filtered in the QUERY
 - [x] 14 more tests; suite 1291 → 1305
 ## A7.6 — Commissions job + views + mark paid
+
+- [x] `packages/db/src/commissions.ts` — pure; floors, one line per rule,
+      per_signup only on the first settlement, `endsAt` exclusive
+- [x] `server/partners/commissions.ts` — draft + idempotent freeze; a zero
+      statement is still written
+- [x] `/api/cron/partner-commissions` on `0 1 1 * *`, recorded in `cron_runs`
+- [x] `commissions-actions.ts` — add/end a rule (never edit), mark paid once
+- [x] `/partner/commissions` — own by default, everyone with `commissions.manage`,
+      live preview of the open month from the same draft function
+- [x] 19 more tests; suite 1305 → 1324
 ## A7.7 — Notifications + digest additions

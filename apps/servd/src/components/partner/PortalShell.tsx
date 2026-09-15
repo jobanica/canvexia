@@ -114,6 +114,12 @@ export function PortalShell({
   }
 
   const lower: Item[] = [
+    {
+      href: "/partner/commissions",
+      label: "Commissions",
+      icon: <IconWallet />,
+      need: "commissions.view_own",
+    },
     { href: "/partner/team", label: "Team", icon: <IconUsers />, need: "team.manage" },
     { href: "/partner/settings", label: "Settings", icon: <IconGear />, need: "settings.write" },
   ];
