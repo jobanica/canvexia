@@ -1,6 +1,6 @@
 import "server-only";
 import { partnerDb, systemDb } from "@/server/tenancy/scoped-db";
-import { startOfManilaDay } from "@/lib/orders/order-number";
+import { manilaDayKey } from "@/server/partners/attendance";
 import { monthKeyOf } from "@servd/db";
 import { listPartnerMerchants, type PartnerMerchant } from "./merchants";
 
@@ -55,8 +55,11 @@ export async function getMyDay(
   partnerUserId: string,
   asOf: Date = new Date(),
 ): Promise<MyDay> {
-  const dayStart = startOfManilaDay(asOf);
-  const dayKey = dayStart.toISOString().slice(0, 10);
+  // `manilaDayKey`, not `startOfManilaDay(...).toISOString().slice(0,10)`:
+  // that returns the UTC instant of Manila midnight, which is 16:00 on the
+  // PREVIOUS UTC date, so slicing it gives yesterday's key for most of the
+  // working day — and the check-in card would say "not in" to somebody who is.
+  const dayKey = manilaDayKey(asOf);
   const month = monthKeyOf(asOf);
   const monthStart = new Date(`${month}-01T00:00:00Z`);
 

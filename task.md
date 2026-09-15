@@ -69,6 +69,24 @@ eight.
 - [x] Team rows link into the record; `ops_manager` blurb added
 - [x] 13 more tests; suite 1245 → 1258
 ## A7.4 — Attendance PWA, visit log, manager view, offline queue
+
+- [x] `lib/partners/geo.ts` — haversine + the 300 m rule, 14 tests, no dependency
+- [x] `server/storage/field-photos.ts` — private bucket, path not URL, signed
+      reads scoped to the partner
+- [x] `server/partners/attendance.ts` + `-actions.ts` — check in/out, visits,
+      auto-close, `subjectLocation`
+- [x] `/partner/attendance` — the field app, outside PortalShell, phone-first
+- [x] `partner-field.webmanifest` + layout — installable, scoped to `/partner`
+- [x] `lib/partners/visit-queue.ts` — its own IndexedDB store, `clientRef`
+      idempotency, drain stops on first failure, no photos queued
+- [x] `/api/partner/field/sync` — stable URL, 200 on refusal, 503 on fault
+- [x] `/partner/attendance/manager` — Leaflet map + 7-day table + flags
+- [x] `/api/partner/attendance.csv` — one row per person per day
+- [x] Auto-close folded into the daily digest cron, not a 7th schedule
+- [x] **Bug found by the tests:** `manilaDayKey` sliced the ISO string of
+      `startOfManilaDay()`, which is 16:00 UTC the PREVIOUS day — every
+      check-in would have landed on yesterday's key. Same bug in `my-day.ts`.
+- [x] 19 more tests; suite 1258 → 1291
 ## A7.5 — Targets & scorecard
 ## A7.6 — Commissions job + views + mark paid
 ## A7.7 — Notifications + digest additions

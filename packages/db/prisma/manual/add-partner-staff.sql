@@ -9,9 +9,10 @@
 -- is written into the INSERT of every create() in the codebase and breaks
 -- creates on a database that has not run this file yet.
 --
--- SEPARATELY: create a PRIVATE Storage bucket named "partner-attendance"
--- (Storage → New bucket → uncheck Public). Check-in selfies and visit photos
--- go there; nothing in this repository creates buckets.
+-- Check-in selfies and visit photos go in a PRIVATE Storage bucket named
+-- "partner-attendance". You do not have to create it by hand: the uploader
+-- calls ensureBucket() the way clock-photos.ts already does. Creating it in the
+-- dashboard first is fine too — ensureBucket is a no-op when it exists.
 
 -- ----------------------------------------------------------------------------
 -- 1. The fourth seat role.

@@ -7,7 +7,9 @@ import {
   IconBell,
   IconFunnel,
   IconGear,
+  IconClock,
   IconGlobe,
+  IconMapPin,
   IconGrid,
   IconPalette,
   IconSearch,
@@ -91,6 +93,25 @@ export function PortalShell({
     { href: "/partner/brand", label: "Brand", icon: <IconPalette />, need: "brand.edit" },
     { href: "/partner/domains", label: "Domains", icon: <IconGlobe />, need: "domains.write" },
   ];
+
+  // The field app and the manager's view of it. Two entries rather than one
+  // screen that branches, because they are different jobs: one is "check me
+  // in", the other is "where was the team". A salesperson holds only the first.
+  if (partner.permissions.has("attendance.checkin")) {
+    items.splice(1, 0, {
+      href: "/partner/attendance",
+      label: "Field",
+      icon: <IconMapPin />,
+    });
+  }
+  if (partner.permissions.has("attendance.view_all")) {
+    items.push({
+      href: "/partner/attendance/manager",
+      label: "Attendance",
+      icon: <IconClock />,
+      need: "attendance.view_all",
+    });
+  }
 
   const lower: Item[] = [
     { href: "/partner/team", label: "Team", icon: <IconUsers />, need: "team.manage" },

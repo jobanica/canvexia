@@ -102,3 +102,19 @@ export const IconBell = (p: P) => (
     <path d="M13.7 20a2 2 0 0 1-3.4 0" />
   </Svg>
 );
+
+/** A map pin, for the field app. */
+export const IconMapPin = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z" />
+    <circle cx="12" cy="10" r="2.6" />
+  </Svg>
+);
+
+/** A clock, for the manager's attendance view. */
+export const IconClock = (p: P) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5.2l3.2 2" />
+  </Svg>
+);

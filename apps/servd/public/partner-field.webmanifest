@@ -1,0 +1,16 @@
+{
+  "name": "CANVEXIA Field",
+  "short_name": "Field",
+  "description": "Check in, log visits, and work your list — built for a phone, in or out of signal",
+  "start_url": "/partner/attendance",
+  "scope": "/partner",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#3B1E54",
+  "icons": [
+    { "src": "/brand/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/brand/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
