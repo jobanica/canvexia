@@ -6,6 +6,7 @@ import { PARTNER_USER_ROLES, capabilitiesOf } from "@servd/core";
 import {
   deactivateSeatAction,
   inviteSeatAction,
+  resendInviteAction,
   revokeInviteAction,
   type TeamState,
 } from "@/server/partners/team-actions";
@@ -21,9 +22,30 @@ const ROLE_BLURB: Record<string, string> = {
   support: "Looks after merchants that already exist. Cannot change what anyone is charged.",
 };
 
-export function TeamManager({ seats, invites }: { seats: SeatRow[]; invites: InviteRow[] }) {
+/** What the pending-invite row says about the email that carries it. */
+const DELIVERY_LABEL: Record<InviteRow["delivery"], string> = {
+  none: "not emailed — send them the link yourself",
+  queued: "email queued",
+  sent: "emailed",
+  failed: "email failed",
+};
+
+export function TeamManager({
+  seats,
+  invites,
+  emailConfigured,
+  canConfigureEmail,
+}: {
+  seats: SeatRow[];
+  invites: InviteRow[];
+  /** Whether the platform has a working email provider at all. */
+  emailConfigured: boolean;
+  /** True only for HQ. A partner admin cannot fix this and should not be told to. */
+  canConfigureEmail: boolean;
+}) {
   const [state, invite, pending] = useActionState(inviteSeatAction, initial);
   const [revokeState, revoke] = useActionState(revokeInviteAction, initial);
+  const [resendState, resend] = useActionState(resendInviteAction, initial);
   const [seatState, deactivate] = useActionState(deactivateSeatAction, initial);
   const field =
     "min-h-[44px] w-full rounded-lg border border-brand-ink/15 bg-white px-3 text-sm outline-none focus:border-brand-ink";
@@ -98,15 +120,38 @@ export function TeamManager({ seats, invites }: { seats: SeatRow[]; invites: Inv
                 <span>
                   <span className="block text-sm font-semibold">{i.email}</span>
                   <span className="block text-xs text-brand-ink/45">
-                    {i.role} · {i.expired ? "expired" : `expires ${i.expiresAt.toLocaleDateString()}`}
+                    {i.role} · {i.expired ? "expired" : `expires ${i.expiresAt.toLocaleDateString()}`} ·{" "}
+                    {/* The delivery state, because "I sent you an invite" and
+                        "the invite is sitting in a queue" are the two answers
+                        an admin chasing a new hire actually needs. */}
+                    <span className={i.delivery === "failed" ? "text-guava" : undefined}>
+                      {DELIVERY_LABEL[i.delivery]}
+                    </span>
                   </span>
+                  {i.error && (
+                    <span className="mt-0.5 block text-xs text-guava">{i.error}</span>
+                  )}
                 </span>
-                <form action={revoke}>
-                  <input type="hidden" name="inviteId" value={i.id} />
-                  <button className="text-xs font-semibold text-guava hover:underline">
-                    Revoke
-                  </button>
-                </form>
+                <span className="flex shrink-0 items-center gap-3">
+                  {/* Resend mints a NEW token and kills the old one — see
+                      resendInvite. The button says so in its title rather than
+                      in a paragraph nobody reads. */}
+                  <form action={resend}>
+                    <input type="hidden" name="inviteId" value={i.id} />
+                    <button
+                      title="Sends a new link. The old one stops working."
+                      className="text-xs font-semibold text-brand-primary hover:underline"
+                    >
+                      Resend
+                    </button>
+                  </form>
+                  <form action={revoke}>
+                    <input type="hidden" name="inviteId" value={i.id} />
+                    <button className="text-xs font-semibold text-guava hover:underline">
+                      Revoke
+                    </button>
+                  </form>
+                </span>
               </li>
             ))}
           </ul>
@@ -115,7 +160,47 @@ export function TeamManager({ seats, invites }: { seats: SeatRow[]; invites: Inv
               {revokeState.message}
             </p>
           )}
+          {resendState.status === "error" && (
+            <p role="alert" className="mt-2 text-sm text-guava">
+              {resendState.message}
+            </p>
+          )}
+          {resendState.status === "invited" && (
+            <div className="mt-2 rounded-lg border border-brand-primary/25 bg-brand-primary/[0.04] p-4">
+              <p className="text-sm font-semibold">
+                {resendState.emailed ? "New invite sent." : "New invite link"}
+              </p>
+              <p className="mt-1 text-xs text-brand-ink/60">
+                The previous link has stopped working. This one is shown once — we only keep
+                a hash.
+              </p>
+              <code className="mt-2 block break-all rounded bg-white px-3 py-2 text-xs">
+                {resendState.token}
+              </code>
+            </div>
+          )}
         </section>
+      )}
+
+      {/*
+        The one thing this screen cannot fix by itself. A partner admin has no
+        way to configure the platform's mail provider, so they are told what it
+        means for them and nothing else; HQ gets the sentence that names the
+        screen where it is fixed.
+      */}
+      {!emailConfigured && (
+        <p className="mt-6 rounded-tile border border-mango/40 bg-mango/10 px-4 py-3 text-sm text-brand-ink/70">
+          Invitations can&rsquo;t be emailed right now — the platform has no mail provider
+          set up. Invites still work: create one and send the link yourself.
+          {canConfigureEmail && (
+            <>
+              {" "}
+              <Link href="/super-admin/email" className="font-semibold text-brand-primary">
+                Set it up →
+              </Link>
+            </>
+          )}
+        </p>
       )}
 
       <form action={invite} className="mt-6 rounded-tile border border-brand-ink/10 bg-white p-5">
@@ -159,16 +244,21 @@ export function TeamManager({ seats, invites }: { seats: SeatRow[]; invites: Inv
         )}
         {state.status === "invited" && (
           <div className="mt-3 rounded-lg border border-brand-primary/25 bg-brand-primary/[0.04] p-4">
-            <p className="text-sm font-semibold">Invite created for {state.email}</p>
+            <p className="text-sm font-semibold">
+              {state.emailed
+                ? `Invite sent to ${state.email}`
+                : `Invite created for ${state.email}`}
+            </p>
             <p className="mt-1 text-xs text-brand-ink/60">
               {/*
-                Handed over rather than emailed. This deployment cannot send
-                mail yet, and an invite that silently goes nowhere is worse than
-                one the admin passes on themselves. Shown ONCE — the database
-                stores only a hash of it.
+                THE LINK IS SHOWN EITHER WAY. Mail goes out on a fifteen-minute
+                drain tick and inboxes lose things; an admin sitting next to the
+                new hire should be able to hand it over. Shown ONCE — the
+                database stores only a hash of it.
               */}
-              We can&rsquo;t email this yet, so send it to them yourself. It is shown once —
-              we only keep a hash.
+              {state.emailed
+                ? "It goes out with the next mail run. Here is the same link if you want to pass it on now — shown once, we only keep a hash."
+                : "We couldn't email this one, so send it to them yourself. Shown once — we only keep a hash."}
             </p>
             <code className="mt-2 block break-all rounded bg-white px-3 py-2 text-xs">
               {state.token}

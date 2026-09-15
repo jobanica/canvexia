@@ -168,6 +168,13 @@ describe("no partner server action bypasses the write gate", () => {
     "apply.ts": { why: "public partner application", mustContain: "applyAsPartner" },
     // The login itself, for the same reason.
     "login-action.ts": { why: "sign in / sign out / reset", mustContain: "signInWithPassword" },
+    // Accepting an invitation: the person has no seat yet — creating one is the
+    // whole point. The 24-byte token in the URL is the authority, and
+    // `acceptInvite` is where it is checked, consumed once, and audited.
+    "accept-invite-action.ts": {
+      why: "public invitation acceptance",
+      mustContain: "acceptInvite",
+    },
     // Marking an announcement read is a partner-identity write with no
     // capability behind it — every seat may clear its own notice — but it must
     // still refuse an impersonated session, or HQ reading a notice would clear

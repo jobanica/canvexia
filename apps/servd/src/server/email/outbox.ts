@@ -2,6 +2,7 @@ import "server-only";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { renderAccountEmail } from "@/lib/email/render";
 import { getEmailCreds, sendBatch, type OutgoingEmail } from "./provider";
+import { renderInvite } from "@/server/partners/invite-email";
 
 /**
  * The thing that finally drains `outbound_emails`.
@@ -69,11 +70,31 @@ export function renderQueued(row: QueuedRow, appUrl: string): OutgoingEmail | nu
   // Everything the notifier and the digest queue carries its own composed copy.
   // The composer decided what to say on the day; re-deriving it here weeks
   // later would send whatever this release thinks rather than what was decided.
-  if (str("subject") && str("body")) {
+  //
+  // Checked AFTER the named templates below would be wrong: a row carrying both
+  // a composed body and a template of its own should render as its template.
+  // In practice only the notifier writes subject/body, so this is the general
+  // case and the named ones are the exceptions above it.
+  if (row.template !== "partner.invite" && str("subject") && str("body")) {
     return {
       to: row.toEmail,
       subject: str("subject"),
       ...renderAccountEmail([greeting, ...str("body").split("\n\n")]),
+    };
+  }
+
+  if (row.template === "partner.invite") {
+    // The only template whose payload has to be decrypted before it can be
+    // rendered — see invite-email.ts for why the token is in there at all.
+    // A null here means the row was written under a different encryption key
+    // and can never become a working link; skipping leaves it queued and
+    // visible rather than sending somebody a dead one.
+    const invite = renderInvite(p, appUrl);
+    if (!invite) return null;
+    return {
+      to: row.toEmail,
+      subject: invite.subject,
+      ...renderAccountEmail([greeting, ...invite.paragraphs]),
     };
   }
 

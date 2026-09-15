@@ -3,6 +3,7 @@ export * from "./tenancy/merchant";
 export * from "./identity/roles";
 export * from "./identity/permissions";
 export * from "./identity/partner-permissions";
+export * from "./email/templates";
 export * from "./products/registry";
 export * from "./products/adapter";
 export * from "./branding/config";

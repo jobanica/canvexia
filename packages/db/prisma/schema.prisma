@@ -1456,6 +1456,13 @@ model PartnerInvite {
   tokenHash String @unique
 
   invitedByUserId String?
+
+  /// The `outbound_emails` row carrying this invitation, or null when none was
+  /// queued (no encryption key, so no link could be composed). Deliberately not
+  /// a relation: pruning the mail queue must not rewrite invitations, and a
+  /// dangling id reads the same as null on the team screen.
+  emailId         String?
+
   expiresAt       DateTime
   acceptedAt      DateTime?
   revokedAt       DateTime?
