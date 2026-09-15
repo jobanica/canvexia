@@ -5,7 +5,7 @@
  *   parseHost("mango-grill.servdph.net", "servdph.net") -> { kind:"subdomain", subdomain:"mango-grill" }
  *   parseHost("order.bistro.com",        "servdph.net") -> { kind:"custom", host:"order.bistro.com" }
  *   parseHost("servdph.net",             "servdph.net") -> { kind:"platform" }
- *   parseHost("canvexia.com",  "servdph.net", "canvexia.com") -> { kind:"partner_root" }
+ *   parseHost("partner.canvexia.com", "servdph.net", "canvexia.com") -> { kind:"partner_root" }
  *   parseHost("cebu.canvexia.com", "servdph.net", "canvexia.com") -> { kind:"partner", slug:"cebu" }
  */
 export type HostInfo =
@@ -15,13 +15,19 @@ export type HostInfo =
   /** A CANVEXIA partner's own domain, e.g. cebu.canvexia.com. */
   | { kind: "partner"; slug: string; host: string }
   /**
-   * CANVEXIA's own front door — the bare partner root, e.g. canvexia.com.
+   * The portal's front door — `partner.canvexia.com`.
    *
-   * Distinct from `platform`, which is Servd's. They used to be the same
-   * answer, because the partner root was a hypothetical domain nobody had
-   * configured. Now it is real, and returning `platform` for it would serve
-   * Servd's restaurant marketing at CANVEXIA's address — the partner program's
-   * front page showing a page about online ordering for restaurants.
+   * It used to mean the bare apex, because the apex WAS the portal. The apex is
+   * now the public site (a separate Vercel project, apps/www), so the portal
+   * moved to its own subdomain and this kind moved with it. D31's routing table
+   * is superseded.
+   *
+   * The apex still answers `partner_root` here, and that is deliberate rather
+   * than left over. This app should never receive canvexia.com — Vercel routes
+   * by domain assignment and that domain belongs to apps/www — so the answer
+   * only matters when something is misconfigured, and of the two wrong pages to
+   * serve at CANVEXIA's address, the partner portal beats Servd's restaurant
+   * marketing. Returning `platform` would restore the exact bug D31 fixed.
    */
   | { kind: "partner_root"; host: string };
 
@@ -55,10 +61,16 @@ export function parseHost(
   // worse failure than the reverse.
   if (partnerRootDomain) {
     const proot = partnerRootDomain.toLowerCase();
-    // CANVEXIA's own front door, NOT Servd's. See the note on partner_root.
+    // The apex belongs to apps/www now; this is the misconfiguration fallback.
+    // See the note on partner_root for why it is not `platform`.
     if (host === proot || host === `www.${proot}`) return { kind: "partner_root", host };
     if (host.endsWith(`.${proot}`)) {
       const slug = host.slice(0, -(proot.length + 1));
+      // The portal's own subdomain, and NOT a partner whose slug is "partner".
+      // Without this line `partner.canvexia.com` resolves as an operator that
+      // does not exist, and the portal's front door 404s at the address the
+      // landing page's "Partner login" button points at.
+      if (slug === "partner") return { kind: "partner_root", host };
       if (["www", "app", "admin", "api", "tutorials"].includes(slug)) return { kind: "platform" };
       if (slug) return { kind: "partner", slug, host };
     }

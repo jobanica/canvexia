@@ -144,7 +144,28 @@ describe("parseHost — the configured domains", () => {
     expect(h("www.servdph.net").kind).toBe("platform");
   });
 
-  it("serves CANVEXIA at its own root — not Servd", () => {
+  it("serves the partner portal at partner.canvexia.com", () => {
+    // The move: canvexia.com is the public site (apps/www, its own Vercel
+    // project) and the portal lives on its own subdomain. D31's routing table
+    // is superseded.
+    expect(h("partner.canvexia.com")).toEqual({
+      kind: "partner_root",
+      host: "partner.canvexia.com",
+    });
+  });
+
+  it("does NOT read partner.canvexia.com as an operator called 'partner'", () => {
+    // Without the reserved label the portal's front door resolves as a partner
+    // that does not exist, and 404s at the address the landing page's
+    // "Partner login" button points at.
+    expect(h("partner.canvexia.com").kind).not.toBe("partner");
+  });
+
+  it("falls back to the portal at the bare apex, never to Servd's marketing", () => {
+    // This app should never receive canvexia.com — Vercel routes by domain
+    // assignment and that domain belongs to apps/www. The answer only matters
+    // when something is misconfigured, and `platform` there would serve a page
+    // about restaurant ordering at CANVEXIA's address: the bug D31 fixed.
     expect(h("canvexia.com").kind).toBe("partner_root");
     expect(h("www.canvexia.com").kind).toBe("partner_root");
   });

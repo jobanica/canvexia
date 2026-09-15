@@ -1563,3 +1563,57 @@ from the portal is the next build, and the fix is a Servd-side adapter over
 shared provisioning logic rather than a second copy of it — merchant creation
 drifting into two implementations is precisely the failure this decision exists
 to prevent.
+
+---
+
+## D37 — canvexia.com is the public site; the portal moves to partner.canvexia.com
+
+**Settled by the owner** ("move to partner.canvexia.com"), and it supersedes
+D31's routing table.
+
+`canvexia.com` was the partner portal: `parseHost` returned `partner_root` for
+the apex and the middleware rewrote it to `/partner` in `apps/servd`. The apex
+is now **apps/www**, a separate Vercel project, and the portal answers at
+`partner.canvexia.com`.
+
+| Host | Serves |
+|---|---|
+| `canvexia.com`, `www.canvexia.com` | **apps/www** — the public site |
+| `partner.canvexia.com` | **apps/servd** — the partner portal |
+| `*.canvexia.com` (anything else) | a partner's own branded portal, unchanged |
+| `servdph.net` and its subdomains | Servd, unchanged |
+
+### What changed in code
+
+One line, plus the reason for it: `partner` joins the reserved labels on the
+partner root and resolves to `partner_root` instead of a partner slug. Without
+it the portal's front door is looked up as an operator named "partner", finds
+none, and 404s at exactly the address the landing page's "Partner login" button
+points at.
+
+### The apex still answers `partner_root`, deliberately
+
+`apps/servd` should never receive `canvexia.com` — Vercel routes by domain
+assignment and that domain belongs to `apps/www` — so the parser's answer for
+the apex only matters when something is misconfigured. Of the two wrong pages to
+serve at CANVEXIA's address, the partner portal beats Servd's restaurant
+marketing; returning `platform` there would restore the exact bug D31 fixed.
+`NEXT_PUBLIC_PARTNER_ROOT_DOMAIN` is unchanged, because `canvexia.com` is still
+the root that partner subdomains hang off.
+
+### The landing page
+
+`apps/www` is the twelve-section site the brief specified, plus
+`public.partner_waitlist` and `public.territories`. Two things in it are worth
+carrying forward:
+
+- **`anon` gets no grant on the waitlist at all.** The brief asked for "anon can
+  INSERT only". Every write goes through a server action, so the browser needs
+  nothing, and INSERT on a table of names, emails and mobile numbers is the
+  shape of the hole D27 found on `prospect_leads`. `add-partner-waitlist.sql`
+  revokes it explicitly rather than relying on the backstop sweep alone.
+- **Public product status is not the registry's `live` flag.** `live` means "a
+  merchant can be provisioned into it today". Resceta is `live: true` and has no
+  paying merchants, so canvexia.com says "In development". Reading a boolean
+  from another package as marketing copy is how a page starts claiming traction
+  it cannot evidence — the thing D31 made impossible to do accidentally.

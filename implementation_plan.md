@@ -1,7 +1,10 @@
 # apps/www — CANVEXIA landing page
 
-Mode C plan. Blockers below are **settled**; the build is approved and in
-progress. Section A/B are kept as the record of what was decided and why.
+Mode C plan. Blockers below are **settled** and the build is **done** —
+`apps/www` ships the twelve sections, the waitlist and the portal move. What is
+left needs a database or a Vercel project and is listed in `apps/www/TASKS.md`,
+which is the execution checklist. Sections A/B are kept as the record of what
+was decided and why.
 
 ## Decisions received
 
