@@ -3,107 +3,12 @@ import type { MilestoneProgress } from "@servd/core";
 import type { AttentionItem } from "@/lib/partners/attention";
 import type { PartnerOverview } from "@/server/partners/overview";
 import type { OnboardingStep } from "@/server/partners/overview";
+// Extracted to components/canvexia when the HQ console needed the same four-card
+// rhythm. Copying them would have produced two sets that drift, and the first
+// symptom of that is two screens in one product that stop looking like one.
+import { Avatar, Bars, Donut, StatCard, TONE, peso } from "@/components/canvexia/Cards";
 
-/** "₱20,979" from centavos. Whole pesos — a dashboard is not a receipt. */
-export function peso(centavos: number): string {
-  return `₱${Math.round(centavos / 100).toLocaleString("en-PH")}`;
-}
-
-/**
- * The four stat cards from the reference layout: a coloured header band, a big
- * number under it, a mini visual, and a delta.
- *
- * THE FOUR COLOURS ARE ALL CANVEXIA'S. The layout being followed uses blue,
- * purple, red and green — four unrelated hues that would make this screen
- * belong to a different company. These are ink, coral, ember and the one
- * gradient, which keeps the four-card rhythm without importing a palette.
- *
- * NO DELTAS ARE SHOWN. The reference puts "+11%" on every card; this database
- * has no history to compare against — merchants are counted now, not at the end
- * of last month. Inventing a percentage is exactly the thing canvexia.com was
- * written not to do, so the strip under each number says what the number IS.
- */
-type CardTone = "ink" | "coral" | "ember" | "gradient";
-
-const TONE: Record<CardTone, { band: string; bar: string }> = {
-  ink: { band: "bg-brand-ink text-white", bar: "bg-brand-ink" },
-  coral: { band: "bg-brand-primary text-white", bar: "bg-brand-primary" },
-  ember: { band: "bg-brand-accent text-white", bar: "bg-brand-accent" },
-  gradient: {
-    band: "text-white [background-image:linear-gradient(115deg,var(--brand-primary),var(--brand-accent))]",
-    bar: "[background-image:linear-gradient(115deg,var(--brand-primary),var(--brand-accent))]",
-  },
-};
-
-/** A five-bar sparkline. `fill` is how many bars are solid. */
-function Bars({ fill, className }: { fill: number; className: string }) {
-  const heights = [10, 16, 22, 14, 19];
-  return (
-    <span aria-hidden="true" className="flex items-end gap-1">
-      {heights.map((h, i) => (
-        <span
-          key={i}
-          style={{ height: h }}
-          className={`w-1.5 rounded-full ${i < fill ? className : "bg-brand-ink/10"}`}
-        />
-      ))}
-    </span>
-  );
-}
-
-/** A donut, drawn as one SVG circle with a dash offset. */
-function Donut({ pct, className }: { pct: number; className: string }) {
-  const r = 15;
-  const c = 2 * Math.PI * r;
-  return (
-    <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
-      <circle cx="20" cy="20" r={r} fill="none" strokeWidth="5" className="stroke-brand-ink/10" />
-      <circle
-        cx="20"
-        cy="20"
-        r={r}
-        fill="none"
-        strokeWidth="5"
-        strokeLinecap="round"
-        strokeDasharray={c}
-        strokeDashoffset={c * (1 - Math.min(1, Math.max(0, pct)))}
-        transform="rotate(-90 20 20)"
-        className={className}
-      />
-    </svg>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  note,
-  tone,
-  visual,
-}: {
-  label: string;
-  value: string;
-  note: string;
-  tone: CardTone;
-  visual: React.ReactNode;
-}) {
-  return (
-    <div className="overflow-hidden rounded-tile border border-brand-ink/10 bg-white shadow-[0_1px_0_rgba(26,26,30,0.03),0_14px_30px_-26px_rgba(26,26,30,0.4)]">
-      <div className={`px-5 py-4 ${TONE[tone].band}`}>
-        <p className="font-heading text-lg font-bold leading-tight">{label}</p>
-      </div>
-      <div className="flex items-center gap-4 px-5 py-5">
-        <span className="shrink-0">{visual}</span>
-        <span className="min-w-0">
-          <span className="block font-heading text-2xl font-bold leading-none tabular-nums">
-            {value}
-          </span>
-          <span className="mt-1 block text-xs text-brand-ink/50">{note}</span>
-        </span>
-      </div>
-    </div>
-  );
-}
+export { peso };
 
 export function StatCards({ o }: { o: PartnerOverview }) {
   const payingRatio = o.merchants.length > 0 ? o.payingCount / o.merchants.length : 0;
@@ -217,24 +122,6 @@ const KIND_LABEL: Record<AttentionItem["kind"], string> = {
   quiet: "Gone quiet",
   follow_up: "Follow up",
 };
-
-/** Initials in a tinted circle — no photo is stored anywhere in this system. */
-function Avatar({ name }: { name: string }) {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join("");
-  return (
-    <span
-      aria-hidden="true"
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 text-[0.7rem] font-bold text-brand-primary"
-    >
-      {initials || "?"}
-    </span>
-  );
-}
 
 const KIND_LAMP: Record<AttentionItem["kind"], string> = {
   past_due: "bg-guava",

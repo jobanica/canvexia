@@ -35,6 +35,20 @@ has to be run by hand with a real Supabase auth user id before anyone can sign
 into /hq.
 
 ## H2 — Overview + Partners + view-as-partner
+
+- [x] `components/canvexia/Cards.tsx` — the shared visual vocabulary, extracted
+      from the portal's Overview rather than copied
+- [x] `lib/hq/health.ts` — health board, settlement state, attention rules (pure)
+- [x] `server/hq/overview.ts` — one scope, everything in parallel
+- [x] `server/hq/partners.ts` — the detail, with payout secrets never selected out
+- [x] `server/hq/partners-actions.ts` — approve, suspend, revoke, extend, view-as
+- [x] `server/hq/impersonate.ts` — signed single-use 30-minute read-only grant
+- [x] `requireWritablePartner()` — ONE chokepoint; all 6 partner action files moved
+- [x] `/hq` layout, overview, partners list, partner detail (6 tabs)
+- [x] Impersonation banner on every portal screen
+- [x] `/super-admin/partners` → permanent redirect
+- [x] 23 new tests; DB constraints proved against the live database
+- [ ] Deployed and walked through with a real HQ login (needs the bootstrap)
 ## H3 — Territories + Applications + convert-to-partner
 ## H6 — Billing (moved ahead of H4, per plan §3.5)
 ## H4 — Global merchant directory

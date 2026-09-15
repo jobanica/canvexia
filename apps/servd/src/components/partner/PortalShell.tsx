@@ -123,6 +123,30 @@ export function PortalShell({
 
   return (
     <div className="brand-canvexia min-h-screen bg-brand-surface text-brand-ink">
+      {/*
+        HQ IS LOOKING. Above everything, on every screen, in ink rather than a
+        tasteful tint — this is the difference between an operator seeing HQ in
+        their audit log and an operator DISCOVERING it. The session is read-only
+        and says so; server/hq/impersonate.ts is what makes that true, and the
+        refusal is at the action, not here.
+      */}
+      {partner.impersonatedBy && (
+        <div className="sticky top-0 z-40 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-brand-ink px-4 py-2 text-center text-xs font-semibold text-white">
+          <span>
+            CANVEXIA HQ is viewing {partner.name}&rsquo;s portal.{" "}
+            <span className="font-normal text-white/70">
+              Read-only · {partner.impersonatedBy.hqAdminEmail}
+            </span>
+          </span>
+          <a
+            href="/partner/view-as/end"
+            className="rounded-full bg-white/15 px-3 py-0.5 font-semibold text-white hover:bg-white/25"
+          >
+            End session
+          </a>
+        </div>
+      )}
+
       <div className="mx-auto flex max-w-[1400px]">
         {/* Sidebar */}
         <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-brand-ink/10 bg-white px-4 py-5 lg:flex">
@@ -182,11 +206,26 @@ export function PortalShell({
               >
                 {initials}
               </span>
-              <form action={signOutPartner}>
-                <button className="rounded-full border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold text-brand-ink/70 hover:bg-brand-surface">
-                  Log out
-                </button>
-              </form>
+              {/*
+                Under impersonation this button would sign out the HQ ADMIN's
+                Supabase session, not the partner's — which is not what it says
+                and would strand them logged out of their own console. Ending
+                the view-as session is the honest action to offer there.
+              */}
+              {partner.impersonatedBy ? (
+                <a
+                  href="/partner/view-as/end"
+                  className="rounded-full border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold text-brand-ink/70 hover:bg-brand-surface"
+                >
+                  End session
+                </a>
+              ) : (
+                <form action={signOutPartner}>
+                  <button className="rounded-full border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold text-brand-ink/70 hover:bg-brand-surface">
+                    Log out
+                  </button>
+                </form>
+              )}
             </div>
           </header>
 

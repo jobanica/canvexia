@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentPartner, requirePartnerCapability } from "@/server/partners/auth";
+import { requireWritablePartner } from "@/server/partners/auth";
 import { setPlanPrice } from "./revenue";
 
 export type PricingState =
@@ -19,15 +19,11 @@ export async function setPlanPriceAction(
   _prev: PricingState,
   formData: FormData,
 ): Promise<PricingState> {
-  const partner = await getCurrentPartner();
-  if (!partner || partner.status !== "approved") {
-    return { status: "error", message: "Your partner account isn't approved yet." };
+  const who = await requireWritablePartner("revenue.pricing");
+  if (!who) {
+    return { status: "error", message: "Only an approved admin can change pricing." };
   }
-  try {
-    requirePartnerCapability(partner, "revenue.pricing");
-  } catch {
-    return { status: "error", message: "Only an admin can change pricing." };
-  }
+  const partner = who.partner;
 
   const planId = String(formData.get("planId") ?? "").trim();
   // Pesos in the form, centavos in the column. Parsed from digits only so a

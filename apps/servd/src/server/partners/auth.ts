@@ -9,6 +9,7 @@ import {
 } from "@servd/core";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { systemDb } from "@/server/tenancy/scoped-db";
+import { getImpersonation } from "@/server/hq/impersonate";
 
 /**
  * Who is signed into the partner portal.
@@ -45,6 +46,16 @@ export interface CurrentPartner {
     name: string | null;
     role: PartnerUserRole;
   };
+
+  /**
+   * Set when this is HQ looking, not the partner.
+   *
+   * The session is READ-ONLY and `requireWritablePartner()` below is what makes
+   * that true. This field exists so the portal can say so on every screen: a
+   * banner is the difference between an operator seeing HQ in their audit log
+   * and an operator discovering it.
+   */
+  impersonatedBy?: { hqAdminEmail: string; expiresAt: Date };
 }
 
 /** Does this seat hold a capability? For rendering; not a gate on its own. */
@@ -67,6 +78,42 @@ export function requirePartnerCapability(
 }
 
 export async function getCurrentPartner(): Promise<CurrentPartner | null> {
+  // --- HQ, looking ----------------------------------------------------------
+  //
+  // Checked FIRST, and it deliberately does not consult Supabase Auth: the HQ
+  // admin is signed in as an HQ user, not as a partner, so the paths below
+  // would find nothing for them. Every property of the grant — which partner,
+  // whether it has expired, whether it was revoked — is read from the row, not
+  // from the cookie. See server/hq/impersonate.ts.
+  const viewing = await getImpersonation();
+  if (viewing) {
+    const partner = await systemDb((tx) =>
+      tx.partner.findUnique({
+        where: { id: viewing.partnerId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          status: true,
+          tier: true,
+          revenueSharePct: true,
+        },
+      }),
+    );
+    if (!partner) return null;
+    return {
+      ...partner,
+      // `admin`, so HQ sees every screen the partner's own admin sees — which
+      // is the point of looking. It grants no WRITE anywhere, because every
+      // action refuses an impersonated session before it consults a capability.
+      user: { id: null, email: viewing.hqAdminEmail, name: "CANVEXIA HQ", role: "admin" },
+      impersonatedBy: {
+        hqAdminEmail: viewing.hqAdminEmail,
+        expiresAt: viewing.expiresAt,
+      },
+    };
+  }
+
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -156,4 +203,34 @@ export async function requirePartnerPageWith(
   const partner = await requirePartnerPage();
   if (!can(partner.user.role, capability)) redirect("/partner");
   return partner;
+}
+
+/**
+ * The actor for a partner server action: signed in, approved, holds the
+ * capability, and NOT HQ looking over their shoulder.
+ *
+ * ONE chokepoint, because the alternative is seven action files each
+ * remembering to refuse an impersonated session — and the failure mode of
+ * remembering is HQ writing to an operator's pipeline from a read-only session
+ * that said it was read-only.
+ *
+ * Returns null rather than throwing: every caller already renders a message,
+ * and a thrown error mid-submit reads as a broken form.
+ */
+export async function requireWritablePartner(
+  capability?: Capability,
+): Promise<{ partnerId: string; email: string; partner: CurrentPartner } | null> {
+  const partner = await getCurrentPartner();
+  if (!partner || partner.status !== "approved") return null;
+  // Before the capability check, not after. An impersonated session resolves as
+  // `admin`, so asking about the capability first would answer "yes".
+  if (partner.impersonatedBy) return null;
+  if (capability) {
+    try {
+      requireCapability(partner.user.role, capability);
+    } catch {
+      return null;
+    }
+  }
+  return { partnerId: partner.id, email: partner.user.email, partner };
 }

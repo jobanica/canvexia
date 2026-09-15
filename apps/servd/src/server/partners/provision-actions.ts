@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { PRODUCTS, isProductId } from "@servd/core";
-import { getCurrentPartner } from "@/server/partners/auth";
+import { requireWritablePartner } from "@/server/partners/auth";
 import { provisionMerchantForPartner } from "@/server/products";
 
 export type ProvisionState =
@@ -26,10 +26,11 @@ export async function provisionMerchantAction(
   _prev: ProvisionState,
   formData: FormData,
 ): Promise<ProvisionState> {
-  const partner = await getCurrentPartner();
-  if (!partner || partner.status !== "approved") {
-    return { status: "error", message: "Your partner account isn't approved yet." };
+  const who = await requireWritablePartner("merchants.create");
+  if (!who) {
+    return { status: "error", message: "Your partner account can't open a merchant." };
   }
+  const partner = who.partner;
 
   const productId = String(formData.get("productId") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();

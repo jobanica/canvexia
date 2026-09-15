@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentPartner } from "@/server/partners/auth";
+import { requireWritablePartner } from "@/server/partners/auth";
 import { activatePharmacy } from "@/server/partners/pharmacies";
 
 export type ActivateState =
@@ -20,10 +20,11 @@ export async function activatePharmacyAction(
   _prev: ActivateState,
   formData: FormData,
 ): Promise<ActivateState> {
-  const partner = await getCurrentPartner();
-  if (!partner || partner.status !== "approved") {
-    return { status: "error", message: "Your partner account isn't approved yet." };
+  const who = await requireWritablePartner("merchants.manage");
+  if (!who) {
+    return { status: "error", message: "Your partner account can't activate a pharmacy." };
   }
+  const partner = who.partner;
 
   const pharmacyId = String(formData.get("pharmacyId") ?? "").trim();
   if (!pharmacyId) {

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentPartner, requirePartnerCapability } from "@/server/partners/auth";
+import { requireWritablePartner } from "@/server/partners/auth";
 import {
   LeadInput,
   ProspectInput,
@@ -16,16 +16,14 @@ export type ProspectState =
   | { status: "error"; message: string }
   | { status: "done"; message: string };
 
-/** The signed-in partner, and the capability the pipeline needs to write. */
+/**
+ * The signed-in partner, and the capability the pipeline needs to write.
+ *
+ * `requireWritablePartner` also refuses an HQ "view as" session, which resolves
+ * as an admin seat and would otherwise pass the capability check.
+ */
 async function actor() {
-  const partner = await getCurrentPartner();
-  if (!partner || partner.status !== "approved") return null;
-  try {
-    requirePartnerCapability(partner, "pipeline.write");
-  } catch {
-    return null;
-  }
-  return { partnerId: partner.id, email: partner.user.email };
+  return requireWritablePartner("pipeline.write");
 }
 
 export async function addProspectAction(

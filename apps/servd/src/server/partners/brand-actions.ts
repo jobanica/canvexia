@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { parseBrandConfig, validateBrandConfig, type PartnerBrandConfig } from "@servd/core";
 import { partnerDb } from "@/server/tenancy/scoped-db";
-import { getCurrentPartner } from "@/server/partners/auth";
+import { requireWritablePartner } from "@/server/partners/auth";
 
 export type BrandState = { ok?: boolean; message?: string; error?: string } | null;
 
@@ -26,10 +26,11 @@ export async function savePartnerBrand(
   _prev: BrandState,
   formData: FormData,
 ): Promise<BrandState> {
-  const partner = await getCurrentPartner();
-  if (!partner || partner.status !== "approved") {
-    return { error: "Your partner account isn't approved yet." };
+  const who = await requireWritablePartner("brand.write");
+  if (!who) {
+    return { error: "Your partner account can't change the brand." };
   }
+  const partner = who.partner;
 
   const field = (name: keyof PartnerBrandConfig) =>
     String(formData.get(name) ?? "").trim() || undefined;

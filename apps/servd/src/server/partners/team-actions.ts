@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentPartner, requirePartnerCapability } from "@/server/partners/auth";
+import { requireWritablePartner } from "@/server/partners/auth";
 import { deactivateSeat, inviteSeat, revokeInvite } from "./team";
 
 export type TeamState =
@@ -12,14 +12,9 @@ export type TeamState =
   | { status: "invited"; email: string; token: string };
 
 async function admin() {
-  const partner = await getCurrentPartner();
-  if (!partner || partner.status !== "approved") return null;
-  try {
-    requirePartnerCapability(partner, "team.write");
-  } catch {
-    return null;
-  }
-  return { partnerId: partner.id, email: partner.user.email };
+  // Also refuses an HQ "view as" session, which resolves as an admin seat and
+  // would otherwise pass the capability check.
+  return requireWritablePartner("team.write");
 }
 
 export async function inviteSeatAction(
