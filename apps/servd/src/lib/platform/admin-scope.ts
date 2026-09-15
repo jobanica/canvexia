@@ -74,11 +74,20 @@ export const OPS_SECTIONS = [
  */
 export const OPS_EXACT_PATHS = ["/hq"] as const;
 
-/** Where an ops admin lands, and where they're sent when they overreach. */
-export const OPS_HOME = "/super-admin/bizops";
+/**
+ * Where an ops admin lands, and where they're sent when they overreach.
+ *
+ * `/hq`, not a Servd section. Both HQ roles can open the CANVEXIA overview, and
+ * it is the honest top of the business — `/super-admin` is ONE product's back
+ * office, reachable from the HQ sidebar. Bouncing somebody who overreached into
+ * a narrower console than the one they are allowed would be a worse answer than
+ * the one they asked for.
+ */
+export const OPS_HOME = "/hq";
 
-/** The platform overview. Full access only — it totals the whole business. */
-export const OWNER_HOME = "/super-admin";
+/** The CANVEXIA overview. Both roles can open it; the capability matrix
+ *  decides what they find inside. */
+export const OWNER_HOME = "/hq";
 
 /**
  * Where to send an admin after they sign in.

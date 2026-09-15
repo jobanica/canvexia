@@ -78,9 +78,20 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <div className="mt-6 text-center">
-        <Link href="/super-admin" className="text-xs font-medium text-plum-ink/40 hover:text-plum-ink">
-          Platform admin
+      {/*
+        The two other doors into this deployment. This form is for restaurant
+        staff — it says so — and the people who run the platform or a territory
+        have their own, CANVEXIA-branded, with their own landing page. Pointing
+        "Platform admin" at /super-admin sent them into one product's back
+        office instead of the console above it.
+      */}
+      <div className="mt-6 flex items-center justify-center gap-4 text-xs font-medium text-plum-ink/40">
+        <Link href="/hq/login" className="hover:text-plum-ink">
+          CANVEXIA HQ
+        </Link>
+        <span aria-hidden="true">·</span>
+        <Link href="/partner/login" className="hover:text-plum-ink">
+          Partner portal
         </Link>
       </div>
     </div>

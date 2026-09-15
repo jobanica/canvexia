@@ -86,10 +86,17 @@ export async function getCurrentHqUser(): Promise<CurrentHqUser | null> {
   }
 }
 
-/** Gate an HQ page. Redirects to the platform login when not an HQ seat. */
+/**
+ * Gate an HQ page. Redirects to the HQ login when not an HQ seat.
+ *
+ * `/hq/login`, NOT `/login`. Servd's staff login says "sign in to your
+ * restaurant's dashboard" and routes by staff role; sending an HQ admin there
+ * lands them in one product's back office, which is the wrong console and the
+ * wrong company's brand.
+ */
 export async function requireHqPage(capability?: HqCapability): Promise<CurrentHqUser> {
   const user = await getCurrentHqUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/hq/login");
   // Redirects to the HQ home rather than to login: an ops admin who guesses
   // /hq/billing is signed in correctly and simply does not hold it, and
   // bouncing them to a login form would read as a broken session.

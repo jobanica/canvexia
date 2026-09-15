@@ -49,6 +49,13 @@ export async function signIn(_prev: unknown, formData: FormData) {
   // Straight to a section this admin can actually open. Landing everyone on
   // the overview would make the layout bounce a restricted one, and a redirect
   // out of a redirect renders blank until the page is reloaded.
+  //
+  // An HQ admin lands on /hq, not on Servd's back office. `platform_admins` is
+  // deliberately ONE table for both — CANVEXIA runs Servd, so every HQ seat is
+  // also a Servd super-admin — but the CANVEXIA console is the parent of the
+  // two, and the product back office is a link inside it rather than the place
+  // you arrive. `/hq/login` is the front door meant for these people; this
+  // branch is what stops the other door putting them somewhere surprising.
   if (user.kind === "super") redirect(homeForAdmin(user.role));
   if (user.role === "kitchen") redirect("/kitchen");
   if (user.role === "cashier") redirect("/cashier");

@@ -3,6 +3,7 @@ import { hqCan, type HqCapability } from "@servd/core";
 import { Mark } from "@servd/ui";
 import type { CurrentHqUser } from "@/server/hq/auth";
 import { Avatar } from "@/components/canvexia/Cards";
+import { signOutHq } from "@/server/hq/login-action";
 import {
   IconFunnel,
   IconGear,
@@ -133,6 +134,14 @@ export function HqShell({
                 </span>
               </span>
               <Avatar name={user.displayName ?? user.email} />
+              {/* There was no way out of this console before. Signing out of
+                  HQ ends THIS device's session only — the same trade as every
+                  other sign-out here. */}
+              <form action={signOutHq}>
+                <button className="rounded-full border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold text-brand-ink/70 hover:bg-brand-surface">
+                  Sign out
+                </button>
+              </form>
             </div>
           </header>
 
