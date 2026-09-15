@@ -435,6 +435,42 @@ create policy ledger_read on partner_ledger_entries for select
 create policy ledger_write on partner_ledger_entries for all
   using (app.is_super_admin()) with check (app.is_super_admin());
 
+-- ----------------------------------------------------------------------------
+-- The partner portal's own tables: seats, invites, pipeline, notification prefs.
+--
+-- All four carry "partnerId" and none carries a merchant axis column, so the
+-- tenant loop above cannot reach them and the backstop sweep at the bottom would
+-- lock them to super-admin — which is the SAFE failure, and also a portal that
+-- shows a partner nothing. Hence an explicit policy here.
+--
+-- These are also the tables in this schema most worth getting right after
+-- partner_waitlist: `prospects` holds the name, mobile number and address of
+-- every business a partner has walked into, none of whom agreed to anything.
+-- packages/db/prisma/manual/add-partner-portal.sql revokes anon AND
+-- authenticated on all four; this file is where the policy lives so that a
+-- re-run of db:rls does not quietly drop it.
+-- ----------------------------------------------------------------------------
+do $$
+declare t text;
+begin
+  foreach t in array array['partner_users', 'partner_invites', 'prospects', 'notification_prefs']
+  loop
+    if to_regclass(format('public.%I', t)) is null then
+      continue;  -- table not migrated yet; db:rls must not fail on a fresh clone
+    end if;
+    execute format('alter table %I enable row level security;', t);
+    execute format('alter table %I force row level security;', t);
+    execute format('drop policy if exists partner_scope on %I;', t);
+    execute format($f$
+      create policy partner_scope on %1$I for all
+        using (app.is_super_admin() or "partnerId" = app.current_partner_id())
+        with check (app.is_super_admin() or "partnerId" = app.current_partner_id());
+    $f$, t);
+    execute format('revoke all on %I from anon;', t);
+    execute format('revoke all on %I from authenticated;', t);
+  end loop;
+end $$;
+
 -- platform_feedback / crm_clients / customer_events: the three tables excluded
 -- from the tenant loop above. They carry a "restaurantId" but the row belongs to
 -- the platform, not to the restaurant it names — owners' feedback about Servd

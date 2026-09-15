@@ -18,6 +18,21 @@
 export const ROLES = [
   "hq_admin",
   "partner_admin",
+  "partner_sales",
+  "partner_support",
+  /**
+   * KEPT, not removed and not migrated.
+   *
+   * The brief said "migrate existing partner_staff → partner_sales". There is
+   * nothing to migrate: this name has only ever been a string in this union —
+   * no table, no column, no rows. What it IS, is part of a shipped exported
+   * type, so deleting it is a breaking change to anything narrowing on `Role`
+   * for no gain.
+   *
+   * It is a synonym for `partner_sales` and `PARTNER_USER_ROLES` below — the
+   * set the database actually stores — deliberately excludes it, so nothing new
+   * can be created holding it.
+   */
   "partner_staff",
   "merchant_owner",
   "merchant_staff",
@@ -31,10 +46,37 @@ export type RoleLevel = "hq" | "partner" | "merchant";
 const LEVEL: Record<Role, RoleLevel> = {
   hq_admin: "hq",
   partner_admin: "partner",
+  partner_sales: "partner",
+  partner_support: "partner",
   partner_staff: "partner",
   merchant_owner: "merchant",
   merchant_staff: "merchant",
 };
+
+/**
+ * What `partner_users.role` may contain.
+ *
+ * Short names, because the row already knows it belongs to a partner — storing
+ * "partner_admin" on a table called partner_users is the prefix twice. A CHECK
+ * constraint in the database enforces exactly this set.
+ *
+ * `partner_staff` is NOT here: it is the legacy synonym above and nothing new
+ * should be written holding it.
+ */
+export const PARTNER_USER_ROLES = ["admin", "sales", "support"] as const;
+
+export type PartnerUserRole = (typeof PARTNER_USER_ROLES)[number];
+
+export function isPartnerUserRole(value: string): value is PartnerUserRole {
+  return (PARTNER_USER_ROLES as readonly string[]).includes(value);
+}
+
+/** The stored short name, widened to the platform-wide vocabulary. */
+export function toRole(role: PartnerUserRole): Role {
+  return { admin: "partner_admin", sales: "partner_sales", support: "partner_support" }[
+    role
+  ] as Role;
+}
 
 export function levelOf(role: Role): RoleLevel {
   return LEVEL[role];

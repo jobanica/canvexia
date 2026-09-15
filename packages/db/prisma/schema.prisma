@@ -1211,7 +1211,7 @@ model Partner {
   // length on Restaurant.autoPrintReceipt.
   //
   /// URL label for the {slug}.canvexia.app fallback domain.
-  slug                String?  @unique
+  slug                String? @unique
   /// Display name, logo, colors, support contacts, legal footer. Shape lives in
   /// packages/core/src/branding. Null = inherit the platform's own brand.
   brandConfig         Json?
@@ -1220,14 +1220,14 @@ model Partner {
   territory           String?
   /// The operator's cut of merchant subscription revenue, as a percentage.
   /// 0 for every legacy partner; 70 for a CANVEXIA operator.
-  revenueSharePct     Int      @default(dbgenerated("0"))
+  revenueSharePct     Int     @default(dbgenerated("0"))
   /// Who takes the merchant's money: "partner_collects" (the operator's own
   /// gateway account, the CANVEXIA default) or "hq_collects".
-  collectionMode      String   @default(dbgenerated("'partner_collects'"))
+  collectionMode      String  @default(dbgenerated("'partner_collects'"))
   /// "powered_by" keeps a CANVEXIA/Servd credit on customer-facing surfaces;
   /// "full_whitelabel" removes it. Reconciled with the per-merchant white-label
   /// unlock in Phase 5 — today they are two systems answering one question.
-  brandMode           String   @default(dbgenerated("'powered_by'"))
+  brandMode           String  @default(dbgenerated("'powered_by'"))
   /// This operator's sub-account under CANVEXIA's own gateway platform.
   ///
   /// An IDENTIFIER, not a secret — which is the whole point of D5 Option B. The
@@ -1247,10 +1247,207 @@ model Partner {
   payoutMethod        String?
   payoutDetailsEnc    String?
   taxInfoEnc          String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+
+  // --- Licence term and milestones (partner portal, Phase A) ----------------
+  /// When this operator's licence started. Null for a partner who predates the
+  /// licence model; the portal shows "not set" rather than computing a pace
+  /// from an invented date.
+  licenseStartedAt     DateTime?
+  /// When exclusivity lapses if milestones are missed. HQ sets it.
+  exclusivityExpiresAt DateTime?
+  /// The milestone ladder, as `[{ "month": 1, "target": 10 }, …]`.
+  ///
+  /// A LADDER, not two columns. The brief asked for a 6-month and a 12-month
+  /// target; the operating answer was three checkpoints (10 by month 1, 25 by
+  /// month 3, 50 by month 6). Those are different models, and HQ wanting a
+  /// fourth checkpoint for one city should not be a migration. Shape and
+  /// defaults live in packages/core/src/partners/milestones.ts, which is where
+  /// the pace maths is tested.
+  ///
+  /// Null means "use the platform default", NOT "no milestones" — a partner
+  /// with no ladder at all would silently always read as on track.
+  milestones           Json?
+  /// Which onboarding steps are done, as `{ "brand": true, … }`, plus
+  /// `dismissedAt`. Per-partner rather than per-user: the checklist is about
+  /// the territory, and two admins should not each be asked to add payout
+  /// details.
+  onboardingSteps      Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     PartnerUser[]
+  invites   PartnerInvite[]
+  prospects Prospect[]
 
   @@map("partners")
+}
+
+// ----------------------------------------------------------------------------
+// Partner portal identity (Phase A1)
+//
+// Until now a partner WAS one Supabase user: partners.authUserId, one row, one
+// login. The portal needs three roles and more than one person per city, so the
+// identity moves here — and `Partner.authUserId` stays, carrying the original
+// login, because breaking every live session to normalise a column is not a
+// trade worth making. `getCurrentPartner()` reads this table first and that
+// column second; the migration backfills an admin row for every partner that
+// has one, so nobody is logged out.
+// ----------------------------------------------------------------------------
+
+/// One person who can sign into one partner's portal.
+model PartnerUser {
+  id         String  @id @default(uuid())
+  partnerId  String
+  /// Supabase auth user. NULL while an invite is outstanding — the row exists
+  /// so the seat is visible and revocable before it is ever used.
+  authUserId String? @unique
+  email      String
+  name       String?
+  /// "admin" | "sales" | "support". A CHECK constraint enforces the set in the
+  /// database; `packages/core/src/identity/roles.ts` owns the vocabulary.
+  ///
+  /// Not a Postgres enum on purpose: the role list belongs to core, and an
+  /// enum would make adding one a schema migration coupled to a code release.
+  /// A CHECK is altered in one statement and still refuses a typo.
+  role       String
+  /// "invited" | "active" | "deactivated". Deactivated rows are KEPT: the audit
+  /// log names an actor, and deleting the seat makes past actions anonymous.
+  status     String  @default("invited")
+
+  invitedAt     DateTime  @default(now())
+  acceptedAt    DateTime?
+  deactivatedAt DateTime?
+  lastSeenAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner           Partner            @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  notificationPrefs NotificationPref[]
+  assignedProspects Prospect[]         @relation("ProspectAssignee")
+
+  /// One seat per email per partner. The same person may hold a seat at two
+  /// partners — rare, but an HQ operator who also runs a city is exactly that.
+  @@unique([partnerId, email])
+  @@index([partnerId, status])
+  @@map("partner_users")
+}
+
+/// An outstanding invitation to a partner portal seat.
+model PartnerInvite {
+  id        String @id @default(uuid())
+  partnerId String
+  email     String
+  role      String
+
+  /// A SHA-256 of the token, never the token. The token is shown once, in the
+  /// email; a leaked database therefore cannot be used to accept invitations.
+  /// Same reasoning as the hashed IP in rate_limits.
+  tokenHash String @unique
+
+  invitedByUserId String?
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, expiresAt])
+  @@map("partner_invites")
+}
+
+enum ProspectStage {
+  lead
+  contacted
+  demo_booked
+  trial
+  paid
+  lost
+}
+
+enum ProspectSource {
+  walk_in
+  referral
+  lead_form
+  ads
+  other
+}
+
+/// A business a partner is trying to sign, before it is a merchant.
+///
+/// NOT `prospect_leads` — that is HQ's own OpenStreetMap scraping list, super
+/// admin only, with no partner scope. The names are close enough to be worth
+/// saying out loud once: this table belongs to a partner, that one to HQ.
+///
+/// Carries mobile numbers and addresses of people who have not agreed to
+/// anything, so it gets the partner_waitlist treatment: no `anon` grant, no
+/// `authenticated` grant, every write through a server action.
+model Prospect {
+  id           String  @id @default(uuid())
+  partnerId    String
+  businessName String
+  ownerName    String?
+  /// Normalised to +639XXXXXXXXX on the way in, like the waitlist. Four
+  /// spellings of one number is four rows that look like four businesses.
+  mobile       String?
+  address      String?
+  /// Which product is being pitched. A registry id ("servd", "pharmacy"), not a
+  /// foreign key — products are code, not a table.
+  productId    String
+
+  stage  ProspectStage  @default(lead)
+  source ProspectSource @default(other)
+
+  nextFollowUpAt DateTime?
+  notes          String?
+  assignedToId   String?
+  lostReason     String?
+
+  /// Set when the prospect becomes a merchant. Two columns, because a merchant
+  /// id is only unique WITHIN a product — the same reason PartnerLedgerEntry
+  /// carries productId alongside merchantId.
+  convertedMerchantId String?
+  convertedProductId  String?
+  convertedAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner    Partner      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  assignedTo PartnerUser? @relation("ProspectAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId, stage])
+  @@index([partnerId, nextFollowUpAt])
+  @@index([assignedToId])
+  @@map("prospects")
+}
+
+/// One notification channel choice, per user, per event.
+model NotificationPref {
+  id            String @id @default(uuid())
+  /// Denormalised from the user so the RLS policy is a column comparison rather
+  /// than a subquery into partner_users. A policy that joins is a policy that
+  /// can be got wrong; this one cannot.
+  partnerId     String
+  partnerUserId String
+  /// A key from packages/core/src/partners/notifications.ts.
+  event         String
+
+  email     Boolean @default(true)
+  /// Messenger is a placeholder — there is no integration yet, and the UI
+  /// disables the toggle. The column exists so turning it on later is not a
+  /// migration during a launch.
+  messenger Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
+
+  user PartnerUser @relation(fields: [partnerUserId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerUserId, event])
+  @@index([partnerId])
+  @@map("notification_prefs")
 }
 
 /// One settled payment, recorded against the partner that owns the merchant.
