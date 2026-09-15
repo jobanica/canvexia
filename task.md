@@ -136,6 +136,12 @@ tests. `system_architecture.md` carries the save state.
       targets), verified live at `/api/health`. Nothing was encrypted when it
       was set, so there is no ciphertext under an older key. **It cannot be
       rotated without making every `*Enc` column unreadable.**
-- [ ] A Resend API key at `/super-admin/email` — needs a Resend account.
-- [ ] A sender that drains `outbound_emails`. Until this exists, no mail goes
-      out however the other two are set.
+- [x] Resend API key stored, encrypted, in `platform_settings.emailCredsEnc`.
+- [x] `/api/cron/drain-emails` every 15 minutes — claims before it sends.
+- [x] `canvexia.com` verified in Resend; from-address `noreply@canvexia.com`.
+- [x] **Email is LIVE**, proved end to end: queued → cron → Resend →
+      `delivered`.
+- [ ] **Rotate the Resend API key** — the current one was pasted into a chat
+      transcript. Replace it from `/super-admin/email` (leave the key field
+      blank to keep the rest of the settings).
+- [ ] No reply-to: `canvexia.com` has no inbound MX, so partners cannot reply.

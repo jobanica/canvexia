@@ -379,17 +379,18 @@ statement freeze a month out of place.
 `outbound_emails` now holds the daily digest, the four A7 notifications and the
 partner welcome email. **Nothing drains it.**
 
-`CREDENTIALS_ENCRYPTION_KEY` **is now set** (production, preview and
-development, on the `canvexia` project only — `www` and `resceta` only mention
-it in comments). That unblocks the FIRST of three steps, not all three:
+All four steps are now done — the key, the stored Resend credentials, the
+drainer (`/api/cron/drain-emails`, every 15 minutes) and a verified sending
+domain — so **mail goes out**, from `CANVEXIA <noreply@canvexia.com>`.
 
-1. ~~the key, so credentials can be stored at all~~ — done;
-2. a Resend API key entered at `/super-admin/email`, which needs a Resend
-   account;
-3. a sender that drains `outbound_emails` — **does not exist**.
+The drainer CLAIMS BEFORE IT SENDS: `attempts` is incremented in a committed
+statement before the batch reaches Resend. Resend's batch endpoint takes no
+idempotency key, so a crash mid-flight has to cost either one lost email or a
+resend-every-tick loop into a partner's inbox, and the former is the cheaper
+mistake. A test pins the ordering because it is invisible on review. `replyTo` is empty on purpose: `canvexia.com` is verified for sending only, so
+a reply-to on that domain would bounce.
 
-So mail still does not go out, and queued rows are still the visible record of
-that. **The key can never be rotated casually**: everything in `*Enc` columns
+**The encryption key can never be rotated casually**: everything in `*Enc` columns
 is AES-256-GCM under it, and changing it makes those columns unreadable with no
 recovery. Nothing was encrypted when it was set, so there is no legacy
 ciphertext under an older key.
