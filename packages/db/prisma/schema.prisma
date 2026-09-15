@@ -2889,3 +2889,109 @@ model PharmacyReturnItem {
   @@index([pharmacyId])
   @@map("pharmacy_return_items")
 }
+
+// ---------------------------------------------------------------------------
+// CANVEXIA — the public site (apps/www) and the city-partner waitlist.
+//
+// `public` schema like every other table here. The brief asked for a `core`
+// schema; this one has no multiSchema preview feature and no @@schema
+// annotations, so a second schema would mean enabling a preview feature and
+// annotating all 100 existing models on a live database, for a naming
+// preference. Settled: public.
+// ---------------------------------------------------------------------------
+
+enum TerritoryTier {
+  small
+  mid
+  large
+  /// Davao City. The model territory — not for sale.
+  hq
+}
+
+enum TerritoryStatus {
+  available
+  reserved
+  taken
+  hq
+}
+
+enum WaitlistHours {
+  under5  @map("<5")
+  h5to10  @map("5-10")
+  h10to20 @map("10-20")
+  h20plus @map("20+")
+}
+
+enum WaitlistStatus {
+  new
+  contacted
+  shortlisted
+  rejected
+}
+
+/// A Philippine city a partner can license, and what it costs.
+model Territory {
+  id         String          @id @default(uuid())
+  name       String
+  province   String
+  region     String
+  slug       String          @unique
+  tier       TerritoryTier
+  /// Pesos, not centavos: a licence fee is quoted in whole pesos and never
+  /// arithmetic'd against money columns elsewhere. Storing it in centavos
+  /// would invite someone to add it to a centavos total by mistake.
+  licenseFee Int
+  status     TerritoryStatus @default(available)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  waitlist PartnerWaitlist[]
+
+  @@index([tier])
+  @@index([status])
+  @@map("territories")
+}
+
+/// Somebody asking for a city. No fee, no application, no account — a name
+/// and a way to reach them, until the partner programme opens.
+///
+/// NO `anon` POLICY, deliberately. Every write goes through a server action
+/// (the brief's own rule: no client-side Supabase writes), so `anon` needs no
+/// grant at all and gets none — rls.sql's backstop locks this table to
+/// super-admin on sight. That is stronger than the "anon can INSERT only" the
+/// brief asked for, and it closes the shape of hole D27 found on
+/// prospect_leads rather than mitigating it: names, emails and mobile numbers
+/// with the anon key shipping in every browser.
+model PartnerWaitlist {
+  id String @id @default(uuid())
+
+  fullName String
+  email    String
+  mobile   String
+  /// Typed freely. A city not in `territories` is a real signal — it tells HQ
+  /// where demand is — so it is stored as text and mapped later.
+  city     String
+  province String?
+
+  currentWork  String?
+  hoursPerWeek WaitlistHours
+  soldBefore   Boolean
+  soldWhat     String?
+  howHeard     String?
+
+  /// 'www' | 'messenger'. Where the application came from.
+  source String         @default(dbgenerated("'www'"))
+  status WaitlistStatus @default(new)
+
+  /// Null until HQ maps the free-text city onto a licensed territory.
+  territoryId String?
+  territory   Territory? @relation(fields: [territoryId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([city, createdAt])
+  @@index([status])
+  @@index([territoryId])
+  @@map("partner_waitlist")
+}

@@ -1,8 +1,42 @@
 # apps/www — CANVEXIA landing page
 
-Mode C plan. **No code written yet.** Nine things below need your answer first;
-four of them are conflicts between the spec and what is actually in this repo,
-and two would put an unverifiable claim on a public page.
+Mode C plan. Blockers below are **settled**; the build is approved and in
+progress. Section A/B are kept as the record of what was decided and why.
+
+## Decisions received
+
+| # | Question | Answer |
+|---|---|---|
+| **A1** | Merchant count on the page | **No number at all.** "Customers don't need to know how many merchants we have." Simplest and the only one that needs no footnote — the page sells the model, not the traction. |
+| **A2** | Restaurants link | `servdph.net` |
+| **A3** | `canvexia.com` vs the portal | Landing page takes `canvexia.com`; **portal moves to `partner.canvexia.com`** — one DNS record, no new domain to buy. |
+| **A4** | Schema | **`public`**, matching every other table. No `multiSchema`, no `@@schema` churn. |
+| **B1** | Email | **Build the waitlist without it.** Insert + success state now; the confirmation send goes in once `CREDENTIALS_ENCRYPTION_KEY` and a Resend key exist. |
+| **B2** | Design | The **`design`** skill. |
+
+### Consequence of A3 — `parseHost` changes
+
+`canvexia.com` currently returns `partner_root` and the middleware rewrites it
+to `/partner`. With the landing page on the apex, that inverts:
+
+- `canvexia.com`, `www.canvexia.com` → **apps/www** (a separate Vercel project)
+- `partner.canvexia.com` → **apps/servd**, the portal
+- `*.canvexia.com` (other) → a partner's own branded portal, unchanged
+
+So `partner_root` stops meaning "the apex" and starts meaning one reserved
+subdomain. `partner` joins the reserved-label list, and D31's routing table is
+superseded. Tests in `apps/servd/tests/host/host.test.ts` assert the current
+behaviour and will need inverting — deliberately, with the reason in the test
+name rather than a comment.
+
+### A note on filenames
+
+The execution checklist does **not** go in `task.md`. That file is this
+project's live status doc, and `implementation_plan.md` was already the original
+platform plan before I overwrote it (now archived at
+`docs/canvexia/platform-plan.md`). Generic "write X.md" instructions should not
+clobber a repo's existing documents; the checklist lives at
+`apps/www/TASKS.md`.
 
 ---
 
