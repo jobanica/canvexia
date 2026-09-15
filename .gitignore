@@ -52,3 +52,7 @@ packages/*/coverage/
 # specific project, and the one checked in here pointed at a DIFFERENT repo's
 # deployment (jobanica/Servd). Each project is linked from the dashboard.
 .vercel
+
+# Personal Claude Code overrides for this checkout. Never committed — this
+# repository is public, and a permission rule here applies to whoever has it.
+.claude/settings.local.json
