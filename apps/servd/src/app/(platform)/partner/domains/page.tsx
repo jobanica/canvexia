@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requirePartnerPageWith } from "@/server/partners/auth";
 import { getPartnerProfile } from "@/server/partners/overview";
 import { listPartnerDomains } from "@/server/partners/domains";
-import { PortalNav } from "@/components/partner/PortalNav";
+import { PortalShell } from "@/components/partner/PortalShell";
 
 const STATE_CHIP: Record<string, string> = {
   planned: "bg-brand-ink/[0.06] text-brand-ink/55",
@@ -18,17 +18,14 @@ export default async function PartnerDomainsPage() {
   const domains = await listPartnerDomains(profile?.slug ?? null);
 
   return (
-    <>
-      <PortalNav partner={partner} />
-      <div className="mx-auto max-w-3xl px-6 py-8">
+    <PortalShell
+      partner={partner}
+      title="Domains"
+      subtitle="Where your merchants and their customers reach you."
+    >
         <Link href="/partner/brand" className="text-sm text-brand-ink/50 hover:text-brand-ink">
           ← Brand
         </Link>
-        <h1 className="mt-4 font-heading text-2xl font-bold">Domains</h1>
-        <p className="mt-1 max-w-readable text-sm text-brand-ink/55">
-          Where your merchants and their customers reach you.
-        </p>
-
         {domains.length === 0 ? (
           <p className="mt-6 rounded-tile border border-brand-ink/10 bg-white p-6 text-sm text-brand-ink/55">
             You need a subdomain before you have an address. Set one in Brand.
@@ -83,7 +80,6 @@ export default async function PartnerDomainsPage() {
             will connect it by hand in the meantime.
           </p>
         </div>
-      </div>
-    </>
+    </PortalShell>
   );
 }

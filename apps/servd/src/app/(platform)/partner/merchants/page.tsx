@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePartnerPageWith } from "@/server/partners/auth";
 import { listPartnerMerchants, isPaying } from "@/server/partners/merchants";
-import { PortalNav } from "@/components/partner/PortalNav";
+import { PortalShell } from "@/components/partner/PortalShell";
 import { MerchantTable } from "@/components/partner/MerchantTable";
 
 /**
@@ -36,16 +36,12 @@ export default async function PartnerMerchantsPage({
   });
 
   return (
-    <>
-      <PortalNav partner={partner} />
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="font-heading text-2xl font-bold">Merchants</h1>
-          <span className="text-sm tabular-nums text-brand-ink/50">
-            {rows.length} of {all.length}
-          </span>
-        </div>
-
+    <PortalShell
+      partner={partner}
+      title="Merchants"
+      subtitle="Every account you have opened, across every product."
+      counts={{ merchants: all.length }}
+    >
         {all.length === 0 ? (
           <div className="mt-6 rounded-tile border border-dashed border-brand-ink/15 bg-white p-10 text-center">
             <p className="font-heading text-lg font-bold">No merchants yet</p>
@@ -62,7 +58,6 @@ export default async function PartnerMerchantsPage({
         ) : (
           <MerchantTable rows={rows} query={q ?? ""} product={product ?? ""} status={status ?? ""} />
         )}
-      </div>
-    </>
+    </PortalShell>
   );
 }

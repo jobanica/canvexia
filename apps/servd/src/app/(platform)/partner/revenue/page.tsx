@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePartnerPageWith, partnerCan } from "@/server/partners/auth";
 import { getRevenue } from "@/server/partners/revenue";
-import { PortalNav } from "@/components/partner/PortalNav";
+import { PortalShell } from "@/components/partner/PortalShell";
 import { peso } from "@/components/partner/Overview";
 
 const STATUS_CHIP: Record<string, string> = {
@@ -15,22 +15,21 @@ export default async function PartnerRevenuePage() {
   const { current, months } = await getRevenue(partner.id);
 
   return (
-    <>
-      <PortalNav partner={partner} />
-      <div className="mx-auto max-w-4xl px-6 py-8">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="font-heading text-2xl font-bold">Revenue</h1>
-          {partnerCan(partner, "revenue.pricing") && (
-            <Link
-              href="/partner/revenue/pricing"
-              className="rounded-full border border-brand-ink/15 px-4 py-2 text-sm font-semibold hover:bg-brand-surface"
-            >
-              Your pricing
-            </Link>
-          )}
-        </div>
+    <PortalShell
+      partner={partner}
+      title="Revenue"
+      subtitle="What settled, what is yours, and what is still open."
+    >
+        {partnerCan(partner, "revenue.pricing") && (
+          <Link
+            href="/partner/revenue/pricing"
+            className="inline-flex rounded-full border border-brand-ink/15 bg-white px-4 py-2 text-sm font-semibold hover:bg-brand-surface"
+          >
+            Your pricing
+          </Link>
+        )}
 
-        <section className="mt-6 rounded-tile border border-brand-ink/10 bg-white p-5">
+        <section className="mt-4 rounded-tile border border-brand-ink/10 bg-white p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-ink/45">
             This month so far · {current.month}
           </p>
@@ -114,7 +113,6 @@ export default async function PartnerRevenuePage() {
           Months close on the 1st, Manila time. Payout status is set by CANVEXIA — if one
           looks wrong, tell us rather than waiting.
         </p>
-      </div>
-    </>
+    </PortalShell>
   );
 }

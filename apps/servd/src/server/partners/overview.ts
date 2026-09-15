@@ -177,7 +177,7 @@ export async function getPartnerProfile(partnerId: string) {
   return systemDb((tx) =>
     tx.partner.findUnique({
       where: { id: partnerId },
-      select: { slug: true, brandConfig: true, payoutMethod: true },
+      select: { slug: true, brandConfig: true, payoutMethod: true, territory: true },
     }),
   );
 }

@@ -9,33 +9,143 @@ export function peso(centavos: number): string {
   return `₱${Math.round(centavos / 100).toLocaleString("en-PH")}`;
 }
 
+/**
+ * The four stat cards from the reference layout: a coloured header band, a big
+ * number under it, a mini visual, and a delta.
+ *
+ * THE FOUR COLOURS ARE ALL CANVEXIA'S. The layout being followed uses blue,
+ * purple, red and green — four unrelated hues that would make this screen
+ * belong to a different company. These are ink, coral, ember and the one
+ * gradient, which keeps the four-card rhythm without importing a palette.
+ *
+ * NO DELTAS ARE SHOWN. The reference puts "+11%" on every card; this database
+ * has no history to compare against — merchants are counted now, not at the end
+ * of last month. Inventing a percentage is exactly the thing canvexia.com was
+ * written not to do, so the strip under each number says what the number IS.
+ */
+type CardTone = "ink" | "coral" | "ember" | "gradient";
+
+const TONE: Record<CardTone, { band: string; bar: string }> = {
+  ink: { band: "bg-brand-ink text-white", bar: "bg-brand-ink" },
+  coral: { band: "bg-brand-primary text-white", bar: "bg-brand-primary" },
+  ember: { band: "bg-brand-accent text-white", bar: "bg-brand-accent" },
+  gradient: {
+    band: "text-white [background-image:linear-gradient(115deg,var(--brand-primary),var(--brand-accent))]",
+    bar: "[background-image:linear-gradient(115deg,var(--brand-primary),var(--brand-accent))]",
+  },
+};
+
+/** A five-bar sparkline. `fill` is how many bars are solid. */
+function Bars({ fill, className }: { fill: number; className: string }) {
+  const heights = [10, 16, 22, 14, 19];
+  return (
+    <span aria-hidden="true" className="flex items-end gap-1">
+      {heights.map((h, i) => (
+        <span
+          key={i}
+          style={{ height: h }}
+          className={`w-1.5 rounded-full ${i < fill ? className : "bg-brand-ink/10"}`}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** A donut, drawn as one SVG circle with a dash offset. */
+function Donut({ pct, className }: { pct: number; className: string }) {
+  const r = 15;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r={r} fill="none" strokeWidth="5" className="stroke-brand-ink/10" />
+      <circle
+        cx="20"
+        cy="20"
+        r={r}
+        fill="none"
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - Math.min(1, Math.max(0, pct)))}
+        transform="rotate(-90 20 20)"
+        className={className}
+      />
+    </svg>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  note,
+  tone,
+  visual,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  tone: CardTone;
+  visual: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-tile border border-brand-ink/10 bg-white shadow-[0_1px_0_rgba(26,26,30,0.03),0_14px_30px_-26px_rgba(26,26,30,0.4)]">
+      <div className={`px-5 py-4 ${TONE[tone].band}`}>
+        <p className="font-heading text-lg font-bold leading-tight">{label}</p>
+      </div>
+      <div className="flex items-center gap-4 px-5 py-5">
+        <span className="shrink-0">{visual}</span>
+        <span className="min-w-0">
+          <span className="block font-heading text-2xl font-bold leading-none tabular-nums">
+            {value}
+          </span>
+          <span className="mt-1 block text-xs text-brand-ink/50">{note}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function StatCards({ o }: { o: PartnerOverview }) {
-  const cards = [
-    { label: "Paying merchants", value: String(o.payingCount), note: `${o.merchants.length} total` },
-    { label: "MRR", value: peso(o.mrrCentavos), note: "What merchants pay, per month" },
-    { label: "Your share", value: peso(o.partnerShareCentavos), note: "This month, so far" },
-    {
-      label: o.settlementDirection === "payout" ? "Projected payout" : "HQ invoice",
-      value: peso(o.settlementDirection === "payout" ? o.partnerShareCentavos : o.hqShareCentavos),
-      // partner_collects means the money never passes through HQ, so what is
-      // owed flows the other way. Labelling both "payout" would tell half of
-      // all partners they are owed money they actually owe.
-      note:
-        o.settlementDirection === "payout"
-          ? "HQ collects and pays you"
-          : "You collect; HQ invoices its share",
-    },
-  ];
+  const payingRatio = o.merchants.length > 0 ? o.payingCount / o.merchants.length : 0;
+  const attention = o.attention.length;
 
   return (
-    <div className="grid gap-px overflow-hidden rounded-tile bg-brand-ink/10 sm:grid-cols-2 lg:grid-cols-4">
-      {cards.map((c) => (
-        <div key={c.label} className="bg-white p-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-ink/45">{c.label}</p>
-          <p className="mt-2 font-heading text-2xl font-bold tabular-nums">{c.value}</p>
-          <p className="mt-1 text-xs text-brand-ink/50">{c.note}</p>
-        </div>
-      ))}
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <StatCard
+        label="Merchants"
+        tone="ink"
+        value={String(o.merchants.length)}
+        note={`${o.payingCount} paying`}
+        visual={<Bars fill={Math.min(5, o.merchants.length)} className={TONE.ink.bar} />}
+      />
+      <StatCard
+        label="MRR"
+        tone="coral"
+        value={peso(o.mrrCentavos)}
+        note="What merchants pay, per month"
+        visual={<Donut pct={payingRatio} className="stroke-brand-primary" />}
+      />
+      <StatCard
+        label="Needs you"
+        tone="ember"
+        value={String(attention)}
+        note={attention === 0 ? "Nothing today" : "On the list below"}
+        visual={<Bars fill={Math.min(5, attention)} className={TONE.ember.bar} />}
+      />
+      <StatCard
+        label={o.settlementDirection === "payout" ? "Your payout" : "Your share"}
+        tone="gradient"
+        value={peso(o.partnerShareCentavos)}
+        note={
+          // partner_collects means the money never passes through HQ, so what is
+          // owed flows the other way. Labelling both "payout" would tell half of
+          // all partners they are owed money they actually owe.
+          o.settlementDirection === "payout"
+            ? "HQ collects and pays you"
+            : "You collect; HQ invoices its share"
+        }
+        visual={<Donut pct={payingRatio} className="stroke-brand-accent" />}
+      />
     </div>
   );
 }
@@ -108,31 +218,111 @@ const KIND_LABEL: Record<AttentionItem["kind"], string> = {
   follow_up: "Follow up",
 };
 
+/** Initials in a tinted circle — no photo is stored anywhere in this system. */
+function Avatar({ name }: { name: string }) {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("");
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-primary/10 text-[0.7rem] font-bold text-brand-primary"
+    >
+      {initials || "?"}
+    </span>
+  );
+}
+
+const KIND_LAMP: Record<AttentionItem["kind"], string> = {
+  past_due: "bg-guava",
+  trial_ending: "bg-brand-accent",
+  quiet: "bg-brand-ink/25",
+  follow_up: "bg-brand-primary",
+};
+
+/**
+ * The attention list, as the reference's table card.
+ *
+ * A TABLE on desktop and CARDS on a phone. The layout being followed is a
+ * desktop admin console; this screen is also used standing in a restaurant, and
+ * a six-column table at 390px is a table nobody reads.
+ *
+ * The "situation" lamp carries a text label as well as a colour. A dot alone
+ * encodes the only urgent thing on the screen in hue, which is invisible to
+ * anyone who cannot separate red from grey.
+ */
 export function AttentionList({ items }: { items: AttentionItem[] }) {
   return (
-    <div className="rounded-tile border border-brand-ink/10 bg-white p-5">
-      <h2 className="font-heading text-lg font-bold">Needs you today</h2>
+    <div className="overflow-hidden rounded-tile border border-brand-ink/10 bg-white">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-brand-ink/10 px-5 py-4">
+        <h2 className="font-heading text-lg font-bold">Needs you today</h2>
+        <span className="text-xs tabular-nums text-brand-ink/45">
+          {items.length === 0 ? "All clear" : `${items.length} item${items.length === 1 ? "" : "s"}`}
+        </span>
+      </div>
 
       {items.length === 0 ? (
-        <p className="mt-3 text-sm text-brand-ink/55">
+        <p className="px-5 py-10 text-center text-sm text-brand-ink/50">
           Nothing needs attention. Go sign someone up.
         </p>
       ) : (
-        <ul className="mt-3 divide-y divide-brand-ink/10">
-          {items.map((i, idx) => (
-            <li key={`${i.kind}-${i.href}-${idx}`}>
-              <Link href={i.href} className="flex items-start gap-3 py-3 hover:bg-brand-surface">
-                <span className="mt-0.5 shrink-0 rounded-full bg-brand-ink/[0.06] px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-brand-ink/60">
-                  {KIND_LABEL[i.kind]}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold">{i.title}</span>
-                  <span className="block text-xs text-brand-ink/55">{i.detail}</span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="divide-y divide-brand-ink/[0.07] sm:hidden">
+            {items.map((i, idx) => (
+              <li key={`${i.kind}-${i.href}-${idx}`}>
+                <Link href={i.href} className="flex items-center gap-3 px-4 py-3.5">
+                  <Avatar name={i.title} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">{i.title}</span>
+                    <span className="block text-xs text-brand-ink/55">{i.detail}</span>
+                  </span>
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${KIND_LAMP[i.kind]}`} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <table className="hidden w-full text-sm sm:table">
+            <thead>
+              <tr className="border-b border-brand-ink/[0.07] text-left text-xs uppercase tracking-wide text-brand-ink/45">
+                <th className="px-5 py-3 font-semibold">Name</th>
+                <th className="px-5 py-3 font-semibold">What</th>
+                <th className="px-5 py-3 font-semibold">Situation</th>
+                <th className="px-5 py-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-ink/[0.07]">
+              {items.map((i, idx) => (
+                <tr key={`${i.kind}-${i.href}-${idx}`} className="hover:bg-brand-surface">
+                  <td className="px-5 py-3">
+                    <span className="flex items-center gap-3">
+                      <Avatar name={i.title} />
+                      <span className="truncate font-semibold">{i.title}</span>
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-brand-ink/60">{i.detail}</td>
+                  <td className="px-5 py-3">
+                    <span className="inline-flex items-center gap-2 text-xs text-brand-ink/60">
+                      <span className={`h-2.5 w-2.5 rounded-full ${KIND_LAMP[i.kind]}`} />
+                      {KIND_LABEL[i.kind]}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <Link
+                      href={i.href}
+                      className="inline-flex min-h-[36px] items-center rounded-full bg-brand-ink px-4 text-xs font-semibold text-white hover:bg-black"
+                    >
+                      View details
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </div>
   );

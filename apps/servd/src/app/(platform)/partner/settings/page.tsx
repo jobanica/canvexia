@@ -2,7 +2,7 @@ import Link from "next/link";
 import { NOTIFICATION_EVENTS, NOTIFICATION_LABELS, parseMilestones } from "@servd/core";
 import { requirePartnerPageWith } from "@/server/partners/auth";
 import { systemDb } from "@/server/tenancy/scoped-db";
-import { PortalNav } from "@/components/partner/PortalNav";
+import { PortalShell } from "@/components/partner/PortalShell";
 import { peso } from "@/components/partner/Overview";
 
 /**
@@ -41,11 +41,10 @@ export default async function PartnerSettingsPage() {
   const canEncrypt = !!process.env.CREDENTIALS_ENCRYPTION_KEY;
 
   return (
-    <>
-      <PortalNav partner={partner} />
-      <div className="mx-auto max-w-3xl px-6 py-8">
-        <h1 className="font-heading text-2xl font-bold">Settings</h1>
-
+    <PortalShell
+      partner={partner}
+      title="Settings"
+    >
         <section className="mt-6 rounded-tile border border-brand-ink/10 bg-white p-5">
           <h2 className="font-heading text-lg font-bold">Your agreement</h2>
           <dl className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -144,7 +143,6 @@ export default async function PartnerSettingsPage() {
             Team
           </Link>
         </p>
-      </div>
-    </>
+    </PortalShell>
   );
 }

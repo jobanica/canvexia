@@ -3,7 +3,7 @@ import { requirePartnerPageWith, partnerCan } from "@/server/partners/auth";
 import { listAssignableSeats, listProspects } from "@/server/partners/prospects";
 import { provisionableProducts } from "@/server/products";
 import { getPartnerProfile } from "@/server/partners/overview";
-import { PortalNav } from "@/components/partner/PortalNav";
+import { PortalShell } from "@/components/partner/PortalShell";
 import { PipelineBoard } from "@/components/partner/PipelineBoard";
 import { ProspectForm } from "@/components/partner/ProspectForm";
 
@@ -28,16 +28,12 @@ export default async function PartnerPipelinePage() {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
   return (
-    <>
-      <PortalNav partner={partner} />
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="font-heading text-2xl font-bold">Pipeline</h1>
-          <span className="text-sm tabular-nums text-brand-ink/50">
-            {prospects.length} open
-          </span>
-        </div>
-
+    <PortalShell
+      partner={partner}
+      title="Pipeline"
+      subtitle="Businesses you are working, and the ones who came to you."
+      counts={{ pipeline: prospects.length }}
+    >
         {prospects.length === 0 ? (
           <div className="mt-6 rounded-tile border border-dashed border-brand-ink/15 bg-white p-10 text-center">
             <p className="font-heading text-lg font-bold">No prospects yet</p>
@@ -77,7 +73,6 @@ export default async function PartnerPipelinePage() {
             <ProspectForm products={products} seats={seats} />
           </div>
         )}
-      </div>
-    </>
+    </PortalShell>
   );
 }

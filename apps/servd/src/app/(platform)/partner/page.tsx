@@ -19,7 +19,7 @@ import {
   StatCards,
 } from "@/components/partner/Overview";
 import { GrowthChart } from "@/components/partner/GrowthChart";
-import { PortalNav } from "@/components/partner/PortalNav";
+import { FilterChip, PortalShell } from "@/components/partner/PortalShell";
 
 const DEMO = { label: "Demo", cls: "bg-brand-ink/5 text-brand-ink/60" };
 const LIVE = { label: "Live ✓", cls: "bg-brand-primary/15 text-brand-primary" };
@@ -50,6 +50,7 @@ export default async function PartnerPortalPage() {
 
   const overview = await getPartnerOverview(partner.id);
   const profile = await getPartnerProfile(partner.id);
+  const territory = profile?.territory ?? null;
   const data = await getPartnerDashboard(partner.id);
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const demos = await listPartnerDemos(partner.id);
@@ -65,10 +66,25 @@ export default async function PartnerPortalPage() {
   }));
 
   return (
-    <>
-    <PortalNav partner={partner} />
-    <div className="mx-auto max-w-5xl px-6 py-8">
-      <h1 className="font-heading text-2xl font-bold">Partner dashboard</h1>
+    <PortalShell
+      partner={partner}
+      title="Overview"
+      counts={{ merchants: overview.merchants.length }}
+      actions={
+        <>
+          {/*
+            The reference puts three filter dropdowns here. These are CHIPS, not
+            selects: there is exactly one partner, one territory and one "today"
+            to choose from, and a dropdown with a single option is a control that
+            teaches people it does nothing. They become selects when a partner
+            has more than one of anything.
+          */}
+          <FilterChip>{partner.user.name ?? partner.user.email}</FilterChip>
+          {territory && <FilterChip>{territory}</FilterChip>}
+          <FilterChip>Today</FilterChip>
+        </>
+      }
+    >
 
       {/*
         The two tiers are paid differently, so they cannot be told the same
@@ -80,19 +96,19 @@ export default async function PartnerPortalPage() {
         wonder which one is true.
       */}
       {partner.tier === "operator" ? (
-        <p className="mt-1 text-sm text-brand-ink/55">
+        <p className="text-sm text-brand-ink/55">
           Set up as many merchants as you like. You keep{" "}
           <strong className="font-semibold text-brand-ink/80">{partner.revenueSharePct}%</strong>{" "}
           of what each one pays every month; CANVEXIA keeps {100 - partner.revenueSharePct}%.
         </p>
       ) : (
-        <p className="mt-1 text-sm text-brand-ink/55">
+        <p className="text-sm text-brand-ink/55">
           Set up as many restaurants as you like. What you charge them is yours to decide —
           Servd doesn&apos;t take a cut and never sees the price.
         </p>
       )}
 
-      <div className="mt-6">
+      <div className="mt-5">
         <StatCards o={overview} />
       </div>
 
@@ -167,7 +183,6 @@ export default async function PartnerPortalPage() {
           : "There is no cap on how many restaurants you can set up, and no commission in either direction — you bill your clients yourself, at whatever you decide."}
       </p>
       <p className="mt-2 text-xs text-brand-ink/35">Partner portal by CANVEXIA.</p>
-    </div>
-    </>
+    </PortalShell>
   );
 }

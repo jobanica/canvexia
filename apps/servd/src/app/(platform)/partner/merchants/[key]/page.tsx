@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { partnerCan, requirePartnerPageWith } from "@/server/partners/auth";
 import { getPartnerMerchant, isPaying } from "@/server/partners/merchants";
-import { PortalNav } from "@/components/partner/PortalNav";
+import { PortalShell } from "@/components/partner/PortalShell";
 import { peso } from "@/components/partner/Overview";
 
 /**
@@ -45,17 +45,14 @@ export default async function PartnerMerchantPage({
   ];
 
   return (
-    <>
-      <PortalNav partner={partner} />
-      <div className="mx-auto max-w-3xl px-6 py-8">
+    <PortalShell
+      partner={partner}
+      title={merchant.name}
+      subtitle={`${merchant.productName} · /${merchant.slug}`}
+    >
         <Link href="/partner/merchants" className="text-sm text-brand-ink/50 hover:text-brand-ink">
           ← All merchants
         </Link>
-
-        <div className="mt-4 flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="font-heading text-2xl font-bold">{merchant.name}</h1>
-          <span className="text-sm text-brand-ink/50">/{merchant.slug}</span>
-        </div>
 
         {merchant.subscriptionStatus === "past_due" && (
           <p className="mt-4 rounded-lg bg-guava/10 px-4 py-3 text-sm text-guava">
@@ -102,7 +99,6 @@ export default async function PartnerMerchantPage({
             </p>
           )}
         </div>
-      </div>
-    </>
+    </PortalShell>
   );
 }

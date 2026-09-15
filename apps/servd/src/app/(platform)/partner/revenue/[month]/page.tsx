@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePartnerPageWith } from "@/server/partners/auth";
 import { getStatement, productName } from "@/server/partners/revenue";
-import { PortalNav } from "@/components/partner/PortalNav";
+import { PortalShell } from "@/components/partner/PortalShell";
 import { peso } from "@/components/partner/Overview";
 
 export default async function StatementPage({
@@ -16,15 +16,15 @@ export default async function StatementPage({
   if (!s) notFound();
 
   return (
-    <>
-      <PortalNav partner={partner} />
-      <div className="mx-auto max-w-4xl px-6 py-8">
+    <PortalShell
+      partner={partner}
+      title={`Statement · ${s.month}`}
+    >
         <Link href="/partner/revenue" className="text-sm text-brand-ink/50 hover:text-brand-ink">
           ← Revenue
         </Link>
 
-        <div className="mt-4 flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="font-heading text-2xl font-bold">Statement · {s.month}</h1>
+        <div className="mt-4 flex flex-wrap items-baseline justify-end gap-3">
           <div className="flex gap-2">
             <a
               href={`/partner/revenue/${s.month}/print`}
@@ -108,7 +108,6 @@ export default async function StatementPage({
             ? `Closed ${s.frozenAt.toLocaleDateString()}. Payout status: ${s.payoutStatus ?? "pending"}.`
             : "Still open — this month closes on the 1st, Manila time."}
         </p>
-      </div>
-    </>
+    </PortalShell>
   );
 }
