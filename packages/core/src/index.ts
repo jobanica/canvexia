@@ -7,3 +7,4 @@ export * from "./products/adapter";
 export * from "./branding/config";
 export * from "./partners/milestones";
 export * from "./partners/notifications";
+export * from "./ph/mobile";

@@ -138,9 +138,14 @@ export async function middleware(req: NextRequest) {
     headers.set(PATH_HEADER, pathname);
     // Already-prefixed paths are left alone so a redirect to /partner/login from
     // inside the portal does not become /partner/partner/login.
-    const target = pathname.startsWith("/partner")
-      ? `${pathname}${search}`
-      : `/partner${pathname === "/" ? "" : pathname}${search}`;
+    //
+    // `/l/...` is left alone too: it is a partner's PUBLIC lead form, which has
+    // no session and must not inherit the portal chrome. Prefixing it would
+    // rewrite the one page a stranger sees into /partner/l/<slug> and 404 it.
+    const target =
+      pathname.startsWith("/partner") || pathname.startsWith("/l/")
+        ? `${pathname}${search}`
+        : `/partner${pathname === "/" ? "" : pathname}${search}`;
     return withSession(
       captureAttribution(
         req,

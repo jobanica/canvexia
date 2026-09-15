@@ -18,6 +18,7 @@ import { CanvexiaLockup } from "./CanvexiaBrand";
  */
 const LINKS: { href: string; label: string; need?: Capability }[] = [
   { href: "/partner", label: "Overview" },
+  { href: "/partner/pipeline", label: "Pipeline", need: "pipeline.read" },
   { href: "/partner/merchants", label: "Merchants", need: "merchants.read" },
 ];
 

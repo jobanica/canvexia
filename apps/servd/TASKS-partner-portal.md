@@ -74,7 +74,48 @@ RLS, so this can never be invisible again.
 - "Open tickets awaiting partner reply" has no ticket system to read. The rule
   is absent rather than always-empty.
 
-## A3 — Pipeline + lead form  ⬜ NEXT
+## A3 — Pipeline + lead form  ✅ DONE
+
+- [x] `lib/partners/prospect-input.ts` + 15 tests — two shapes, and the
+      difference between them is the security story
+- [x] `server/partners/prospects.ts` — list, create, move, convert-link, all
+      partner-scoped, each write audited in the SAME transaction
+- [x] `server/partners/lead-form.ts` — the one unauthenticated write
+- [x] `server/partners/prospect-actions.ts`
+- [x] `PipelineBoard.tsx` (board/list toggle), `ProspectForm.tsx`, `LeadForm.tsx`
+- [x] `/partner/pipeline` · `/l/[slug]` (public, branded, noindex)
+- [x] Middleware: `/l/...` passes through the partner-host rewrite
+- [x] `normalizeMobile` moved to `packages/core/src/ph/mobile.ts` — two apps
+      need it now
+- [x] **Isolation gate: 7/7 against the live database**
+
+### Decisions worth keeping
+
+- **No drag-and-drop library, and no drag-only interaction.** Every card carries
+  a stage `<select>` that posts a form: that is the mobile path, the keyboard
+  path and the screen-reader path. HTML5 drag is layered on top on desktop and
+  uses the same action. The select is the feature; the drag is the affordance.
+- **The public form's SHAPE is the boundary.** `LeadInput` has no `partnerId`,
+  no `stage`, no `assignedToId`, no `nextFollowUpAt`, and its message caps at
+  500 rather than the partner form's 2000. The slug is a lookup key, not an
+  identity. A test asserts the parsed keys exactly.
+- **Mobile required on the public form, optional for a partner.** The partner
+  has the shop in front of them; a stranger is asking to be called back.
+- **`actorType: "system"` on a lead-form audit row.** Nobody was signed in.
+  Recording a partner as the actor would make the audit trail wrong in the one
+  place it is read.
+
+### Not done
+
+- [ ] **Lead notifications.** `CREDENTIALS_ENCRYPTION_KEY` is unset, so a send
+      would silently no-op while the partner believed they had been told.
+      `notification_prefs` already stores the choice; A6 turns it on.
+- [ ] **Prospect → merchant round trip.** The card links to the create form with
+      the prospect id, and `linkProspectToMerchant` exists, but provisioning
+      does not yet thread the id back. Small, and it belongs with the merchant
+      actions in A2's deferred set.
+
+## A4 — Revenue + pricing + statements  ⬜ NEXT
 ## A3 — Pipeline + lead form  ⬜
 ## A4 — Revenue + pricing + statements  ⬜
 ## A5 — Brand + domains + sender identity  ⬜
