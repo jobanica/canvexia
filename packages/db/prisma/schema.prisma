@@ -1334,6 +1334,7 @@ model Partner {
   featureFlags        FeatureFlag[]
   announcementReads   HqAnnouncementRead[]
   impersonationGrants ImpersonationGrant[]
+  outboundEmails      OutboundEmail[]
 
   referralPartner Partner?  @relation("PartnerReferral", fields: [referralPartnerId], references: [id], onDelete: SetNull)
   referredBy      Partner[] @relation("PartnerReferral")
@@ -3277,6 +3278,10 @@ enum WaitlistStatus {
   contacted
   shortlisted
   rejected
+  /// Became a partner. The row is KEPT rather than deleted — it is the only
+  /// record of where that partner came from, and `convertedPartnerId` makes the
+  /// question answerable in one join.
+  converted
 }
 
 /// A Philippine city a partner can license, and what it costs.
@@ -3510,10 +3515,52 @@ model PartnerWaitlist {
   territoryId String?
   territory   Territory? @relation(fields: [territoryId], references: [id], onDelete: SetNull)
 
+  // --- What HQ records against the application (Phase H3) -------------------
+  /// HQ's own notes. Never shown to the applicant.
+  notes              String?
+  contactedAt        DateTime?
+  /// Set on conversion. Answers "where did this partner come from" in one join
+  /// rather than by matching an email address that may since have changed.
+  convertedPartnerId String?
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@index([city, createdAt])
   @@index([status])
   @@index([territoryId])
   @@map("partner_waitlist")
+}
+
+/// An email the platform owes somebody.
+///
+/// A QUEUE, because sending is blocked on one environment variable:
+/// CREDENTIALS_ENCRYPTION_KEY is unset on this project, so the Resend
+/// credentials cannot even be stored. A conversion that silently sends nothing
+/// is worse than one that says so; a conversion that FAILS because email is
+/// unconfigured would be worse still. The row is written inside the conversion
+/// transaction and a sender drains it the day the key exists.
+model OutboundEmail {
+  id       String  @id @default(uuid())
+  /// A template key, not a rendered body: the copy belongs in code, where it
+  /// can change without rewriting rows that have not gone out yet.
+  template String
+  toEmail  String
+  toName   String?
+  /// Template variables. NEVER a token or a password — an invite link is
+  /// composed by the sender from the invite row, so a leak of this table is not
+  /// a leak of anybody's account.
+  payload  Json?
+
+  partnerId String?
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
+  failedAt  DateTime?
+  error     String?
+  attempts  Int       @default(0)
+
+  partner Partner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId])
+  @@map("outbound_emails")
 }

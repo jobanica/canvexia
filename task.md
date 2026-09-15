@@ -50,6 +50,17 @@ into /hq.
 - [x] 23 new tests; DB constraints proved against the live database
 - [ ] Deployed and walked through with a real HQ login (needs the bootstrap)
 ## H3 — Territories + Applications + convert-to-partner
+
+- [x] `lib/hq/csv.ts` — written not installed; quotes, CRLF, BOM, round-trip
+- [x] `server/hq/territories.ts` + actions — CRUD, assign/release, split/merge,
+      two-step CSV import that plans before it writes and never deletes
+- [x] `server/hq/applications.ts` — the waitlist, grouped by city
+- [x] `server/hq/convert.ts` — one transaction: partner + seat + invite +
+      territory + assignment + application + audit + queued email
+- [x] `/hq/territories`, `/hq/applications`, `/hq/applications/[id]`
+- [x] `WaitlistStatus` gains `converted`; `outbound_emails` queue
+- [x] Territory reconciliation, with the two known aliases named explicitly
+- [x] 26 more tests (CSV round-trip, import planner)
 ## H6 — Billing (moved ahead of H4, per plan §3.5)
 ## H4 — Global merchant directory
 ## H5 — Products & plans
