@@ -106,12 +106,22 @@ describe("homeForAdmin", () => {
     }
   });
 
-  it("keeps the founder on the overview", () => {
-    expect(homeForAdmin("owner")).toBe("/super-admin");
+  it("lands BOTH HQ roles on the CANVEXIA console, not a Servd section", () => {
+    // These used to be /super-admin and /super-admin/bizops. `platform_admins`
+    // is deliberately one table for both consoles — CANVEXIA runs Servd, so
+    // every HQ seat is also a Servd super-admin — but /hq is the parent of the
+    // two and /super-admin is one product's back office, reachable from the HQ
+    // sidebar. Arriving in the narrower console said the wrong thing about
+    // which of the two contains the other.
+    expect(homeForAdmin("owner")).toBe("/hq");
+    expect(homeForAdmin("ops")).toBe("/hq");
   });
 
-  it("starts ops on the business screen", () => {
-    expect(homeForAdmin("ops")).toBe("/super-admin/bizops");
+  it("sends an ops admin who overreaches somewhere they can actually open", () => {
+    // OPS_HOME is also the bounce target from the /super-admin layout. The
+    // invariant above already covers it; this says out loud that the bounce
+    // must not land on a screen the role is refused, which would loop.
+    expect(canAccessPath("ops", homeForAdmin("ops"))).toBe(true);
   });
 });
 
