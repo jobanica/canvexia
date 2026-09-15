@@ -1,355 +1,342 @@
-# Partner Portal A7 — Staff roles, HR monitoring, field attendance, commissions
+# Partner Portal — A8 SMS marketing, A7.4 QR clock-in, staff invite email
 
 Mode C plan. **Nothing is written yet.** Section 0 is the part to read first:
-nine premises in the brief do not hold against this repository, and four of them
-change *what* gets built rather than how. Section 6 has three questions I cannot
-answer from the code.
+the SMS stack this brief asks for **already exists**, and eight other premises
+do not hold. Section 5 has six questions I cannot answer from the code.
 
-The previous occupant of this filename — the HQ Admin plan, now shipped as
-H1–H7 — is archived at `docs/canvexia/hq-admin-plan.md`.
+The previous occupant of this filename — the A7 plan, now shipped — is archived
+at `docs/canvexia/partner-a7-plan.md`.
 
-Traced before writing: `system_architecture.md`, the archived HQ and partner
-plans, `packages/core/src/identity/*`, `packages/db/prisma/{schema.prisma,
-rls.sql, manual/*.sql}`, all 16 `/partner` routes, all 29
-`apps/servd/src/server/partners/*` modules, and the existing Servd HR stack
-(`Employee`, `Shift`, `TimeEntry`, `EmployeeDocument`).
+Traced: `system_architecture.md`, the A7 plan, `packages/core/src/*`,
+`packages/db/prisma/schema.prisma`, all eleven files under
+`apps/servd/src/{server,lib}/sms`, `server/billing/xendit.ts`,
+`server/email/*`, `lib/qr.ts`, `components/partner/TeamManager.tsx`, and the
+`partner_invites` / `attendance_sessions` models.
 
 ---
 
 ## 0. Blocking — what the brief assumes vs. what is here
 
-### 0.1 There is no `apps/partner`, and no `core` schema
+### 0.1 THE BIG ONE: a complete SMS stack already exists
 
-The portal is **`/partner` inside `apps/servd`** — 16 routes in
-`src/app/(platform)/partner`, served by 29 modules in `src/server/partners`.
-There is no separate app and adding one now would split one auth model, one
-Prisma client and one RLS file across two deployments for no gain.
+The brief reads as though SMS is greenfield ("new module, A8", "built on the
+swappable SMS provider interface … move that interface to packages/core/sms if
+it isn't there"). It is not greenfield. `apps/servd` already has, working and
+tested:
 
-Likewise there is no `core.` Postgres schema. Every table in this database is
-in `public` with a quoted camelCase name (`partner_users`, `audit_logs`,
-`partner_ledger_entries`). The one exception is the **`app` schema**, which
-holds RLS helper *functions* only — `app.current_partner_id()`,
-`app.is_super_admin()`.
+| | |
+|---|---|
+| `server/sms/provider.ts` | the swappable interface — `SmsProvider`, `SendResult`, `InboundMessage` |
+| `server/sms/semaphore.ts` | **the Philippine A2P aggregator**, implemented |
+| `server/sms/campaigns.ts` | compose, schedule, send, per-message status |
+| `server/sms/credits.ts` | wallet debit/refund |
+| `server/sms/optin.ts` | double opt-in |
+| `server/sms/notify.ts`, `admin.ts` | transactional sends, admin surface |
+| `lib/sms/{phone,consent,keywords}.ts` | E.164 normalisation, consent copy, STOP classification |
+| `app/api/webhooks/sms/route.ts` | inbound webhook, STOP handling |
+| `tests/sms/sms.test.ts` | the suite |
+| models | `SmsCampaign`, `SmsMessage`, `SmsCreditLedger`, `CustomerContact` (with `marketingConsent`, `consentText`, `consentSource`, `optOutAt`), `Restaurant.smsCreditBalance`, `.smsSenderName`, `.smsDoubleOptIn` |
 
-So `core.partner_role_permissions` reads as `public.partner_role_permissions`
-throughout, and `has_permission()` belongs in `app`, beside its siblings.
-**No behaviour changes; only the names in the brief do.**
+**Every one of them is scoped to `restaurantId`.** A8 is therefore not "build an
+SMS module" — it is **"add a second axis to an existing one"**, exactly as D29
+did for merchants. That is a different job with a different risk profile: the
+danger is not missing features, it is breaking a live merchant-facing system
+while widening it.
 
-### 0.2 The roles are already `admin | sales | support`, not `partner_sales | partner_support`
+This changes the sub-phase shape (see §3) and it is the single reason I want
+approval before writing anything.
 
-`packages/core/src/identity/roles.ts` defines `PARTNER_USER_ROLES = ["admin",
-"sales", "support"]`, enforced by `partner_users_role_check` in
-`add-partner-portal.sql`. **The migration the brief asks for is a no-op** —
-there is nothing named `partner_sales` to rename.
+**One thing that must NOT be broken.** `api/webhooks/sms/route.ts` matches a
+STOP by phone number **across the whole platform**, on purpose and with a
+comment saying so — a person who texts STOP has opted out of everything, not of
+one restaurant. Adding a partner axis must preserve that. It is the assertion I
+will write first.
 
-What IS needed: adding a **fourth** role, `ops_manager`. That is one `ALTER
-TABLE ... DROP CONSTRAINT / ADD CONSTRAINT` plus the matrix, and `admin` stays
-named `admin` rather than becoming `partner_admin` — renaming it would touch
-every seat row, the CHECK, `parseRole`, six action files and the HQ console for
-a cosmetic gain.
+### 0.2 `core.*` is not a schema; `apps/partner` does not exist
 
-### 0.3 RLS scopes to the PARTNER, not to the seat — this is the biggest decision in A7
+Same two as A7 and unchanged: every table is `public` with a quoted camelCase
+name, the `app` schema holds RLS helper functions only, and the portal is
+`/partner` inside `apps/servd`. `core.sms_contacts` reads as
+`public.sms_contacts` throughout.
 
-Every partner policy in `rls.sql` (22 occurrences of `current_partner_id`) is
-one comparison: *does this row belong to the partner in the GUC?* The GUC is
-set by `partnerDb(partnerId, …)` and carries **no seat identity at all**. A
-`sales` seat and an `admin` seat of the same partner produce byte-identical SQL
-scope today; the difference between them lives entirely in
-`packages/core`'s capability matrix, checked in the server layer.
+### 0.3 `RESEND_API_KEY` is not an environment variable in this repo
 
-"Enforce in RLS via `has_permission(partner_id, permission)`" therefore is not
-an addition — it is a **rewrite of the tenancy model**. It needs:
+The brief says "if `RESEND_API_KEY` is missing in env, show a warning banner".
+There is no such variable anywhere — `grep` finds zero hits. The Resend key
+lives **encrypted in `platform_settings.emailCredsEnc`**, decrypted with
+`CREDENTIALS_ENCRYPTION_KEY`, and is entered at `/super-admin/email`.
 
-1. a second GUC, `app.current_partner_user_id`, set by every scope wrapper;
-2. `app.has_permission(text)` reading `partner_role_permissions` — a table
-   lookup **per row checked**, on a policy that currently costs one string
-   comparison;
-3. a second arm on each of the 22 partner policy occurrences.
+So the banner's condition becomes "no email provider is configured"
+(`getEmailStatus().configured === false`), which is the real question and is
+already a function. Checking an env var that does not exist would make the
+banner permanent.
 
-I am **not proposing that**, and the reason is not effort. The partner boundary
-is the one that matters — it is what stops Davao reading Tagum — and it is
-proven by the isolation suite. Making the same policies also answer "may this
-seat see this row" doubles the number of ways the *tenant* boundary can be got
-wrong, in the file where a mistake leaks another operator's commercial terms.
-That is a bad trade for a boundary that is internal to one partner's own staff.
+### 0.4 Email is already live — the copy the brief describes is already stale
 
-**Proposed instead — RLS gains a seat arm on exactly the tables where the seat
-IS the boundary**, which are the new ones: `staff_events`, `staff_targets`,
-`attendance_sessions`, `staff_visits`, `commission_rules`,
-`commission_statements`, plus `partner_users.emergencyContact*`. On those, "own
-row vs. all rows" is a genuine data-separation rule, the table is small, and a
-wrong policy leaks a colleague's GPS trail rather than a rival's revenue.
+"Current state: /team … says *we can't email this yet*" was true this morning.
+As of this session: `CREDENTIALS_ENCRYPTION_KEY` is set, the Resend key is
+stored, `canvexia.com` is verified, `/api/cron/drain-emails` runs every 15
+minutes, and a real message was **delivered** from
+`CANVEXIA <noreply@canvexia.com>`.
 
-Everything else — `merchants.view_assigned`, `pipeline.view_own`,
-`overview.revenue_amounts` — is enforced at **one server chokepoint** (§1.3),
-with cross-role tests, exactly as the existing capability matrix is. The brief's
-"hide, don't disable" rule is unchanged and is additional to both.
+So Part 3 is smaller than written: the **sending** half is done. What is
+missing is the invite email itself and the accept route.
 
-**This needs your decision before A7.1.** See Q1 in §6.
+### 0.5 It is `canvexia.com`, not `canvexia.app`
 
-### 0.4 `merchants.view_assigned` needs assignment columns that do not exist
+The brief asks me to confirm the sending domain for **`canvexia.app`**. The
+domain verified in Resend, and the one the portal is branded around, is
+**`canvexia.com`**. `canvexia.app` is not registered, not in Resend, and appears
+nowhere in this repository. I have assumed a typo; see Q5.
 
-`Prospect.assignedToId` already exists (relation `ProspectAssignee` →
-`PartnerUser`). **Merchants have nothing.** `Restaurant.partnerId` and
-`Pharmacy.partnerId` name the owning partner and no seat.
+### 0.6 There is no `/invite/{token}` route at all
 
-And there are **two merchant tables**, not one (decision D29: each product has
-its own, ids unique only within a product). So `assigned_sales_user_id` is two
-columns on two tables, two backfills, and every assignment query is a union —
-the same shape `listPartnerMerchants` already deals with.
+`partner_invites` is complete — `tokenHash` (SHA-256, never the token),
+`expiresAt`, `acceptedAt`, `revokedAt`, `invitedByUserId`. What does not exist
+is any route that consumes one. The partner-portal QA report listed this as
+§4.1: *"without it no partner can be onboarded"*.
 
-### 0.5 `support.tickets` gates a screen that does not exist
+This is the most valuable single item in the whole brief and it is in Part 3,
+which is why running Part 3 first is right.
 
-There is **no ticket model, table, or route** anywhere in this repository. The
-partner-portal QA report records this as §4 missing feature. The permission can
-be seeded (it costs a row), but A7 must not ship a `/tickets` nav entry that
-leads nowhere. Proposed: seed the key, ship no screen, and note it.
+### 0.7 There is no per-partner email sender identity
 
-Same for **`merchants.login_as`**: `merchants.impersonate` exists in the core
-matrix and there is *no partner→merchant impersonation flow* — only HQ→partner
-(`server/hq/impersonate.ts`). Seed the key; the flow is its own phase.
+The brief: "from the partner's sender identity if verified, else from
+CANVEXIA's default sender". There is no partner-level sender identity for
+**email**. `smsSenderName` exists and is on `Restaurant` — a merchant column,
+for SMS, not a partner's email domain.
 
-### 0.6 The audit log has no actor *role*
+Sending as `noreply@davaooperator.com` would require verifying each partner's
+domain in Resend and storing per-partner credentials — a real feature, and not
+a small one. **Proposed:** always send from CANVEXIA's verified sender with the
+partner's brand name as the display name and in the subject, which is what the
+brief's own fallback says. Per-partner domains become their own phase. See Q4.
 
-`AuditLog` carries `actorType`, `actorStaffId`, `actorEmail` — not the role held
-at the time. "Every write → audit_log with actor **and role at time of
-action**" is a new column, `actorRole`, plus a change at the one helper
-(`createAuditRow`) every partner module already funnels through.
+### 0.8 A QR *generator* is here; a QR *scanner* is not
 
-### 0.7 Both "ask before planning" questions are answered by the repo
+`qrcode@^1.5.4` is a dependency and `lib/qr.ts` has `qrSvg` / `qrPngDataUrl` —
+that covers the kiosk **display** with no new package.
 
-- **Map: Leaflet `^1.9.4` is already a dependency of `apps/servd`**, with
-  `@types/leaflet`, used in three components (`ProspectingSearch`,
-  `LocationPicker`, `cashier/MiniMap`). No new dependency, no proposal needed —
-  the manager map reuses `LocationPicker`'s tile setup.
-- **Private Storage buckets exist and so does a clock-in selfie uploader.**
-  `server/storage/clock-photos.ts` already uploads a selfie data-URL to a
-  private bucket; `employee-docs.ts` shows the signed-URL read pattern.
-  A7 adds one bucket, `partner-attendance`, created by hand like the others
-  (there is no bucket-creation code path in this repo).
+**Reading** a QR from a camera is a different library and there is none. The
+brief says to ask; see Q1.
 
-### 0.8 The PWA pattern exists — do not import DMMA
+### 0.9 `smsSenderName` is on the wrong table for what the brief wants
 
-`apps/servd/public/` already has `sw.js`, `manifest.webmanifest` **and**
-`merchant.webmanifest`; `app/(platform)/merchant/layout.tsx` shows the
-per-route manifest pattern; `components/offline/{ServiceWorkerRegister,
-ConnectivityPill}.tsx` and `lib/offline/{idb.ts,useOnline.ts}` are the offline
-queue already in use by the kitchen board.
-
-A7.4's PWA and its IndexedDB queue are therefore **reuse, not new
-infrastructure** — a third manifest (`partner-field.webmanifest`), a route
-layout, and a queue built on `lib/offline/idb.ts`. Nothing from another repo is
-needed and nothing is installed.
-
-### 0.9 Servd already has an HR stack — for the wrong people
-
-`Employee`, `Shift`, `TimeEntry` (with `clockInPhotoUrl`/`clockOutPhotoUrl`),
-`EmployeeDocument`, `LeaveRequest` exist and belong to **a merchant's
-restaurant staff**, scoped by `restaurantId`. Partner field staff are
-`partner_users`, scoped by `partnerId`. These are different axes and must not
-share tables — but `TimeEntry` is the shape to copy for
-`attendance_sessions`, and its selfie handling is the one to reuse.
+"Sender name per partner (from A5 sender identity), status pending until HQ
+marks it approved" — the column exists on `Restaurant`, not `Partner`, and has
+no status field. A8 needs `partners.smsSenderName` + `smsSenderStatus` as new
+columns, not a reuse.
 
 ---
 
-## 1. A7.1 — Core: roles, permissions, staff data, RLS, tests
+## 1. PART 3 — Staff invite email + accept route
+
+The smallest, the most valuable, and the only part I would run today.
 
 ### Files
 
 | | |
 |---|---|
-| `[MODIFY]` | `packages/core/src/identity/roles.ts` |
-| `[NEW]` | `packages/core/src/identity/partner-permissions.ts` |
+| `[NEW]` | `packages/core/src/email/templates.ts` — pure copy + render helpers |
 | `[MODIFY]` | `packages/core/src/index.ts` |
-| `[NEW]` | `packages/db/prisma/manual/add-partner-staff.sql` |
-| `[MODIFY]` | `packages/db/prisma/schema.prisma` |
-| `[MODIFY]` | `packages/db/prisma/rls.sql` |
-| `[MODIFY]` | `apps/servd/src/server/tenancy/scoped-db.ts` |
-| `[MODIFY]` | `apps/servd/src/server/audit/log.ts` |
-| `[MODIFY]` | `apps/servd/src/server/partners/auth.ts` |
-| `[NEW]` | `apps/servd/src/server/partners/permissions.ts` |
-| `[NEW]` | `apps/servd/tests/partners/permission-matrix.test.ts` |
-| `[NEW]` | `apps/servd/tests/isolation/partner-staff.test.ts` |
+| `[NEW]` | `apps/servd/src/server/partners/invite-email.ts` |
+| `[NEW]` | `apps/servd/src/app/invite/[token]/page.tsx` |
+| `[NEW]` | `apps/servd/src/server/partners/accept-invite.ts` |
+| `[NEW]` | `apps/servd/src/components/partner/AcceptInvite.tsx` |
+| `[MODIFY]` | `apps/servd/src/server/partners/team.ts` / `team-actions.ts` — resend, sent status |
+| `[MODIFY]` | `apps/servd/src/components/partner/TeamManager.tsx` |
+| `[MODIFY]` | `apps/servd/src/server/email/outbox.ts` — render `partner.invite` |
+| `[NEW]` | `apps/servd/tests/partners/invite.test.ts` |
 
-### 1.1 Roles
+### What moves to `packages/core`, and what cannot
 
-`PARTNER_USER_ROLES` gains `ops_manager` (4 total). `parseRole` maps unknown →
-`sales` as today. The CHECK constraint is dropped and re-added with the fourth
-value. **No data migration**: no existing row uses a name that changes.
+The brief says move "the Resend client and base email template" into
+`packages/core/email`. **Half of that can move; half must not.**
 
-### 1.2 The permission table
+`packages/core` has **zero dependencies** and is framework-agnostic pure
+TypeScript. It can hold the templates and the body/subject builders, and those
+genuinely belong there — a second app will want them.
 
-```
-partner_role_permissions(
-  partnerId, role, permission, allowed, updatedAt,
-  PRIMARY KEY (partnerId, role, permission)
-)
-```
+It cannot hold the Resend *client* as it exists, because `getEmailCreds()` reads
+`platform_settings` through Prisma under `systemDb` and is `server-only`.
+Moving that would drag Prisma and a tenancy wrapper into a package whose whole
+value is having neither.
 
-Seeded per partner from the defaults in `packages/core` — 27 keys × 4 roles =
-108 rows per partner. Seeding happens in three places: the migration (for the 2
-live partners), `hq/convert.ts` (new partner), and lazily on first read, so a
-partner created by a path nobody has thought of yet is not permissionless.
+**Proposed split:** templates and copy → `packages/core/src/email`; the
+credential load and the `fetch` to Resend stay in `apps/servd/src/server/email`,
+re-exported so nothing that imports the old path breaks.
 
-**The defaults live in code, the overrides in the table.** A missing row means
-"use the default", not "denied" — otherwise adding a 28th permission key in a
-later release silently denies it to every existing partner until somebody runs
-a backfill.
+### The invite email
 
-### 1.3 The chokepoint
+Queued into `outbound_emails` as template `partner.invite` — it does **not**
+call Resend directly. That is deliberate: the drainer already exists, already
+retries, already claims-before-send, and a second sending path would be a second
+thing to get idempotency wrong in.
 
-`requireWritablePartner(capability?)` in `server/partners/auth.ts` is already
-the single gate every partner action passes through, enforced by the drift
-guard in `tests/hq/impersonation.test.ts`. A7 widens its argument from
-`Capability` (the 14 hard-coded ones) to `PartnerPermission` (the 27 keyed
-ones) and resolves through the table.
+Payload carries **no token**. `outbound_emails.payload` is documented as "NEVER
+a token or a password", and the whole point of `tokenHash` is that a leaked
+database cannot accept an invitation. So the drainer composes the link from the
+invite row — which means the token has to reach the drainer some other way.
 
-`CurrentPartner` gains `permissions: Set<PartnerPermission>`, resolved once per
-request in `getCurrentPartner()`. **Not cached in the JWT** — the brief is
-right and the codebase already agrees: nothing about a seat is in the token, so
-"role changes take effect on next request" is already true and stays true.
+**This is the one real design problem in Part 3.** Three options, and I am
+proposing the third:
 
-### 1.4 Schema additions
+1. Put the token in the payload → breaks the model's stated rule and puts a live
+   credential in a table with no encryption.
+2. Send the email synchronously at invite time → a second sending path, and an
+   invite that fails to send silently rolls back or silently does not.
+3. **Encrypt the token into the payload** with `CREDENTIALS_ENCRYPTION_KEY`
+   (now set), so the row carries `tokenEnc` and the drainer decrypts at send
+   time. A leaked database without the key is still useless, which is the
+   property `tokenHash` was protecting.
 
-| Table | Notes |
+Option 3 keeps one sending path and keeps the security property. It is what I
+will build unless told otherwise.
+
+### `/invite/[token]`
+
+- Hash the URL token, look up by `tokenHash`, reject expired / accepted /
+  revoked with a **distinct message for each** — "this link has expired" and
+  "this invitation was withdrawn" are different facts and a single "invalid"
+  teaches nobody anything.
+- Name + password, creating the Supabase user. **This is the one place the
+  service-role key legitimately creates a user**, and it is not the thing the
+  standing rule forbids: the rule is against *minting passwords for people*; here
+  the person chooses their own and holds the invite that authorises it.
+- One transaction: create `partner_users` row with the invited role, stamp
+  `acceptedAt`, audit. A half-accepted invite is a seat with no login or a login
+  with no seat.
+- Redirect to the role's home — `sales`/`support` land on "My day", which A7.2
+  already built.
+- Magic link: **not proposed.** Supabase magic links need SMTP configured *in
+  Supabase*, which is separate from Resend and is not set up. Password it is.
+
+### `/team` changes
+
+Replace the "we can't email this yet" box (now false) with sent status, Resend
+(regenerates the token, invalidates the old hash, re-queues), Revoke (exists),
+and **keep Copy-link** as the brief asks — partners whose staff do not check
+email are real.
+
+The admin-only warning banner keys on `getEmailStatus().configured`, per §0.3.
+
+### Tests
+
+Invite → queued row → drain → accept → seat exists with the right role → old
+token rejected after resend → expired/revoked/accepted each give their own
+message → audit rows for both invite and accept.
+
+---
+
+## 2. PART 2 — QR clock-in (A7.4 patch)
+
+### Files
+
+`[NEW]` `manual/add-attendance-kiosks.sql`, `lib/partners/kiosk-token.ts`
+(pure HMAC, tested), `server/partners/kiosk.ts`, `app/(platform)/partner/
+attendance/kiosk/page.tsx`, `components/partner/{KioskDisplay,QrScanner}.tsx`
+`[MODIFY]` `schema.prisma`, `rls.sql`, `attendance-actions.ts`,
+`attendance.ts`, `FieldApp.tsx`, `attendance/manager/page.tsx`,
+`staff-actions.ts`, `attendance.csv/route.ts`
+
+### Schema
+
+- `attendance_kiosks(id, partnerId, label, lat, lng, active, secret, createdAt)`
+  — a **per-kiosk secret**, not a global one, so revoking a compromised kiosk is
+  a row update rather than an env change that invalidates every kiosk.
+- `attendance_sessions` += `method` (`gps` | `qr`), `kioskId`.
+- `partner_users` += `kioskRequired` (default false).
+
+### The token
+
+HMAC-SHA256 over `partnerId | kioskId | floor(epoch/60)`, base64url, rotating
+every 60 s. Validation accepts the **current and previous** bucket — a scan that
+starts at 59.8 s must not fail — which gives the ≤90 s freshness the brief asks
+for without a clock-sync problem.
+
+Pure function in `lib/partners/kiosk-token.ts`, so the four cases the brief
+names are testable at a fixed clock: valid, two minutes old, another partner's
+kiosk, and a `kioskRequired` seat attempting GPS-only.
+
+### Kiosk page
+
+`partners.read`-level gate plus `attendance.view_all`; no `PortalShell`, no nav.
+"Requires re-auth to exit fullscreen" — browsers do not let a page trap
+fullscreen, so what this can honestly be is: **exiting fullscreen reveals a lock
+screen that needs the password**, not a page that cannot be closed. Stated
+because the brief's wording implies something the web platform does not permit.
+
+### Scanning
+
+See Q1. GPS is still captured on a QR check-in, per the brief.
+
+---
+
+## 3. PART 1 — SMS (A8), restructured around what exists
+
+Because of §0.1 the sub-phases in the brief do not match the work. Proposed:
+
+| | |
 |---|---|
-| `partner_role_permissions` | §1.2 |
-| `partner_users` +columns | `mobile`, `zone`, `startDate`, `photoUrl`, `emergencyName`, `emergencyMobile` |
-| `staff_events` | `partnerId, partnerUserId, kind, entityType, entityId, occurredAt, payload` — the activity feed's own table, distinct from `audit_logs` (an audit row is *what changed*; a staff event is *what a person did*, including things that change nothing, like a call) |
-| `staff_targets` | `partnerId, partnerUserId, month, targetMerchants, targetVisits, targetDemos` |
-| `attendance_sessions` | shaped after `TimeEntry`: `checkInAt/checkOutAt`, lat/lng/accuracy per end, `photoPath`, `device`, `autoClosed` |
-| `staff_visits` | `partnerId, partnerUserId, subjectType(prospect\|merchant), productId, subjectId, lat/lng/accuracy, distanceMeters, outcome, notes, photoPath, occurredAt, clientRef` |
-| `commission_rules` | `partnerId, partnerUserId, type, value, appliesTo, productId, startsAt, endsAt` |
-| `commission_statements` + `commission_lines` | mirrors `partner_statements`; append-only, `month` key |
-| `restaurants`/`pharmacies` +2 columns | `assignedSalesUserId`, `assignedSupportUserId` |
-| `audit_logs` +1 column | `actorRole` (§0.6) |
+| **A8.0** | **Lift the existing SMS stack to two axes.** `SmsProvider` and the pure helpers → `packages/core/src/sms`; `partnerId` alongside `restaurantId` on campaigns/messages/ledger; prove the platform-wide STOP still works. **No new features.** This is the risky phase and it ships alone. |
+| A8.1 | `sms_contacts` + the four consent capture points + opt-out (add `tigil`/`alis` to the keyword set) + tests |
+| A8.2 | `sms_wallets` + Xendit top-up (reuse `server/billing/xendit.ts`) + ledger + low-balance |
+| A8.3 | composer / segments / scheduling / send window / frequency cap |
+| A8.4 | inbox + 1:1 replies + notifications |
+| A8.5 | automations + analytics + export/forget |
 
-`clientRef` on `staff_visits` is what makes the offline queue idempotent: the
-device mints a UUID, the column is unique, a replayed sync is a no-op. Same
-mechanism as `PartnerLedgerEntry.providerRef`.
+Two design notes worth flagging now:
 
-### 1.5 RLS
-
-Per §0.3: the seven new tables get a partner arm **and** a seat arm; nothing
-existing is rewritten. New GUC `app.current_partner_user_id` and
-`app.has_permission(text)` in the `app` schema. Every new table is added to
-`rls.sql` itself — the D27 backstop sweep would otherwise lock them to
-super-admin and the portal would 500.
-
-### 1.6 Tests (must pass before A7.2)
-
-- cross-partner: partner B cannot read A's staff events, targets, attendance,
-  visits, commission rows — run as `app_user`, which does not bypass RLS
-- cross-role: `sales` sees own rows only on all six seat-scoped tables
-- permission-toggle: flipping `allowed` changes the answer on the next request
-  with no restart and no re-login
-- defaults: every key resolves for every role with an empty table
-- the existing drift guard still passes with the widened signature
+- **`sms.send` and `sms.reply_own`** are two new permission keys — the A7 grid
+  goes 29 → 31, and `PERMISSION_GROUPS` needs an SMS section or they will not
+  render (a key in no group is denied silently; A7's own test catches that).
+- **"Forget" with a tombstone hash** is the only part of A8 that is
+  irreversible. It needs its own review; I will not fold it into a phase with
+  five other things.
 
 ---
 
-## 2. A7.2 — Permission grid + role-scoped overviews
+## 4. What I will NOT build unless told otherwise
 
-`[NEW]` `partner/team/permissions/page.tsx`, `components/partner/PermissionGrid.tsx`,
-`server/partners/permissions-actions.ts`
-`[MODIFY]` `partner/page.tsx`, `server/partners/overview.ts`,
-`components/partner/{Overview,PortalShell}.tsx`
-
-- Grid: 27 rows × 4 columns of toggles, `team.permissions` only. Two refusals
-  worth naming: **an admin cannot remove `team.permissions` from `admin`**, and
-  cannot remove their own — both leave the screen that grants access
-  unreachable from inside it, which is the same rule `/hq/team` already
-  enforces on the last super admin.
-- Overview splits four ways. `overview.revenue_amounts` masks **₱ figures
-  only** — the MRR trend *shape* still renders, per the brief. Masking happens
-  in the server module, not the component: a number that reaches the client
-  masked is a number in the payload.
-- `PortalShell` nav derives from permissions instead of the capability matrix.
-
-## 3. A7.3 — Staff directory, assignment, offboarding, activity
-
-`[NEW]` `partner/team/staff/[id]/page.tsx`, `server/partners/staff.ts`,
-`staff-actions.ts`, `components/partner/{StaffProfile,StaffActivity,BulkReassign}.tsx`
-`[MODIFY]` `partner/team/page.tsx`, `server/partners/{team.ts,reassign.ts}`
-
-- Emergency contact is selected **only** when the reader holds `hr.view_all` —
-  not fetched and hidden. Same rule as `getPartnerDetail` and payout secrets.
-- **Offboarding is one transaction**: deactivate → reassign merchants
-  (both tables) and prospects → revoke sessions → audit. If any step fails
-  nothing happens, because a half-offboarded seat still holds a live session.
-- Session revocation uses the service-role admin API. `SUPABASE_SERVICE_ROLE_KEY`
-  is set on the project; see Q3.
-- Activity = `staff_events` ∪ `audit_logs` filtered by actor, date range, CSV
-  via the existing `lib/hq/csv.ts` (written, not installed).
-
-## 4. A7.4 — Attendance PWA, visit log, manager view, offline queue
-
-`[NEW]` `partner/attendance/{layout,page}.tsx`, `partner/attendance/manager/page.tsx`,
-`public/partner-field.webmanifest`, `server/partners/attendance.ts`,
-`attendance-actions.ts`, `server/storage/field-photos.ts`,
-`lib/partners/{geo.ts,visit-queue.ts}`, `components/partner/{CheckInCard,VisitForm,StaffMap,AttendanceTable}.tsx`
-
-- `lib/partners/geo.ts` is pure haversine + the 300 m rule + the
-  address-missing case, tested at fixed coordinates. No dependency.
-- `StaffMap` uses the Leaflet already present, `dynamic(..., {ssr:false})` as
-  `LocationPicker` does.
-- Auto-close at 23:59 **Manila** — computed from `startOfManilaDay`, not from
-  UTC midnight, for the reason `manilaYesterday()` exists. Runs in the daily
-  digest cron rather than as a seventh schedule.
-- Offline queue on `lib/offline/idb.ts`; `clientRef` (§1.4) makes replay safe;
-  `ConnectivityPill` already renders the state.
-- Privacy: geolocation requested **only** inside the check-in and visit
-  handlers, never on mount, and never watched. Stated on screen.
-
-## 5. A7.5 – A7.7
-
-- **A7.5 scorecard** — `server/partners/scorecard.ts` (pure aggregation over
-  `staff_events` + merchants), `/partner/team/scorecard`, "copy last month",
-  leaderboard; a `sales` seat's query is filtered server-side to its own row,
-  not hidden in the table.
-- **A7.6 commissions** — `packages/db/src/commissions.ts` (pure, tested like
-  `computeStatement`), `/api/cron/partner-commissions` on `0 1 1 * *` beside
-  `freeze-statements`, recorded in `cron_runs`; `/partner/commissions` for own
-  and all; mark-paid is append-only. **Statements are frozen** — a rule edited
-  in March must not rewrite January, the same reasoning as
-  `PartnerLedgerEntry.sharePct`.
-- **A7.7 notifications** — 4 new keys in `NOTIFICATION_EVENTS`, a manager
-  section in `composeDigest` (pure, tested), queued to `outbound_emails`.
-  **Nothing sends**: `CREDENTIALS_ENCRYPTION_KEY` is still unset, so this
-  queues exactly as the partner digest shipped yesterday does. Flagged now
-  rather than discovered at A7.7.
+- A second email sending path. Everything queues through `outbound_emails`.
+- Supabase magic links (§1) — Supabase SMTP is not configured.
+- Per-partner verified email domains (§0.7).
+- Any new npm dependency except a QR scanner, and only after Q1.
+- Re-opt-in of an opted-out contact without a new consent event — the brief
+  forbids it and so does the PH Data Privacy Act.
+- Removing "Reply STOP to opt out" — configurable wording, not removable.
 
 ---
 
-## 6. Questions I cannot answer from the code
+## 5. Questions I cannot answer from the code
 
-**Q1 — RLS scope (§0.3).** Seat-level enforcement in RLS on the seven new
-tables + the server chokepoint for the rest (my proposal), or a full
-`has_permission()` rewrite of all 22 existing partner policy arms?
+**Q1 — QR scanner library.** None exists (`qrcode` is generation only).
+Proposed, in order: the browser's **native `BarcodeDetector`** (zero bytes,
+supported in Chrome/Android which is what field staff use), falling back to
+**`jsqr`** (~14 kB, no dependencies) where it is missing — notably iOS Safari
+before 17. The alternative is `@zxing/browser` (~200 kB) or `html5-qrcode`
+(~90 kB, bundles its own UI). Confirm the native+jsqr pair, or name another.
 
-**Q2 — Size.** A7 as written is 8 new tables, 2 altered merchant tables, ~7 new
-screens, a PWA, a monthly job and an RLS change. That is larger than A1–A6 and
-larger than H1–H7. Run all seven sub-phases continuously as before, or stop
-after A7.1+A7.2 (the permission model, which everything else depends on) and
-re-scope?
+**Q2 — ₱0.50 per credit, and the provider unit cost.** The brief says confirm.
+I also cannot see Semaphore's actual per-segment price anywhere in the repo, and
+the statement's pass-through line is wrong if I guess it. What is the real
+provider cost per segment, and should it be an env var or an HQ config row?
 
-**Q3 — Session revocation on offboarding.** Signing a staff member out
-everywhere needs the service-role admin API. This codebase has a standing rule
-against service-role user *creation* (`/hq/team` and the bootstrap SQL both
-refuse to mint passwords). Revocation is not creation, but it is the same key.
-Allow it for offboarding, or deactivate the seat and let the session expire
-naturally — which leaves a fired salesperson signed in until their token
-lapses?
+**Q3 — Semaphore inbound and delivery-receipt formats.** `semaphore.ts` says
+*"Semaphore inbound payloads vary by setup; accept the common shape"* — i.e. it
+was written against a guess. Delivery receipts are not handled at all. Per the
+brief I will stub behind the provider interface, but the campaign status column
+is decorative until we have the real callback format. Can you get the webhook
+and DLR spec from them?
 
----
+**Q4 — Partner email sender identity** (§0.7). Confirm: CANVEXIA's verified
+sender with the partner's brand name as display name and in the subject, and
+per-partner domains as a later phase?
 
-## 7. What I will NOT build unless you say otherwise
+**Q5 — `canvexia.app`** (§0.5). Typo for `canvexia.com`, or a second domain you
+intend to register?
 
-- A manager approval step for merchant creation — the brief says no.
-- A global commission default — the brief says none.
-- Payroll, tax, deductions, staff bank details — the brief says no.
-- A `/tickets` screen (§0.5) and partner→merchant login-as (§0.5): permission
-  keys seeded, no screen, no nav entry.
-- Background location tracking of any kind.
-- Any new npm dependency. Leaflet, the PWA shell, the IndexedDB helper and the
-  CSV writer are all already here.
+**Q6 — Sequencing.** Part 3 is ~1 phase. Part 2 is ~1. Part 1 is **six**
+sub-phases and A8.0 is a refactor of a live merchant-facing system. Run Part 3
+now and re-scope the rest after, or approve all three and run continuously as
+A7 did?
