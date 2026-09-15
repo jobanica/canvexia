@@ -9,9 +9,9 @@ export function TrainingVideo({ url }: { url: string | null }) {
   if (!embed) return null;
 
   return (
-    <div className="rounded-tile border border-plum-ink/10 bg-white p-5">
+    <div className="rounded-tile border border-brand-ink/10 bg-white p-5">
       <p className="text-sm font-semibold">▶ Partner training</p>
-      <p className="mb-3 text-xs text-plum-ink/50">
+      <p className="mb-3 text-xs text-brand-ink/50">
         Watch this first — learn how Servd works so you can demo and sell it with confidence.
       </p>
 

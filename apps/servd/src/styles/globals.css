@@ -34,6 +34,36 @@
   );
 }
 
+/**
+ * CANVEXIA's identity, scoped to the partner portal.
+ *
+ * The portal is CANVEXIA's, not Servd's: a city operator signs in here to run
+ * their own territory across every product, and being met by the restaurant
+ * product's orange is the same brand confusion D31 fixed at the domain level.
+ * canvexia.com recruits them; this is where they land.
+ *
+ * It is a class rather than a host check on purpose. Branding by host means the
+ * portal looks right only once canvexia.com is bought and pointed here — and
+ * today no domain is registered at all, so every partner would see Servd. The
+ * route is the thing that is CANVEXIA's, so the route carries the brand.
+ *
+ * Nothing new is invented: these override the SAME five variables a white-label
+ * restaurant overrides at runtime, so every `brand-*` Tailwind class, every
+ * `.btn-brand` and every tinted border follows without one component knowing.
+ *
+ * --brand-gradient is a FLAT ink, which is not an oversight. The CANVEXIA
+ * gradient exists in exactly one place, the logo mark; a gradient in the logo
+ * and a gradient on every button is the look canvexia.com was written to avoid,
+ * and .btn-brand paints this variable.
+ */
+.brand-canvexia {
+  --brand-primary: #e8536a;
+  --brand-accent: #f2894e;
+  --brand-ink: #1a1a1e;
+  --brand-surface: #fafaf8;
+  --brand-gradient: #1a1a1e;
+}
+
 body {
   background-color: var(--brand-surface);
   color: var(--brand-ink);

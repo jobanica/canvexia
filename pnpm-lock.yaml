@@ -87,6 +87,9 @@ importers:
       '@servd/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@servd/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@supabase/ssr':
         specifier: ^0.5.2
         version: 0.5.2(@supabase/supabase-js@2.116.0)
@@ -181,6 +184,9 @@ importers:
       '@servd/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@servd/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       next:
         specifier: ^15.5.19
         version: 15.5.25(@types/node@22.20.2)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -243,7 +249,11 @@ importers:
         specifier: ^6.2.1
         version: 6.19.3(typescript@5.9.3)
 
-  packages/ui: {}
+  packages/ui:
+    dependencies:
+      react:
+        specifier: ^19.0.0
+        version: 19.0.0
 
 packages:
 

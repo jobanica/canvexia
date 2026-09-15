@@ -10,8 +10,8 @@ import type { PartnerPharmacyRow } from "@/server/partners/pharmacies";
 const IDLE: ActivateState = { status: "idle" };
 
 const BADGE: Record<string, { label: string; cls: string }> = {
-  active: { label: "Live ✓", cls: "bg-mango/15 text-mango" },
-  pending: { label: "Pending", cls: "bg-plum-ink/5 text-plum-ink/60" },
+  active: { label: "Live ✓", cls: "bg-brand-primary/15 text-brand-primary" },
+  pending: { label: "Pending", cls: "bg-brand-ink/5 text-brand-ink/60" },
   suspended: { label: "Suspended", cls: "bg-red-100 text-red-700" },
 };
 
@@ -31,11 +31,11 @@ export function PartnerPharmacies({ pharmacies }: { pharmacies: PartnerPharmacyR
   const live = pharmacies.filter((p) => p.status === "active").length;
 
   return (
-    <div className="mt-4 rounded-tile border border-plum-ink/10 bg-white p-5">
+    <div className="mt-4 rounded-tile border border-brand-ink/10 bg-white p-5">
       <p className="mb-1 text-sm font-semibold">
         Your pharmacies ({live} live · {pharmacies.length - live} not yet)
       </p>
-      <p className="mb-3 text-xs text-plum-ink/50">
+      <p className="mb-3 text-xs text-brand-ink/50">
         A pharmacy is set up pending and cannot dispense until you switch it on.
         That needs its FDA Licence to Operate recorded first — the pharmacy does
         that under Settings in Resceta.
@@ -52,14 +52,14 @@ export function PartnerPharmacies({ pharmacies }: { pharmacies: PartnerPharmacyR
         </p>
       )}
 
-      <ul className="divide-y divide-plum-ink/5">
+      <ul className="divide-y divide-brand-ink/5">
         {pharmacies.map((p) => {
-          const badge = BADGE[p.status] ?? { label: p.status, cls: "bg-plum-ink/5 text-plum-ink/60" };
+          const badge = BADGE[p.status] ?? { label: p.status, cls: "bg-brand-ink/5 text-brand-ink/60" };
           return (
             <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{p.name}</p>
-                <p className="text-xs text-plum-ink/45">
+                <p className="text-xs text-brand-ink/45">
                   Set up {new Date(p.createdAt).toLocaleDateString()} ·{" "}
                   {p.hasLto ? "FDA LTO on file" : "no FDA LTO yet"}
                 </p>
@@ -72,14 +72,14 @@ export function PartnerPharmacies({ pharmacies }: { pharmacies: PartnerPharmacyR
                     <button
                       type="submit"
                       disabled={pending}
-                      className="rounded-full bg-plum-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                      className="rounded-full bg-brand-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
                     >
                       {pending ? "Activating…" : "Activate"}
                     </button>
                   </form>
                 ) : (
                   p.status !== "active" && (
-                    <span className="max-w-[16rem] text-right text-xs text-plum-ink/45">
+                    <span className="max-w-[16rem] text-right text-xs text-brand-ink/45">
                       {p.activation.message}
                     </span>
                   )

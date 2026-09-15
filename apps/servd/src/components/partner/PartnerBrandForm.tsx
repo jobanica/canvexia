@@ -4,8 +4,8 @@ import { useActionState } from "react";
 import type { PartnerBrandConfig } from "@servd/core";
 import { savePartnerBrand, type BrandState } from "@/server/partners/brand-actions";
 
-const FIELD = "w-full rounded-lg border border-plum-ink/15 px-3 py-2 text-sm";
-const LABEL = "mb-1 block text-xs font-semibold uppercase tracking-wide text-plum-ink/50";
+const FIELD = "w-full rounded-lg border border-brand-ink/15 px-3 py-2 text-sm";
+const LABEL = "mb-1 block text-xs font-semibold uppercase tracking-wide text-brand-ink/50";
 
 /**
  * A partner's own brand. What their merchants see instead of Servd, and — once
@@ -31,7 +31,7 @@ export function PartnerBrandForm({
         <div>
           <label className={LABEL}>Legal name</label>
           <input name="legalName" defaultValue={brand.legalName ?? ""} className={FIELD} />
-          <p className="mt-1 text-xs text-plum-ink/45">For invoices and legal text.</p>
+          <p className="mt-1 text-xs text-brand-ink/45">For invoices and legal text.</p>
         </div>
         <div>
           <label className={LABEL}>Logo URL</label>
@@ -66,11 +66,11 @@ export function PartnerBrandForm({
         </div>
       </div>
 
-      <div className="rounded-lg border border-plum-ink/10 bg-plum-ink/[0.02] p-3">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-plum-ink/50">
+      <div className="rounded-lg border border-brand-ink/10 bg-brand-ink/[0.02] p-3">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-brand-ink/50">
           Support contacts
         </p>
-        <p className="mb-3 text-xs text-plum-ink/45">
+        <p className="mb-3 text-xs text-brand-ink/45">
           Where your merchants go for help. These replace Servd&apos;s own contacts on their
           dashboards — if you leave them blank, your merchants will be asking us.
         </p>
@@ -103,7 +103,7 @@ export function PartnerBrandForm({
           defaultValue={brand.legalFooter ?? ""}
           className={FIELD}
         />
-        <p className="mt-1 text-xs text-plum-ink/45">
+        <p className="mt-1 text-xs text-brand-ink/45">
           {whiteLabel
             ? "Shown under your merchants' customer-facing pages."
             : "Shown alongside the “Powered by Servd” credit your plan includes."}
@@ -120,7 +120,7 @@ export function PartnerBrandForm({
           Save brand
         </button>
         {state?.error && <span className="text-sm text-guava">{state.error}</span>}
-        {state?.ok && <span className="text-sm text-mango">{state.message ?? "Saved ✓"}</span>}
+        {state?.ok && <span className="text-sm text-brand-primary">{state.message ?? "Saved ✓"}</span>}
       </div>
     </form>
   );

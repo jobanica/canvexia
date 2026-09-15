@@ -29,9 +29,9 @@ export function NewMerchant({ products }: { products: ProductChoice[] }) {
   const chosen = products.find((p) => p.id === productId);
 
   return (
-    <div className="mt-4 rounded-tile border border-plum-ink/10 bg-white p-5">
+    <div className="mt-4 rounded-tile border border-brand-ink/10 bg-white p-5">
       <p className="mb-1 text-sm font-semibold">Open a merchant account</p>
-      <p className="mb-3 text-xs text-plum-ink/50">
+      <p className="mb-3 text-xs text-brand-ink/50">
         The account is created inactive. The merchant signs in, records whatever
         their product requires, and you switch it on — nothing dispenses or
         trades before you do.
@@ -50,12 +50,12 @@ export function NewMerchant({ products }: { products: ProductChoice[] }) {
 
       <form action={action} className="space-y-3">
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-plum-ink/70">Product</span>
+          <span className="mb-1 block font-medium text-brand-ink/70">Product</span>
           <select
             name="productId"
             value={productId}
             onChange={(e) => setProductId(e.target.value)}
-            className="w-full rounded-lg border border-plum-ink/15 px-2 py-1.5 text-sm"
+            className="w-full rounded-lg border border-brand-ink/15 px-2 py-1.5 text-sm"
           >
             {products.map((p) => (
               <option key={p.id} value={p.id}>
@@ -64,36 +64,36 @@ export function NewMerchant({ products }: { products: ProductChoice[] }) {
             ))}
           </select>
           {chosen && (
-            <span className="mt-1 block text-xs text-plum-ink/45">{chosen.description}</span>
+            <span className="mt-1 block text-xs text-brand-ink/45">{chosen.description}</span>
           )}
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-plum-ink/70">Business name</span>
+          <span className="mb-1 block font-medium text-brand-ink/70">Business name</span>
           <input
             name="name"
             required
             maxLength={120}
             placeholder="Botica San Roque"
-            className="w-full rounded-lg border border-plum-ink/15 px-2 py-1.5 text-sm"
+            className="w-full rounded-lg border border-brand-ink/15 px-2 py-1.5 text-sm"
           />
         </label>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-plum-ink/70">Address</span>
+            <span className="mb-1 block font-medium text-brand-ink/70">Address</span>
             <input
               name="address"
               maxLength={300}
-              className="w-full rounded-lg border border-plum-ink/15 px-2 py-1.5 text-sm"
+              className="w-full rounded-lg border border-brand-ink/15 px-2 py-1.5 text-sm"
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-plum-ink/70">Phone</span>
+            <span className="mb-1 block font-medium text-brand-ink/70">Phone</span>
             <input
               name="phone"
               maxLength={40}
-              className="w-full rounded-lg border border-plum-ink/15 px-2 py-1.5 text-sm"
+              className="w-full rounded-lg border border-brand-ink/15 px-2 py-1.5 text-sm"
             />
           </label>
         </div>
@@ -101,7 +101,7 @@ export function NewMerchant({ products }: { products: ProductChoice[] }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-full bg-plum-ink px-4 py-2 text-xs font-semibold text-white disabled:opacity-40"
+          className="rounded-full bg-brand-ink px-4 py-2 text-xs font-semibold text-white disabled:opacity-40"
         >
           {pending ? "Setting up…" : "Open account"}
         </button>

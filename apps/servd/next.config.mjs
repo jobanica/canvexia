@@ -9,7 +9,7 @@ const nextConfig = {
   // is no compile step between editing it and running the app, which is the only
   // way a shared package stays pleasant to work in. Next has to be told to run
   // it through the same pipeline as the app's own source.
-  transpilePackages: ["@servd/core", "@servd/db"],
+  transpilePackages: ["@servd/core", "@servd/db", "@servd/ui"],
   experimental: {
     // Menu-item image uploads (up to 5 MB) flow through a Server Action, whose
     // request body otherwise defaults to just 1 MB. (AI menu import uploads go

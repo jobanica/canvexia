@@ -19,9 +19,9 @@ export function PartnerConvertForm({ restaurantId }: { restaurantId: string }) {
 
   if (state?.ok && state.credentials) {
     return (
-      <div className="rounded-tile border border-mango/40 bg-mango/10 p-4">
-        <p className="font-heading font-bold text-plum-ink">✅ It&apos;s a real account now</p>
-        <p className="mt-1 text-sm text-plum-ink/70">
+      <div className="rounded-tile border border-brand-primary/40 bg-brand-primary/10 p-4">
+        <p className="font-heading font-bold text-brand-ink">✅ It&apos;s a real account now</p>
+        <p className="mt-1 text-sm text-brand-ink/70">
           Give these to the owner — this is the only time the password is shown. They can change
           both from their dashboard once they&apos;re in. Everything they&apos;ve already seen (menu,
           link, QR) carries over.
@@ -34,7 +34,7 @@ export function PartnerConvertForm({ restaurantId }: { restaurantId: string }) {
             Password: <strong>{state.credentials.password}</strong>
           </div>
         </div>
-        <p className="mt-2 text-xs text-plum-ink/50">
+        <p className="mt-2 text-xs text-brand-ink/50">
           On the ₱0 Free plan — Servd bills them nothing. What they pay you is between you and
           them.
         </p>
@@ -43,9 +43,9 @@ export function PartnerConvertForm({ restaurantId }: { restaurantId: string }) {
   }
 
   return (
-    <form action={action} className="rounded-tile border border-plum-ink/10 bg-white p-4">
-      <p className="font-heading font-bold text-plum-ink">Convert to a real account</p>
-      <p className="text-xs text-plum-ink/55">
+    <form action={action} className="rounded-tile border border-brand-ink/10 bg-white p-4">
+      <p className="font-heading font-bold text-brand-ink">Convert to a real account</p>
+      <p className="text-xs text-brand-ink/55">
         They said yes? Pick their login username and this demo becomes their account — same menu,
         same link, same QR codes. Starts on the ₱0 Free plan; you bill them yourself.
       </p>
@@ -55,7 +55,7 @@ export function PartnerConvertForm({ restaurantId }: { restaurantId: string }) {
           name="username"
           required
           placeholder="username (their login)"
-          className="rounded-lg border border-plum-ink/15 px-3 py-2 text-sm"
+          className="rounded-lg border border-brand-ink/15 px-3 py-2 text-sm"
         />
         <button
           disabled={pending}

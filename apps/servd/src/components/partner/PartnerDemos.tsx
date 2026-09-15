@@ -26,28 +26,28 @@ export function PartnerDemos({ demos, appUrl }: { demos: PartnerDemoRow[]; appUr
     }
   }, [state?.ok, router]);
 
-  const field = "w-full rounded-lg border border-plum-ink/15 px-3 py-2 text-sm";
+  const field = "w-full rounded-lg border border-brand-ink/15 px-3 py-2 text-sm";
 
   return (
-    <div className="rounded-tile border border-plum-ink/10 bg-white p-5">
+    <div className="rounded-tile border border-brand-ink/10 bg-white p-5">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold">Storefronts</p>
-          <p className="text-xs text-plum-ink/50">
+          <p className="text-xs text-brand-ink/50">
             Build a live ordering page to pitch a prospect, then convert it into their account
             when they say yes.
           </p>
         </div>
         <button
           onClick={() => setShowAdd((s) => !s)}
-          className="rounded-full border border-plum-ink/15 px-3 py-1.5 text-xs font-semibold hover:bg-cream"
+          className="rounded-full border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold hover:bg-brand-surface"
         >
           {showAdd ? "Close" : "+ New demo"}
         </button>
       </div>
 
       {showAdd && (
-        <form key={state?.ok ? "ok" : "form"} action={action} className="mt-4 grid gap-2 rounded-lg border border-plum-ink/10 bg-cream/40 p-3 sm:grid-cols-2">
+        <form key={state?.ok ? "ok" : "form"} action={action} className="mt-4 grid gap-2 rounded-lg border border-brand-ink/10 bg-brand-surface/40 p-3 sm:grid-cols-2">
           <input name="name" required placeholder="Restaurant name *" className={`${field} sm:col-span-2`} />
           <input name="tagline" placeholder="Tagline (optional)" className={field} />
           <input name="logoUrl" placeholder="Logo URL (optional)" className={field} />
@@ -64,7 +64,7 @@ export function PartnerDemos({ demos, appUrl }: { demos: PartnerDemoRow[]; appUr
 
       <div className="mt-4 space-y-2">
         {demos.length === 0 ? (
-          <p className="text-sm text-plum-ink/50">No demos yet. Create one to pitch a prospect.</p>
+          <p className="text-sm text-brand-ink/50">No demos yet. Create one to pitch a prospect.</p>
         ) : (
           demos.map((d) => <DemoRow key={d.id} demo={d} appUrl={appUrl} />)
         )}
@@ -95,22 +95,22 @@ function DemoRow({ demo, appUrl }: { demo: PartnerDemoRow; appUrl: string }) {
   }
 
   return (
-    <div className="rounded-lg border border-plum-ink/10 p-3">
+    <div className="rounded-lg border border-brand-ink/10 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2 font-medium">
             {demo.name}
             {demo.converted ? (
-              <span className="rounded-full bg-mango/15 px-2 py-0.5 text-xs font-semibold text-mango">
+              <span className="rounded-full bg-brand-primary/15 px-2 py-0.5 text-xs font-semibold text-brand-primary">
                 Live account{demo.username ? ` · ${demo.username}` : ""}
               </span>
             ) : (
-              <span className="rounded-full bg-plum-ink/5 px-2 py-0.5 text-xs font-semibold text-plum-ink/55">
+              <span className="rounded-full bg-brand-ink/5 px-2 py-0.5 text-xs font-semibold text-brand-ink/55">
                 Demo
               </span>
             )}
           </p>
-          <p className="text-xs text-plum-ink/45">
+          <p className="text-xs text-brand-ink/45">
             {demo.itemCount} item{demo.itemCount === 1 ? "" : "s"} ·{" "}
             <span className="break-all">{url}</span>
           </p>
@@ -126,13 +126,13 @@ function DemoRow({ demo, appUrl }: { demo: PartnerDemoRow; appUrl: string }) {
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-lg border border-plum-ink/15 px-3 py-1.5 text-xs font-semibold hover:bg-cream"
+            className="rounded-lg border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold hover:bg-brand-surface"
           >
             Open ↗
           </a>
           <button
             onClick={copy}
-            className="rounded-lg border border-plum-ink/15 px-3 py-1.5 text-xs font-semibold hover:bg-cream"
+            className="rounded-lg border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold hover:bg-brand-surface"
           >
             {copied ? "Copied ✓" : "Copy link"}
           </button>
@@ -151,13 +151,13 @@ function DemoRow({ demo, appUrl }: { demo: PartnerDemoRow; appUrl: string }) {
       </div>
 
       {!demo.converted && (
-        <div className="mt-3 border-t border-plum-ink/5 pt-3">
+        <div className="mt-3 border-t border-brand-ink/5 pt-3">
           <PartnerConvertForm restaurantId={demo.id} />
         </div>
       )}
 
       {/* AI menu scan — fills the storefront from a photo/PDF of the menu. */}
-      <form action={scanAction} className="mt-3 flex flex-wrap items-center gap-2 border-t border-plum-ink/5 pt-3">
+      <form action={scanAction} className="mt-3 flex flex-wrap items-center gap-2 border-t border-brand-ink/5 pt-3">
         <input type="hidden" name="restaurantId" value={demo.id} />
         <input
           ref={fileRef}
@@ -167,10 +167,10 @@ function DemoRow({ demo, appUrl }: { demo: PartnerDemoRow; appUrl: string }) {
           multiple
           className="text-xs"
         />
-        <button className="rounded-lg border border-plum-ink/15 px-3 py-1.5 text-xs font-semibold hover:bg-cream">
+        <button className="rounded-lg border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold hover:bg-brand-surface">
           Scan menu photo →
         </button>
-        {scanState?.ok && <span className="text-xs text-mango">Added {scanState.added} items ✓</span>}
+        {scanState?.ok && <span className="text-xs text-brand-primary">Added {scanState.added} items ✓</span>}
         {scanState?.error && <span className="text-xs text-guava">{scanState.error}</span>}
       </form>
     </div>
