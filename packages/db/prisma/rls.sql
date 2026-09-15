@@ -663,6 +663,70 @@ begin
   revoke all on territories from authenticated;
 end $$;
 
+-- product_settings: readable in any app context, because the partner portal's
+-- product picker needs the status and the training URL. Writable only by HQ.
+--
+-- `demoAccountRef` is readable with the rest, and that is acceptable BECAUSE it
+-- is a reference rather than a credential — "ask ops for the Resceta demo
+-- login" tells a partner nothing they could not have asked for. If a secret is
+-- ever put in that column this policy becomes wrong.
+do $$
+begin
+  if to_regclass('public.product_settings') is null then return; end if;
+  alter table product_settings enable row level security;
+  alter table product_settings force row level security;
+  drop policy if exists product_read on product_settings;
+  drop policy if exists product_write on product_settings;
+  create policy product_read on product_settings for select using (true);
+  create policy product_write on product_settings for all
+    using (app.is_super_admin()) with check (app.is_super_admin());
+  revoke all on product_settings from anon;
+  revoke all on product_settings from authenticated;
+end $$;
+
+-- passthrough_costs is CANVEXIA's margin: HQ only. Usage is partner-scoped — an
+-- operator may see what their own merchants sent and not another city's volume,
+-- and may not write it, because a partner writing their own usage is a partner
+-- writing their own bill.
+do $$
+begin
+  if to_regclass('public.passthrough_costs') is not null then
+    alter table passthrough_costs enable row level security;
+    alter table passthrough_costs force row level security;
+    drop policy if exists super_only on passthrough_costs;
+    create policy super_only on passthrough_costs for all
+      using (app.is_super_admin()) with check (app.is_super_admin());
+    revoke all on passthrough_costs from anon;
+    revoke all on passthrough_costs from authenticated;
+  end if;
+  if to_regclass('public.passthrough_usage') is not null then
+    alter table passthrough_usage enable row level security;
+    alter table passthrough_usage force row level security;
+    drop policy if exists partner_read on passthrough_usage;
+    drop policy if exists hq_write on passthrough_usage;
+    create policy partner_read on passthrough_usage for select
+      using (app.is_super_admin() or "partnerId" = app.current_partner_id());
+    create policy hq_write on passthrough_usage for all
+      using (app.is_super_admin()) with check (app.is_super_admin());
+    revoke all on passthrough_usage from anon;
+    revoke all on passthrough_usage from authenticated;
+  end if;
+end $$;
+
+-- outbound_emails holds the address and name of every person the platform has
+-- written to — the shape of data D27 found exposed on prospect_leads. HQ only.
+do $$
+begin
+  if to_regclass('public.outbound_emails') is null then return; end if;
+  alter table outbound_emails enable row level security;
+  alter table outbound_emails force row level security;
+  drop policy if exists super_only on outbound_emails;
+  create policy super_only on outbound_emails for all
+    using (app.is_super_admin()) with check (app.is_super_admin());
+  revoke all on outbound_emails from anon;
+  revoke all on outbound_emails from authenticated;
+end $$;
+
 -- HQ-only. A partner must not be able to enumerate the grants that let HQ into
 -- its console, nor see when a job last ran. These would be caught by the
 -- backstop anyway; they are spelled out so that adding a column to either does

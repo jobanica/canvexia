@@ -3462,6 +3462,33 @@ model ImpersonationGrant {
   @@map("impersonation_grants")
 }
 
+/// The editable half of the product registry.
+///
+/// `packages/core/src/products/registry.ts` stays the source of truth for which
+/// products exist and which are `live`. This overlays what HQ may edit on top.
+/// A product cannot be created from here on purpose: `live: false` is what stops
+/// the portal offering a merchant an account in something that cannot create
+/// one, and a database-driven registry could name a product with no adapter
+/// behind it.
+model ProductSetting {
+  /// Matches a key in the registry. A row for an unknown product is ignored on
+  /// read — the registry can shrink between a deploy and this being tidied.
+  productId String @id
+  /// "live" | "beta" | "coming". Presentation only. Whether a merchant can
+  /// actually be provisioned is the registry's `live`, which this cannot
+  /// override — the code wins.
+  status    String @default("coming")
+  trainingUrl String?
+  /// A REFERENCE, never the credential: "1Password → CANVEXIA → Resceta demo".
+  /// Readable by a partner, which is only acceptable because it is a pointer.
+  demoAccountRef String?
+  /// Whether a new partner gets this product without being asked.
+  defaultEnabled Boolean @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@map("product_settings")
+}
+
 /// What the provider charges for a unit of SMS or email, and CANVEXIA's markup.
 ///
 /// One row per CHANNEL, not per partner: this is a platform-wide commercial
