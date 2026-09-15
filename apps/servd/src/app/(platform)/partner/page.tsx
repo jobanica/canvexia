@@ -2,9 +2,12 @@ import { requirePartnerPage } from "@/server/partners/auth";
 import { getPartnerDashboard, getPartnerTrainingUrl } from "@/server/partners/portal";
 import { listPartnerDemos } from "@/server/partners/demo-queries";
 import { listPartnerPharmacies } from "@/server/partners/pharmacies";
+import { provisionableProducts } from "@/server/products";
+import { PRODUCTS } from "@servd/core";
 import { signOutPartner } from "@/server/partners/login-action";
 import { PartnerDemos } from "@/components/partner/PartnerDemos";
 import { PartnerPharmacies } from "@/components/partner/PartnerPharmacies";
+import { NewMerchant } from "@/components/partner/NewMerchant";
 import { TrainingVideo } from "@/components/partner/TrainingVideo";
 import { AppIcon, Wordmark } from "@/components/Wordmark";
 
@@ -41,6 +44,13 @@ export default async function PartnerPortalPage() {
   const trainingUrl = await getPartnerTrainingUrl();
   // Resceta merchants live on their own axis (D29), so they are a second query.
   const pharmacies = await listPartnerPharmacies(partner.id);
+  // From the registry, not a list written here: a vertical appears in the form
+  // by registering an adapter (D36).
+  const products = provisionableProducts().map((id) => ({
+    id,
+    name: PRODUCTS[id].name,
+    description: PRODUCTS[id].description,
+  }));
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
@@ -111,6 +121,8 @@ export default async function PartnerPortalPage() {
           </ul>
         )}
       </div>
+
+      <NewMerchant products={products} />
 
       <PartnerPharmacies pharmacies={pharmacies} />
 

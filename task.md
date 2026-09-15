@@ -2,7 +2,7 @@
 
 CANVEXIA is separate from servdph.com — its own database, its own merchants, its
 own domains (D31). Two products live: **Servd** (restaurants) and **Resceta**
-(pharmacy). 1,287 tests pass, none skipped.
+(pharmacy). 1,295 tests pass, none skipped.
 
 | Domain | Serves | Deployment |
 |---|---|---|
@@ -166,7 +166,7 @@ of field names, because what an audit asks is what the TIN *used to be*.
 ## Numbers
 
 - **Resceta 161 offline + 45 DB-backed**
-- **Servd 1,043 offline + 38 DB-backed**
+- **Servd 1,043 offline + 46 DB-backed**
 - both typecheck, both build
 
 One more thing turned up while verifying: `turbo run test` was **hiding

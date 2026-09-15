@@ -3,6 +3,10 @@ import "server-only";
 // dispatches must import THIS module rather than @servd/core directly, or the
 // registry will be empty and every product will report "no adapter".
 import "./servd-adapter";
+// Resceta. Registering it HERE is what lets the portal provision a pharmacy:
+// Resceta's own adapter registers inside apps/resceta, which this process
+// cannot reach. Both delegate to the same @servd/db function (D36).
+import "./pharmacy-adapter";
 
 import { provisionMerchant as dispatch, type ProvisionInput, type ProvisionOutcome } from "@servd/core";
 import { systemDb } from "@/server/tenancy/scoped-db";

@@ -5,7 +5,7 @@ const nextConfig = {
   // run it through the same pipeline as this app's own code. Same reasoning as
   // apps/servd — a shared package with a compile step between editing it and
   // seeing the change is a shared package nobody wants to work in.
-  transpilePackages: ["@servd/core"],
+  transpilePackages: ["@servd/core", "@servd/db"],
 };
 
 export default nextConfig;
