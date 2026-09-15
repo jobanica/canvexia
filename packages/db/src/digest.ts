@@ -25,6 +25,22 @@ export interface DigestFacts {
   newPayments: { merchant: string; amountCentavos: number }[];
   /** Null when the partner has no ladder or no licence start. */
   milestone: { target: number; actual: number; month: number; atRisk: boolean } | null;
+
+  /**
+   * A7: yesterday's field work, for a reader who manages the team.
+   *
+   * ABSENT for a salesperson's own digest, and present for a manager's. The two
+   * are the same composer with different facts rather than two composers: the
+   * decision about what is worth an email at all — `worthSending` — must not be
+   * made twice and come out differently.
+   */
+  team?: {
+    name: string;
+    checkedIn: boolean;
+    visits: number;
+    /** Visits logged far from the address on file. */
+    flagged: number;
+  }[];
 }
 
 export interface Digest {
@@ -76,6 +92,37 @@ export function composeDigest(facts: DigestFacts): Digest {
     );
   }
 
+  // The manager's section. Sorted by what is wrong rather than alphabetically:
+  // a list of twelve people read every morning is a list nobody reads, and the
+  // two who did not check in are the only reason to open it.
+  if (facts.team && facts.team.length > 0) {
+    const missing = facts.team.filter((t) => !t.checkedIn);
+    const flagged = facts.team.filter((t) => t.flagged > 0);
+    const visits = facts.team.reduce((n, t) => n + t.visits, 0);
+
+    const lines: string[] = [];
+    if (missing.length > 0) {
+      lines.push(`  - No check-in: ${missing.map((t) => t.name).join(", ")}`);
+    }
+    if (flagged.length > 0) {
+      lines.push(
+        `  - Visit far from the address on file: ${flagged
+          .map((t) => `${t.name} (${t.flagged})`)
+          .join(", ")}`,
+      );
+    }
+    for (const t of facts.team.filter((t) => t.checkedIn && t.visits > 0)) {
+      lines.push(`  - ${t.name}: ${t.visits} visit${t.visits === 1 ? "" : "s"}`);
+    }
+
+    // Only when there is something to say. A team section that appears every
+    // morning saying "5 people, 0 visits" on a Sunday is the line that teaches
+    // people to stop opening this.
+    if (missing.length > 0 || visits > 0) {
+      sections.push(`Your team yesterday (${visits} visit${visits === 1 ? "" : "s"}):\n${lines.join("\n")}`);
+    }
+  }
+
   // Only when it is AT RISK. A milestone line every morning saying "on track"
   // is the line people stop reading, which is the line you need them to read
   // the morning it changes.
@@ -87,7 +134,12 @@ export function composeDigest(facts: DigestFacts): Digest {
   }
 
   const worthSending = sections.length > 0;
-  const urgent = facts.followUpsDue.length + facts.attention.length;
+  // A manager with two people who did not turn up has something that needs them
+  // today, the same as an overdue follow-up.
+  const urgent =
+    facts.followUpsDue.length +
+    facts.attention.length +
+    (facts.team?.filter((t) => !t.checkedIn).length ?? 0);
 
   return {
     subject: !worthSending

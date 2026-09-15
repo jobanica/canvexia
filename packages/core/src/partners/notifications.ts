@@ -14,6 +14,15 @@ export const NOTIFICATION_EVENTS = [
   "lead.received",
   "ticket.replied",
   "hq.announcement",
+  // --- A7: the field team -----------------------------------------------
+  /** A salesperson logged a visit. To their manager. */
+  "visit.logged",
+  /** Nobody checked in by 10am, Manila. To their manager. */
+  "checkin.missed",
+  /** Mid-month, and a target is behind pace. To the person AND the manager. */
+  "target.at_risk",
+  /** A commission statement froze. To the person it belongs to. */
+  "commission.ready",
 ] as const;
 
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
@@ -27,6 +36,10 @@ export const NOTIFICATION_LABELS: Record<NotificationEvent, string> = {
   "lead.received": "Someone submits your lead form",
   "ticket.replied": "A merchant replies to a ticket",
   "hq.announcement": "CANVEXIA posts an announcement",
+  "visit.logged": "Someone on your team logs a visit",
+  "checkin.missed": "Someone has not checked in by 10am",
+  "target.at_risk": "A monthly target falls behind pace",
+  "commission.ready": "A commission statement is ready",
 };
 
 export function isNotificationEvent(value: string): value is NotificationEvent {

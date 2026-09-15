@@ -53,12 +53,15 @@ export async function submitLead(
     /* abuse control, not an authorization boundary — never block the funnel */
   }
 
+  const assignedToId = await nextLeadOwner(partnerId);
+
   try {
     await systemDb(async (tx) => {
       const row = await tx.prospect.create({
         data: {
           // From the slug lookup, NOT from the form.
           partnerId,
+          assignedToId,
           businessName: input.businessName,
           ownerName: input.ownerName,
           mobile: input.mobile,
@@ -84,7 +87,7 @@ export async function submitLead(
         action: "prospect.lead_form",
         entityType: "prospect",
         entityId: row.id,
-        after: { businessName: row.businessName, source: "lead_form" },
+        after: { businessName: row.businessName, source: "lead_form", assignedToId },
       });
     });
     return { ok: true };
@@ -104,3 +107,66 @@ export async function submitLead(
  * turns it on when there is something to send with.
  */
 export const LEAD_NOTIFICATIONS_ENABLED = false;
+
+
+/**
+ * Who a public lead goes to.
+ *
+ * ROUND-ROBIN AMONG ACTIVE SALES SEATS, by who has been waiting longest — the
+ * seat with the oldest most-recent lead. Not a counter column and not random:
+ * a counter needs a row to lock and drifts the moment somebody is deactivated,
+ * and random gives one person four in a row often enough to be noticed and
+ * resented.
+ *
+ * Falls back to the partner's `defaultLeadUserId`, and then to NOBODY. Null is
+ * a real answer: a partner with no sales team yet should get an unassigned
+ * prospect they can see in the pipeline, not a lead quietly filed against the
+ * admin who will never look at it.
+ */
+async function nextLeadOwner(partnerId: string): Promise<string | null> {
+  try {
+    return await systemDb(async (tx) => {
+      const seats = await tx.partnerUser.findMany({
+        where: { partnerId, status: "active", role: "sales" },
+        select: { id: true },
+      });
+      if (seats.length === 0) {
+        const partner = await tx.partner.findUnique({
+          where: { id: partnerId },
+          select: { defaultLeadUserId: true },
+        });
+        return partner?.defaultLeadUserId ?? null;
+      }
+
+      // The most recent lead-form prospect per seat. A seat with none at all is
+      // not in this list, which is what puts a new hire first.
+      const latest = await tx.prospect.groupBy({
+        by: ["assignedToId"],
+        where: {
+          partnerId,
+          source: "lead_form",
+          assignedToId: { in: seats.map((s) => s.id) },
+        },
+        _max: { createdAt: true },
+      });
+      const lastFor = new Map(
+        latest.map((r) => [r.assignedToId as string, r._max.createdAt?.getTime() ?? 0]),
+      );
+
+      let pick = seats[0].id;
+      let oldest = Number.POSITIVE_INFINITY;
+      for (const seat of seats) {
+        const at = lastFor.get(seat.id) ?? 0; // never had one → first in line
+        if (at < oldest) {
+          oldest = at;
+          pick = seat.id;
+        }
+      }
+      return pick;
+    });
+  } catch {
+    // partner_users or the column is not migrated. Unassigned is correct and
+    // visible; failing the lead would lose a real enquiry.
+    return null;
+  }
+}

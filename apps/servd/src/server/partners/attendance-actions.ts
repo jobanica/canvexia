@@ -7,6 +7,7 @@ import { writeSeatAudit } from "@/server/audit/log";
 import { uploadFieldPhoto } from "@/server/storage/field-photos";
 import { checkVisit, isUsable, type Point } from "@/lib/partners/geo";
 import { manilaDayKey, subjectLocation } from "@/server/partners/attendance";
+import { managerSeats, queueNotification } from "@/server/partners/notify";
 
 export type FieldState = { ok?: boolean; error?: string; queued?: boolean } | null;
 
@@ -287,9 +288,77 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
     return { ok: true };
   }
 
+  // Best effort and AFTER the write. A manager's notice is not worth failing a
+  // visit for, and a salesperson standing in the street has already moved on.
+  await queueNotification({
+    partnerId: who.partnerId,
+    event: "visit.logged",
+    to: await managerSeats(who.partnerId),
+    subject: `${who.partner.user.name ?? who.email} visited ${name}`,
+    body:
+      `${who.partner.user.name ?? who.email} logged a visit to ${name}.\n` +
+      `Outcome: ${outcome.replace(/_/g, " ")}.` +
+      (check.flag === "far" ? `\n${check.note}` : "") +
+      (notes ? `\n\nNotes: ${notes}` : ""),
+  });
+
   revalidatePath("/partner/attendance");
   revalidatePath("/partner");
   return { ok: true };
+}
+
+/**
+ * Tell each manager who has not checked in by 10am, Manila.
+ *
+ * ONE NOTICE PER PARTNER PER DAY, not one per absent person: five separate
+ * emails at 10am is how a manager builds a filter rule, and then the day
+ * somebody really is missing they do not see it either.
+ *
+ * Only seats that hold `attendance.checkin` are expected to check in. A partner
+ * whose admin never works the field should not be reported absent every
+ * morning — that is the notice that teaches people to ignore this one.
+ */
+export async function notifyMissedCheckIns(asOf: Date = new Date()): Promise<number> {
+  const dayKey = manilaDayKey(asOf);
+  let sent = 0;
+  try {
+    const partners = await systemDb((tx) =>
+      tx.partner.findMany({ where: { status: "approved" }, select: { id: true, name: true } }),
+    );
+
+    for (const partner of partners) {
+      const [seats, sessions] = await systemDb(async (tx) => [
+        await tx.partnerUser.findMany({
+          // `sales` and `support` are the field roles by default. Resolved by
+          // ROLE rather than by the editable permission for the same reason
+          // managerSeats is: a partner who granted attendance.checkin to their
+          // admins would otherwise get their own name in this email daily.
+          where: { partnerId: partner.id, status: "active", role: { in: ["sales", "support"] } },
+          select: { id: true, name: true, email: true },
+        }),
+        await tx.attendanceSession
+          .findMany({ where: { partnerId: partner.id, dayKey }, select: { partnerUserId: true } })
+          .catch(() => [] as { partnerUserId: string }[]),
+      ]);
+
+      const inToday = new Set(sessions.map((s) => s.partnerUserId));
+      const missing = seats.filter((s) => !inToday.has(s.id));
+      if (missing.length === 0) continue;
+
+      sent += await queueNotification({
+        partnerId: partner.id,
+        event: "checkin.missed",
+        to: await managerSeats(partner.id),
+        subject: `${missing.length} not checked in`,
+        body:
+          `Not checked in as of 10am:\n` +
+          missing.map((m) => `  - ${m.name ?? m.email}`).join("\n"),
+      });
+    }
+  } catch {
+    /* never break the cron over a notice */
+  }
+  return sent;
 }
 
 /**

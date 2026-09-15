@@ -1,6 +1,6 @@
 import "server-only";
 import { PRODUCTS, type ProductId } from "@servd/core";
-import { partnerDb } from "@/server/tenancy/scoped-db";
+import { partnerDb, systemDb } from "@/server/tenancy/scoped-db";
 
 /**
  * A partner's merchants, across every product.
@@ -149,6 +149,45 @@ export async function getPartnerMerchant(
 ): Promise<PartnerMerchant | null> {
   const all = await listPartnerMerchants(partnerId);
   return all.find((m) => m.key === key) ?? null;
+}
+
+/**
+ * Who signed this merchant and who supports it (A7).
+ *
+ * A separate read rather than columns on `PartnerMerchant`: the list screen
+ * shows dozens of merchants and would pay for two joins per row to render a
+ * name nobody reads there. The detail screen asks for one.
+ *
+ * Names, not ids. A deactivated seat still answers — the person who signed it
+ * is a historical fact, and blanking them the day they leave loses the one
+ * thing the column is for.
+ */
+export async function merchantAssignees(
+  partnerId: string,
+  productId: string,
+  merchantId: string,
+): Promise<{ signedBy: string | null; supportedBy: string | null }> {
+  try {
+    const row = await systemDb(async (tx: any) => {
+      const select = {
+        assignedSales: { select: { name: true, email: true } },
+        assignedSupport: { select: { name: true, email: true } },
+      };
+      return productId === "pharmacy"
+        ? tx.pharmacy.findFirst({ where: { id: merchantId, partnerId }, select })
+        : tx.restaurant.findFirst({ where: { id: merchantId, partnerId }, select });
+    });
+    const label = (u: { name: string | null; email: string } | null | undefined) =>
+      u ? (u.name ?? u.email) : null;
+    return {
+      signedBy: label(row?.assignedSales),
+      supportedBy: label(row?.assignedSupport),
+    };
+  } catch {
+    // The assignment columns are not migrated yet. Null reads as "nobody", which
+    // is true of every merchant that existed before A7.
+    return { signedBy: null, supportedBy: null };
+  }
 }
 
 /**

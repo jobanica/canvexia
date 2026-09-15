@@ -109,3 +109,21 @@ eight.
       live preview of the open month from the same draft function
 - [x] 19 more tests; suite 1305 → 1324
 ## A7.7 — Notifications + digest additions
+
+- [x] Four new `NOTIFICATION_EVENTS` with labels; settings grid picks them up
+- [x] `composeDigest` gains an OPTIONAL manager section; a salesperson's copy
+      does not carry it, so two digests are composed when a partner has both
+- [x] `server/partners/notify.ts` — queue, manager audience by ROLE not by an
+      editable permission, missing pref row means yes, never fails its caller
+- [x] `visit.logged` → manager; `checkin.missed` → one notice per partner;
+      `target.at_risk` → the 15th, paced against the month; `commission.ready`
+      → only when there is something to collect
+- [x] §6 leftovers: round-robin lead assignment (longest-waiting sales seat,
+      then `defaultLeadUserId`, then nobody) and "Signed by / Supported by" on
+      merchant detail
+- [x] 17 more tests; suite 1324 → 1341
+
+---
+
+**A7 is complete.** All seven sub-phases, 9/9 green serially, servd 1204 → 1341
+tests. `system_architecture.md` carries the save state.

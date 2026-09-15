@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { partnerCan, requirePartnerPageWith } from "@/server/partners/auth";
-import { getPartnerMerchant, isPaying } from "@/server/partners/merchants";
+import { getPartnerMerchant, merchantAssignees, isPaying } from "@/server/partners/merchants";
 import { PortalShell } from "@/components/partner/PortalShell";
 import { peso } from "@/components/partner/Overview";
 
@@ -27,6 +27,8 @@ export default async function PartnerMerchantPage({
   const merchant = await getPartnerMerchant(partner.id, decodeURIComponent(key));
   if (!merchant) notFound();
 
+  const assignees = await merchantAssignees(partner.id, merchant.productId, merchant.id);
+
   const facts = [
     { label: "Product", value: merchant.productName },
     { label: "Plan", value: merchant.planName ?? "Not billed yet" },
@@ -42,6 +44,10 @@ export default async function PartnerMerchantPage({
     },
     { label: "Opened", value: merchant.createdAt.toLocaleDateString() },
     { label: "Address", value: merchant.city ?? "—" },
+    // A7. "Nobody yet" rather than an em dash: an unassigned merchant is a
+    // thing to fix, and a dash reads as "not applicable".
+    { label: "Signed by", value: assignees.signedBy ?? "Nobody yet" },
+    { label: "Supported by", value: assignees.supportedBy ?? "Nobody yet" },
   ];
 
   return (

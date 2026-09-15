@@ -1,6 +1,7 @@
 import "server-only";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { buildScorecard, type ScorecardRow, type StaffFacts } from "@/lib/partners/scorecard";
+import { activeSeat, managerSeats, queueNotification } from "@/server/partners/notify";
 
 /**
  * The scorecard's reads.
@@ -133,4 +134,80 @@ function nextMonthStart(month: string): Date {
   return m === 12
     ? new Date(`${y + 1}-01-01T00:00:00+08:00`)
     : new Date(`${y}-${String(m + 1).padStart(2, "0")}-01T00:00:00+08:00`);
+}
+
+/**
+ * Tell people mid-month when a target is behind pace.
+ *
+ * MID-MONTH, once, on the 15th. Not daily: a nudge that arrives every morning
+ * from the 2nd is a nudge nobody reads by the 10th, and the point of a warning
+ * is that there is still time to act on it. Not at month end either, when there
+ * is nothing anybody can do.
+ *
+ * "BEHIND PACE" IS MEASURED AGAINST THE FRACTION OF THE MONTH GONE, not against
+ * the whole target. On the 15th of a 30-day month, half the target is on pace;
+ * comparing to the full number would flag everybody, every time, which is the
+ * same as flagging nobody.
+ *
+ * Goes to the person AND their manager, which is the brief's own rule and the
+ * right one: a warning only the manager sees is a performance review, and one
+ * only the person sees is a secret.
+ */
+export async function notifyTargetsAtRisk(asOf: Date = new Date()): Promise<number> {
+  const day = Number(
+    new Date(asOf.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(8, 10),
+  );
+  if (day !== 15) return 0;
+
+  const month = `${new Date(asOf.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 7)}`;
+  const daysInMonth = new Date(
+    Number(month.slice(0, 4)),
+    Number(month.slice(5, 7)),
+    0,
+  ).getDate();
+  const elapsed = day / daysInMonth;
+
+  let sent = 0;
+  try {
+    const partners = await systemDb((tx) =>
+      tx.partner.findMany({ where: { status: "approved" }, select: { id: true } }),
+    );
+
+    for (const partner of partners) {
+      const rows = await getScorecard(partner.id, month);
+      const behind = rows.filter(
+        (r) =>
+          r.progress !== null &&
+          (r.progress.visits < elapsed ||
+            r.progress.demos < elapsed ||
+            r.progress.merchants < elapsed),
+      );
+      if (behind.length === 0) continue;
+
+      const managers = await managerSeats(partner.id);
+      for (const row of behind) {
+        const seat = await activeSeat(partner.id, row.partnerUserId);
+        const body =
+          `Halfway through ${month} and ${row.name} is behind pace:\n` +
+          `  - Visits: ${row.visits} of ${row.target!.visits}\n` +
+          `  - Demos: ${row.demos} of ${row.target!.demos}\n` +
+          `  - New merchants: ${row.conversions} of ${row.target!.merchants}\n\n` +
+          `There is still half a month.`;
+
+        sent += await queueNotification({
+          partnerId: partner.id,
+          event: "target.at_risk",
+          // The person first, then anybody managing them who is not the same
+          // person — an ops manager with their own target should not get two
+          // copies of their own warning.
+          to: [...(seat ? [seat] : []), ...managers.filter((m) => m.id !== row.partnerUserId)],
+          subject: `${row.name} is behind pace for ${month}`,
+          body,
+        });
+      }
+    }
+  } catch {
+    /* never break the cron over a notice */
+  }
+  return sent;
 }

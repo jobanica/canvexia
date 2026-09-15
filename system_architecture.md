@@ -321,3 +321,87 @@ properties, each load-bearing, all in `server/hq/impersonate.ts`:
   independent reads go out through `Promise.all` rather than one `await` after
   another. Awaiting nine scope wrappers in series is how the overview page got
   slow the first time.
+
+---
+
+## Partner Portal A7 — staff roles, HR, field attendance, commissions
+
+### Two boundaries, and why only one of them is in the old policies
+
+Every partner policy written before A7 asks ONE question: does this row belong
+to the partner in `app.current_partner_id`? That is what keeps Davao out of
+Tagum, it is proved by `tests/isolation/`, and **A7 did not touch it**.
+
+The seven staff tables ask a SECOND question, because there the seat is the
+boundary: a salesperson has no business in a colleague's GPS trail, targets or
+commission. `partnerDb()` therefore sets `app.current_partner_user_id` as well,
+and those tables carry a seat arm plus `app.has_permission()`.
+
+The 22 existing partner policy arms are **deliberately not widened** to consult
+the seat. Making one policy answer both questions doubles the ways the *tenant*
+boundary can be got wrong, in the file where a mistake leaks a rival operator's
+commercial terms. `tests/partners/permission-matrix.test.ts` asserts they stay
+as they are, so revisiting that is an argument rather than a drift.
+
+Per-seat rules on everything else live at the `requireWritablePartner()`
+chokepoint, which now takes an A7 permission OR a legacy capability.
+
+### Permissions: defaults in code, overrides in the table
+
+`packages/core/src/identity/partner-permissions.ts` holds 29 keys — the brief's
+25 plus four (`pipeline.write`, `merchants.note`, `domains.write`,
+`settings.write`) that a shipped screen needs and the brief's list has nowhere
+to put.
+
+**A missing row in `partner_role_permissions` means DEFAULT, not denied.** If
+absence meant denial, adding a thirtieth key in a later release would silently
+deny it to every partner seeded before the key existed, and the symptom would be
+a screen that vanished for a reason nobody could find.
+
+Resolved once per request in `getCurrentPartner()`, never cached in the session
+or the token — which is what makes "role changes take effect on the next
+request" true with nothing to invalidate.
+
+Two rules the grid cannot express live in code: an `ops_manager` may not act on
+an `admin` seat (`canManageSeatRole`), and `admin` cannot lose `team.manage` or
+`team.permissions` (`GRID_LOCKED`).
+
+### The Manila day, again
+
+`manilaDayKey()` shifts by +8h and THEN slices. `startOfManilaDay()` returns the
+UTC *instant* of Manila midnight — 16:00 on the previous UTC date — so slicing
+its ISO string gives yesterday's key for most of the working day. That bug was
+written twice in A7.4 and caught by a test; the same class of error once put the
+statement freeze a month out of place.
+
+### What is queued and never sent
+
+`outbound_emails` now holds the daily digest, the four A7 notifications and the
+partner welcome email. **Nothing drains it**: `CREDENTIALS_ENCRYPTION_KEY` is
+unset, so Resend's key cannot be stored and no code path here can put mail on
+the wire. Queued rows are visible, which is the point — "not going out" and
+"nothing to say" stop producing identical evidence.
+
+The digest is composed TWICE for a partner with both kinds of reader: a
+salesperson's copy must not carry a list of who did not check in. Audiences for
+manager notices resolve by ROLE, not by `hr.view_all`, which is editable and
+would otherwise turn a shared-scorecard grant into a leak.
+
+### Money
+
+`packages/db/src/commissions.ts` is pure and floors every amount, so the lines
+can never sum past what was collected. Statements freeze; rules are added and
+ended, never edited, or a frozen figure and its explanation would disagree.
+`endsAt` is exclusive, which makes consecutive rules produce exactly one payer.
+
+One compromise, stated on the screen: attribution follows
+`assignedSalesUserId` as it stands when the month closes. This schema keeps no
+history of that column.
+
+### Crons
+
+`/api/cron/partner-digest` (23:00 UTC = 07:00 Manila) also auto-closes open
+attendance sessions, sends the missed-check-in notice and, on the 15th only,
+the target warnings. Folding them in beats four schedules to set `CRON_SECRET`
+on and four things to notice had stopped firing.
+`/api/cron/partner-commissions` runs `0 1 1 * *`, beside the statement freeze.

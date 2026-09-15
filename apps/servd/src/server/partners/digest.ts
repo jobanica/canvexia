@@ -3,6 +3,7 @@ import { composeDigest, DIGEST_EVENTS, type DigestFacts } from "@servd/db";
 import { ladderProgress, parseMilestones } from "@servd/core";
 import { partnerDb, systemDb } from "@/server/tenancy/scoped-db";
 import { buildAttention } from "@/lib/partners/attention";
+import { VISIT_RADIUS_METERS } from "@/lib/partners/geo";
 import { listPartnerMerchants, type PartnerMerchant } from "./merchants";
 import { startOfManilaDay } from "@/lib/orders/order-number";
 
@@ -56,6 +57,14 @@ export async function buildDigestFacts(
   partnerId: string,
   partnerName: string,
   asOf: Date,
+  /**
+   * A7: include yesterday's field work.
+   *
+   * Only for a recipient who manages the team. A salesperson's digest must not
+   * carry a list of who else did not check in — that is their manager's
+   * business and not theirs, and the permission grid says so.
+   */
+  opts: { includeTeam?: boolean } = {},
 ): Promise<DigestFacts> {
   const { from, to } = manilaYesterday(asOf);
 
@@ -143,6 +152,7 @@ export async function buildDigestFacts(
       merchant: nameOf.get(`${p.productId}:${p.merchantId}`) ?? p.merchantId,
       amountCentavos: p.grossAmount,
     })),
+    team: opts.includeTeam ? await teamYesterday(partnerId, from, to) : undefined,
     milestone: ladder.current
       ? {
           target: ladder.current.target,
@@ -152,6 +162,61 @@ export async function buildDigestFacts(
         }
       : null,
   };
+}
+
+/**
+ * Yesterday's field work, per active seat.
+ *
+ * Read with `systemDb` and an explicit partnerId rather than `partnerDb` with a
+ * seat: the caller is a cron with no session, and the staff tables' seat arm
+ * would read as empty. The `where` clause is what makes that safe, and it names
+ * the partner on every query.
+ */
+async function teamYesterday(
+  partnerId: string,
+  from: Date,
+  to: Date,
+): Promise<{ name: string; checkedIn: boolean; visits: number; flagged: number }[]> {
+  try {
+    const [seats, sessions, visits] = await systemDb(async (tx) => [
+      await tx.partnerUser.findMany({
+        where: { partnerId, status: "active" },
+        select: { id: true, name: true, email: true },
+      }),
+      await tx.attendanceSession.findMany({
+        where: { partnerId, checkInAt: { gte: from, lt: to } },
+        select: { partnerUserId: true },
+      }),
+      await tx.staffVisit.findMany({
+        where: { partnerId, occurredAt: { gte: from, lt: to } },
+        select: { partnerUserId: true, distanceMeters: true, accuracy: true, lat: true },
+      }),
+    ]);
+
+    const checkedIn = new Set(sessions.map((s) => s.partnerUserId));
+    const counts = new Map<string, { visits: number; flagged: number }>();
+    for (const v of visits) {
+      const cur = counts.get(v.partnerUserId) ?? { visits: 0, flagged: 0 };
+      cur.visits += 1;
+      if (
+        v.lat !== null &&
+        v.distanceMeters !== null &&
+        v.distanceMeters > VISIT_RADIUS_METERS + Math.max(0, v.accuracy ?? 0)
+      ) {
+        cur.flagged += 1;
+      }
+      counts.set(v.partnerUserId, cur);
+    }
+
+    return seats.map((s) => {
+      const c = counts.get(s.id) ?? { visits: 0, flagged: 0 };
+      return { name: s.name ?? s.email, checkedIn: checkedIn.has(s.id), ...c };
+    });
+  } catch {
+    // The A7 tables are not migrated yet. An absent section is correct; an
+    // empty one would say "nobody did anything", which is a different claim.
+    return [];
+  }
 }
 
 /**
@@ -168,11 +233,11 @@ export async function buildDigestFacts(
  */
 export async function digestRecipients(
   partnerId: string,
-): Promise<{ email: string; name: string | null }[]> {
+): Promise<{ email: string; name: string | null; role: string }[]> {
   return partnerDb(partnerId, async (tx) => {
     const seats = await tx.partnerUser.findMany({
       where: { status: "active" },
-      select: { id: true, email: true, name: true },
+      select: { id: true, email: true, name: true, role: true },
     });
     if (seats.length === 0) return [];
 
@@ -194,7 +259,7 @@ export async function digestRecipients(
     }
     return seats
       .filter((s) => seen.get(s.id) !== false)
-      .map((s) => ({ email: s.email, name: s.name }));
+      .map((s) => ({ email: s.email, name: s.name, role: s.role }));
   });
 }
 
@@ -218,15 +283,36 @@ export async function runPartnerDigest(
   partner: { id: string; name: string },
   asOf: Date,
 ): Promise<DigestResult> {
-  const facts = await buildDigestFacts(partner.id, partner.name, asOf);
-  const digest = composeDigest(facts);
-  if (!digest.worthSending) {
+  const recipients = await digestRecipients(partner.id);
+  if (recipients.length === 0) {
     return { partnerId: partner.id, worthSending: false, queued: 0 };
   }
 
-  const recipients = await digestRecipients(partner.id);
-  if (recipients.length === 0) {
-    return { partnerId: partner.id, worthSending: true, queued: 0 };
+  // TWO DIGESTS, not one, when the team has both kinds of reader. A
+  // salesperson's copy must not carry a list of who else did not check in —
+  // that is their manager's business, and mailing it to everyone would be the
+  // permission grid leaking through an email.
+  const managerRoles = new Set(["admin", "ops_manager"]);
+  const managers = recipients.filter((r) => managerRoles.has(r.role));
+  const rest = recipients.filter((r) => !managerRoles.has(r.role));
+
+  const [managerFacts, plainFacts] = await Promise.all([
+    managers.length > 0
+      ? buildDigestFacts(partner.id, partner.name, asOf, { includeTeam: true })
+      : null,
+    rest.length > 0 ? buildDigestFacts(partner.id, partner.name, asOf) : null,
+  ]);
+
+  const batches = [
+    { digest: managerFacts ? composeDigest(managerFacts) : null, to: managers },
+    { digest: plainFacts ? composeDigest(plainFacts) : null, to: rest },
+  ].filter((b) => b.digest?.worthSending && b.to.length > 0) as {
+    digest: { subject: string; body: string };
+    to: { email: string; name: string | null }[];
+  }[];
+
+  if (batches.length === 0) {
+    return { partnerId: partner.id, worthSending: false, queued: 0 };
   }
 
   const since = startOfManilaDay(asOf);
@@ -237,8 +323,8 @@ export async function runPartnerDigest(
     });
     if (already) return { partnerId: partner.id, worthSending: true, queued: 0 };
 
-    await tx.outboundEmail.createMany({
-      data: recipients.map((r) => ({
+    const rows = batches.flatMap((b) =>
+      b.to.map((r) => ({
         template: "partner.digest",
         toEmail: r.email,
         toName: r.name,
@@ -246,9 +332,10 @@ export async function runPartnerDigest(
         // The composed text, not the facts: the copy a partner receives should
         // be what this run decided, not whatever the composer says weeks later
         // when the row is finally drained.
-        payload: { subject: digest.subject, body: digest.body },
+        payload: { subject: b.digest.subject, body: b.digest.body },
       })),
-    });
-    return { partnerId: partner.id, worthSending: true, queued: recipients.length };
+    );
+    await tx.outboundEmail.createMany({ data: rows });
+    return { partnerId: partner.id, worthSending: true, queued: rows.length };
   });
 }

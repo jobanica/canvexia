@@ -6,6 +6,7 @@ import {
   type CommissionStatementDraft,
 } from "@servd/db";
 import { systemDb } from "@/server/tenancy/scoped-db";
+import { activeSeat, queueNotification } from "@/server/partners/notify";
 
 /**
  * Commissions: the reads, and the monthly freeze.
@@ -197,7 +198,7 @@ export async function freezeCommission(
   // A zero statement is still written. "You earned nothing in September" is a
   // fact somebody should be able to look at; a missing row reads as "the job
   // did not run", which is a different problem with the same appearance.
-  return systemDb(async (tx) => {
+  const result = await systemDb(async (tx) => {
     const statement = await tx.commissionStatement.create({
       data: {
         partnerId,
@@ -214,4 +215,26 @@ export async function freezeCommission(
     }
     return { created: true, totalCentavos: draft.totalCentavos };
   });
+
+  // Only when there is something to collect. "Your statement for September is
+  // ready: ₱0" is an email that makes somebody open the portal to find out they
+  // earned nothing, which is worse than the silence.
+  if (result.totalCentavos > 0) {
+    const seat = await activeSeat(partnerId, partnerUserId);
+    if (seat) {
+      await queueNotification({
+        partnerId,
+        event: "commission.ready",
+        to: [seat],
+        subject: `Your commission for ${month} is ready`,
+        body:
+          `Your ${month} commission statement has been worked out: ` +
+          `PHP ${Math.round(result.totalCentavos / 100).toLocaleString("en-PH")}.\n\n` +
+          `Open the portal to see the merchants it came from. ` +
+          `Paying it is arranged outside this system.`,
+      });
+    }
+  }
+
+  return result;
 }

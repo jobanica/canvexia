@@ -1,7 +1,11 @@
 import { NextRequest } from "next/server";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { runPartnerDigest, type DigestResult } from "@/server/partners/digest";
-import { autoCloseSessions } from "@/server/partners/attendance-actions";
+import { notifyTargetsAtRisk } from "@/server/partners/scorecard";
+import {
+  autoCloseSessions,
+  notifyMissedCheckIns,
+} from "@/server/partners/attendance-actions";
 
 /**
  * The daily partner digest. Runs at 23:00 UTC — 07:00 Manila.
@@ -43,6 +47,19 @@ export async function GET(req: NextRequest) {
   // session still open is a session the summary would count as ongoing.
   const autoClosed = await autoCloseSessions(asOf);
 
+  // 23:00 UTC is 07:00 Manila, which is BEFORE the 10am the brief names, so
+  // this reports on the day that just ended rather than the one starting.
+  // A 10am-Manila cron would be a second schedule for one email; folding it in
+  // trades "this morning" for "yesterday", which is the right trade for a
+  // manager who reads one digest with their coffee.
+  const missedCheckIns = await notifyMissedCheckIns(
+    new Date(asOf.getTime() - 24 * 60 * 60 * 1000),
+  );
+
+  // A no-op on 29 days out of 30 — it checks the Manila date itself, so the
+  // schedule does not have to know about the 15th.
+  const targetsAtRisk = await notifyTargetsAtRisk(asOf);
+
   const partners = await systemDb((tx) =>
     tx.partner.findMany({
       where: { status: "approved" },
@@ -75,6 +92,8 @@ export async function GET(req: NextRequest) {
     // Sessions nobody checked out of. Recorded rather than silently tidied: a
     // number that climbs every week is a thing a manager should see.
     autoClosed,
+    missedCheckIns,
+    targetsAtRisk,
     failed,
   };
 
