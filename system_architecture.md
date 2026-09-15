@@ -253,6 +253,47 @@ properties, each load-bearing, all in `server/hq/impersonate.ts`:
   before it returns. A field that never reaches the component cannot be rendered
   by a component written later.
 
+### The rest of the console (H3–H7)
+
+- **Territories.** 143 seeded cities. `partners.territory` stays free text and
+  `territoryId` is the authoritative link; the reconciliation names its two
+  aliases (`Davao`→`Davao City`, `Tagum City`→`Tagum`) **one at a time** rather
+  than matching by a rule — "Santa Cruz" appears in more than one province, and
+  a fuzzy rule licenses somebody for the wrong place. Assignment history is
+  append-only with a partial unique index on the one open row per territory.
+- **Conversion is one transaction**: partner + seat + invite + territory +
+  assignment + application + audit + a QUEUED email. Half of that is worse than
+  none of it.
+- **`outbound_emails` is a queue, not a sender.** `CREDENTIALS_ENCRYPTION_KEY`
+  is unset, so Resend credentials cannot even be stored. Nothing drains it yet.
+- **Billing.** The ledger is the source; freezing records only what computation
+  cannot produce. Adjustments are ledger rows with a sign convention worth
+  re-reading before touching (`server/hq/billing-actions.ts`). Overdue is
+  COMPUTED from the freeze date, never read from a column nothing sets.
+- **`cron_runs` exists because a run that produced nothing looked identical to
+  one that never fired** — and the freeze cron had returned 401 on every firing
+  since it shipped, because `CRON_SECRET` was unset. Both are fixed; the first
+  successful run was recorded on 2026-09-15.
+- **Products.** `packages/core`'s registry stays the source of truth for what
+  exists and what is `live`; `product_settings` overlays only the editable
+  fields, and the merge in `server/hq/products.ts` is where "the code wins" is
+  enforced. A product cannot be created from HQ.
+- **Plan floors are a two-step**, and the "who would this break" count includes
+  partners with NO price override — if the proposed floor is above the catalogue
+  price, that is everybody.
+- **Merchants.** Two directories on purpose: `server/partners/directory.ts` is
+  restaurant-only and feeds the reassign form; `server/hq/merchants.ts` spans
+  both axes. Merging them would offer pharmacies to a form that cannot move one.
+- **National accounts carry one known limit**: `referralPartnerId` is on the
+  PARTNER, so the house account records one referrer in total. A second national
+  account keeps the first rather than overwriting another partner's claim.
+- **Announcements.** The segment is evaluated in the app; the policy only
+  guarantees drafts are invisible. Nothing ticked means everybody; NULL
+  `enabledProducts` matches a product segment.
+- **Two HQ seat refusals are load-bearing**: you cannot deactivate yourself, and
+  the last active super admin cannot be removed — either would make the console
+  that grants access unreachable from inside it.
+
 ---
 
 ## 7. Conventions worth not re-deriving
