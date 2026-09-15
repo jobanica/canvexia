@@ -125,3 +125,12 @@ CREATE POLICY super_only ON "partner_waitlist" FOR ALL
 -- cannot hand it back by accident.
 REVOKE ALL ON "partner_waitlist" FROM anon;
 REVOKE ALL ON "territories" FROM anon;
+
+-- `authenticated` too, and for a reason worth naming: it is the role PostgREST
+-- runs a signed-in Supabase user as, and every pharmacy cashier and partner in
+-- this database can obtain that role. The policies already refuse them, but the
+-- grant is what makes /rest/v1/partner_waitlist a route at all. Neither app
+-- reaches these tables that way — Prisma connects as postgres and switches to
+-- app_user, which keeps its grants — so this closes a door nothing uses.
+REVOKE ALL ON "partner_waitlist" FROM authenticated;
+REVOKE ALL ON "territories" FROM authenticated;

@@ -5,8 +5,27 @@ Three domains, two deployments, one database. D31.
 | Domain | Serves | Deployment |
 |---|---|---|
 | **servdph.net** | Servd — the restaurant product | `apps/servd` |
-| **canvexia.com** | CANVEXIA — the partner portal | `apps/servd` (same deployment) |
+| **canvexia.com** | CANVEXIA — the public site | `apps/www` — **not yet pointed here** |
+| **partner.canvexia.com** | CANVEXIA — the partner portal | `apps/servd` — **not yet pointed here** |
 | **resceta.com** | Resceta — the pharmacy product | `apps/resceta` |
+
+> **D37 is built in code but not in DNS.** `canvexia.com` still resolves to the
+> `canvexia` project (`apps/servd`) and still serves the portal. The public site
+> is live and viewable at **`canvexia-www.vercel.app`**. Two changes flip it,
+> and they must happen together or one of the two brands is dark:
+>
+> 1. Remove `canvexia.com` and `www.canvexia.com` from the `canvexia` project;
+>    add them to `canvexia-www`.
+> 2. Add `partner.canvexia.com` to the `canvexia` project, and set
+>    `NEXT_PUBLIC_PORTAL_URL` on `canvexia-www` to
+>    `https://partner.canvexia.com/partner/login`. Until then it points at
+>    `https://canvexia.com/partner/login`, which is where the portal actually
+>    is — a button aimed at a host that does not resolve is worse than no
+>    button, which is the rule the rest of this app follows.
+>
+> `parseHost` already answers `partner_root` for BOTH the apex and
+> `partner.canvexia.com`, so the order of those two steps cannot strand the
+> portal.
 
 `servdph.com` is a **different business on a different database** and is not part
 of this project. If it is ever pointed here it resolves as an ordinary custom
@@ -61,8 +80,9 @@ Directory** and nothing else:
 
 | Project | Root Directory | Domains |
 |---|---|---|
-| `servd` | `apps/servd` | `servdph.net`, `*.servdph.net`, `canvexia.com`, `*.canvexia.com`, and every merchant's own custom domain |
+| `canvexia` | `apps/servd` | `servdph.net`, `*.servdph.net`, `canvexia.com`, `*.canvexia.com`, and every merchant's own custom domain |
 | `resceta` | `apps/resceta` | `resceta.com`, `www.resceta.com` |
+| `canvexia-www` | `apps/www` | `canvexia-www.vercel.app` today; `canvexia.com` after the flip above |
 
 `canvexia.com` is on the **Servd project** on purpose. One deployment serves
 both roots; the middleware reads the Host header and rewrites. Adding it to a

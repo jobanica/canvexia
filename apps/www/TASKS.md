@@ -14,9 +14,19 @@ doc and was not a scratch file to overwrite.
       never resets `status` on an existing row
 - [x] `apps/www/tests/isolation/waitlist.test.ts` — anon cannot read, anon
       cannot insert, position counts per city
-- [ ] **Run the migration and the seed against the database.** Needs
-      `DATABASE_URL`; not available in the session that wrote this, so the
-      isolation suite has never executed. See "Not done" below.
+- [x] **Migration run** against the live database — 2 tables, 2 policies,
+      `FORCE ROW LEVEL SECURITY`, and zero grants to `anon` or `authenticated`
+- [x] **Seed run** — 143 cities: 26 large, 47 mid, 69 small, 1 HQ. Verified
+      against the brief: Cebu City → large ₱79,000, Digos → mid ₱49,000,
+      Mati → small ₱29,000, Davao City → hq
+- [x] **Isolation proved in SQL** against the real database: as `anon` and as
+      `authenticated`, SELECT and INSERT on `partner_waitlist` both fail with
+      `42501 permission denied` — refused at the grant, not merely filtered by
+      a policy
+- [ ] **Run `tests/isolation/waitlist.test.ts` itself.** Postgres ports are not
+      reachable from the session that wrote this (only HTTPS is), so the suite
+      has still never executed. The SQL above proves the same property; the
+      suite is what keeps it proved.
 
 ## 2. Shared helpers into packages/db
 
@@ -59,8 +69,11 @@ doc and was not a scratch file to overwrite.
 
 ## 8. Deploy
 
-- [ ] Vercel project `www`, root `apps/www`
-- [ ] `canvexia.com` → this app
+- [x] Vercel project `canvexia-www`, root `apps/www`, Node 22.x, source files
+      outside the root directory ON, Vercel Authentication OFF
+- [x] Live at **https://canvexia-www.vercel.app**
+- [ ] `canvexia.com` → this app (see `docs/canvexia/domains.md` — it is a
+      two-step flip and both steps go together)
 - [ ] Portal to `partner.canvexia.com` — `parseHost`, the middleware,
       `NEXT_PUBLIC_PARTNER_ROOT_DOMAIN`, and inverting
       `apps/servd/tests/host/host.test.ts`
@@ -69,8 +82,7 @@ doc and was not a scratch file to overwrite.
 
 | Item | Reason |
 |---|---|
-| Migration + seed run | No `DATABASE_URL` in this environment |
-| Isolation suite executed | Same — it skips without one |
+| Isolation suite executed | Only HTTPS leaves this environment, so Prisma cannot reach Postgres. The property is proved in SQL instead |
 | Confirmation email | No encryption key, no Resend key, no verified domain |
 | Social links | Handles were never supplied; a guessed link is worse than none |
 | Real screenshots | None in the repo; `ScreenFrame` is schematic and claims nothing |
