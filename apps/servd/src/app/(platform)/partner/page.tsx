@@ -20,6 +20,8 @@ import {
 } from "@/components/partner/Overview";
 import { GrowthChart } from "@/components/partner/GrowthChart";
 import { FilterChip, PortalShell } from "@/components/partner/PortalShell";
+import { AnnouncementBanner } from "@/components/partner/AnnouncementBanner";
+import { announcementsForPartner } from "@/server/hq/announcements";
 
 const DEMO = { label: "Demo", cls: "bg-brand-ink/5 text-brand-ink/60" };
 const LIVE = { label: "Live ✓", cls: "bg-brand-primary/15 text-brand-primary" };
@@ -59,6 +61,9 @@ export default async function PartnerPortalPage() {
     // Resceta merchants live on their own axis (D29), so they are a second query.
     listPartnerPharmacies(partner.id),
   ]);
+  // Separate from the Promise.all above because it is best-effort: an
+  // announcement table that is not migrated must not take the dashboard down.
+  const announcements = await announcementsForPartner(partner.id).catch(() => []);
   const territory = profile?.territory ?? null;
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   // From the registry, not a list written here: a vertical appears in the form
@@ -89,6 +94,7 @@ export default async function PartnerPortalPage() {
         </>
       }
     >
+      <AnnouncementBanner items={announcements} />
 
       {/*
         The two tiers are paid differently, so they cannot be told the same

@@ -61,7 +61,21 @@ into /hq.
 - [x] `WaitlistStatus` gains `converted`; `outbound_emails` queue
 - [x] Territory reconciliation, with the two known aliases named explicitly
 - [x] 26 more tests (CSV round-trip, import planner)
-## H6 — Billing (moved ahead of H4, per plan §3.5)
-## H4 — Global merchant directory
-## H5 — Products & plans
-## H7 — HQ team, audit views, announcements
+- [x] H6 — Billing: CRON_SECRET set, cron_runs recorded, preview/run,
+      statements, ledger explorer, adjustments, pass-through costs
+- [x] H4 — Global merchant directory, both axes, reassign, national accounts
+- [x] H5 — Products & plans, floors behind a two-step, feature flags
+- [x] H7 — HQ team, the audit and impersonation logs, announcements with
+      segment targeting and read receipts, and the partner-side banner
+
+---
+
+## Still to do
+
+- [ ] Run `bootstrap-hq-admin.sql` with a real Supabase auth user id — nothing
+      in /hq is reachable until somebody has an HQ seat.
+- [ ] `CREDENTIALS_ENCRYPTION_KEY` is still unset: email cannot be configured,
+      so queued welcome emails sit in `outbound_emails` and nothing drains them.
+- [ ] Geocode the 143 territories if the map is wanted.
+- [ ] A per-merchant referral column, when there is a second national account.
+- [ ] The six older isolation suites that never switch to `app_user`.
