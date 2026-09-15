@@ -1,7 +1,7 @@
 import { appUrl as publicUrl } from "@/lib/branding/app-domain";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requirePartnerPage } from "@/server/partners/auth";
+import { requirePartnerPageWith } from "@/server/partners/auth";
 import { partnerOwnsDemo, demoLogin, demoAlreadyScanned } from "@/server/partners/demo-queries";
 import { getDemoStorefront } from "@/server/storefront-demo/queries";
 import {
@@ -25,7 +25,10 @@ export const metadata = { title: "Demo storefront · Servd" };
 
 export default async function PartnerDemoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const partner = await requirePartnerPage();
+  // `merchants.create` is what every action on this screen now needs, so the
+  // screen asks for it too. Without this a support seat reached a full menu
+  // editor whose every button silently did nothing.
+  const partner = await requirePartnerPageWith("merchants.create");
   if (partner.status !== "approved" || !(await partnerOwnsDemo(id, partner.id))) notFound();
 
   const s = await getDemoStorefront(id);

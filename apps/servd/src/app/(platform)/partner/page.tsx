@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requirePartnerPage } from "@/server/partners/auth";
+import { partnerCan, requirePartnerPage } from "@/server/partners/auth";
 import { getPartnerOverview, getPartnerProfile, onboardingChecklist } from "@/server/partners/overview";
 import { getPartnerTrainingUrl } from "@/server/partners/portal";
 import { listPartnerDemos } from "@/server/partners/demo-queries";
@@ -146,7 +146,11 @@ export default async function PartnerPortalPage() {
       )}
 
       <div className="mt-4">
-        <PartnerDemos demos={demos} appUrl={base} />
+        <PartnerDemos
+          demos={demos}
+          appUrl={base}
+          canBuild={partnerCan(partner, "merchants.create")}
+        />
       </div>
 
       {/*

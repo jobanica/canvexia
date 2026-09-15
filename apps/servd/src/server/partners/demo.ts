@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { pesosToCentavos } from "@/lib/money";
-import { getCurrentPartner } from "@/server/partners/auth";
+import { requireWritablePartner } from "@/server/partners/auth";
 import { receiptJson } from "@/server/storefront-demo/provision";
 import { provisionMerchantForPartner } from "@/server/products";
 import { convertDemo } from "@/server/storefront-demo/convert";
@@ -21,11 +21,37 @@ const demoPath = (id: string) => `/partner/demo/${id}`;
 export type DemoFormState = { ok?: boolean; error?: string } | null;
 export type DemoScanState = { ok?: boolean; added?: number; error?: string } | null;
 
-/** Only an APPROVED partner may create/manage demo storefronts. */
-async function requireApprovedPartner() {
-  const p = await getCurrentPartner();
-  if (!p || p.status !== "approved") throw new Error("UNAUTHORIZED");
-  return p;
+/**
+ * THE capability every action in this file needs: `merchants.create`.
+ *
+ * Not `merchants.manage`, even for the edit and delete actions, although the
+ * two look like they should split that way. A demo storefront has no login, no
+ * plan, no invoices and no orders — nothing `merchants.manage` describes — and
+ * this whole file is one flow: open a demo, fill in its menu, hand over a
+ * login. Gating the menu builder on `merchants.manage` would leave a sales seat
+ * able to open an empty demo and unable to put anything in it, which is the one
+ * thing a sales seat exists to do.
+ *
+ * `deletePartnerDemo` stays here for the same reason: it refuses anything with
+ * staff, so it can only ever remove a demo that never became a real merchant.
+ */
+const DEMO_CAPABILITY = "merchants.create" as const;
+
+/**
+ * The actor for a demo action: approved, holds `merchants.create`, and NOT HQ
+ * looking over their shoulder.
+ *
+ * This used to call `getCurrentPartner()` and check only `status`. Two holes,
+ * both live: `getCurrentPartner()` RESOLVES an impersonation grant, so an HQ
+ * "view as" session — which the portal declares read-only on every screen —
+ * could create, edit, convert and delete storefronts in an operator's name; and
+ * with no capability check, a support seat could do the same. `convertDemo`
+ * returns working merchant credentials, so the second hole ended in a login.
+ */
+async function requireDemoWriter() {
+  const who = await requireWritablePartner(DEMO_CAPABILITY);
+  if (!who) throw new Error("UNAUTHORIZED");
+  return who.partner;
 }
 
 /**
@@ -46,13 +72,15 @@ async function ownDemo(restaurantId: string, partnerId: string): Promise<boolean
 
 /**
  * Guard for void form actions on a demo the partner owns. Returns the
- * restaurantId if the caller is an approved partner AND owns it, else null.
+ * restaurantId if the caller may write for this partner AND owns the demo,
+ * else null — which every caller treats as "do nothing", silently, because
+ * these are void form posts with nowhere to put a message.
  */
 async function guardOwnedDemo(formData: FormData): Promise<string | null> {
-  const p = await getCurrentPartner();
-  if (!p || p.status !== "approved") return null;
+  const who = await requireWritablePartner(DEMO_CAPABILITY);
+  if (!who) return null;
   const restaurantId = String(formData.get("restaurantId") ?? "");
-  if (!restaurantId || !(await ownDemo(restaurantId, p.id))) return null;
+  if (!restaurantId || !(await ownDemo(restaurantId, who.partnerId))) return null;
   return restaurantId;
 }
 
@@ -71,9 +99,11 @@ const createSchema = z.object({
 export async function createPartnerDemo(_prev: DemoFormState, formData: FormData): Promise<DemoFormState> {
   let partner;
   try {
-    partner = await requireApprovedPartner();
+    partner = await requireDemoWriter();
   } catch {
-    return { error: "Your partner account isn't approved yet." };
+    // One message for all three refusals — not approved, wrong seat, or an HQ
+    // read-only session. Which one it was is not something to tell a form post.
+    return { error: "You can't build storefronts from this account." };
   }
   const parsed = createSchema.safeParse({
     name: formData.get("name"),
@@ -110,9 +140,11 @@ export async function createPartnerDemo(_prev: DemoFormState, formData: FormData
 export async function scanPartnerDemoMenu(_prev: DemoScanState, formData: FormData): Promise<DemoScanState> {
   let partner;
   try {
-    partner = await requireApprovedPartner();
+    partner = await requireDemoWriter();
   } catch {
-    return { error: "Your partner account isn't approved yet." };
+    // One message for all three refusals — not approved, wrong seat, or an HQ
+    // read-only session. Which one it was is not something to tell a form post.
+    return { error: "You can't build storefronts from this account." };
   }
   const restaurantId = String(formData.get("restaurantId") ?? "");
   if (!(await ownDemo(restaurantId, partner.id))) return { error: "Storefront not found." };
@@ -177,9 +209,11 @@ export async function convertPartnerDemo(
 ): Promise<PartnerConvertState> {
   let partner;
   try {
-    partner = await requireApprovedPartner();
+    partner = await requireDemoWriter();
   } catch {
-    return { error: "Your partner account isn't approved yet." };
+    // One message for all three refusals — not approved, wrong seat, or an HQ
+    // read-only session. Which one it was is not something to tell a form post.
+    return { error: "You can't build storefronts from this account." };
   }
   const restaurantId = String(formData.get("restaurantId") ?? "");
   if (!restaurantId || !(await ownDemo(restaurantId, partner.id))) {
@@ -203,7 +237,7 @@ export async function convertPartnerDemo(
  * restaurant and its entire history.
  */
 export async function deletePartnerDemo(formData: FormData): Promise<void> {
-  const partner = await requireApprovedPartner();
+  const partner = await requireDemoWriter();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
   // Ownership enforced in the where clause — a partner can't delete another's.

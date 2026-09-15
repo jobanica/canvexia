@@ -13,9 +13,26 @@ import {
 import type { PartnerDemoRow } from "@/server/partners/demo-queries";
 import { PartnerConvertForm } from "./PartnerConvertForm";
 
-export function PartnerDemos({ demos, appUrl }: { demos: PartnerDemoRow[]; appUrl: string }) {
+/**
+ * `canBuild` is `merchants.create`, resolved on the server.
+ *
+ * Every write in this card now goes through that capability, so a seat without
+ * it gets the list and the links and none of the buttons — hidden, not
+ * disabled, which is the rule the rest of the portal follows. A greyed-out
+ * "Delete" tells a support seat exactly what it is missing; a button that
+ * silently does nothing is worse still.
+ */
+export function PartnerDemos({
+  demos,
+  appUrl,
+  canBuild,
+}: {
+  demos: PartnerDemoRow[];
+  appUrl: string;
+  canBuild: boolean;
+}) {
   const router = useRouter();
-  const [showAdd, setShowAdd] = useState(demos.length === 0);
+  const [showAdd, setShowAdd] = useState(canBuild && demos.length === 0);
   const [state, action] = useActionState<DemoFormState, FormData>(createPartnerDemo, null);
 
   // Clear + refresh once a demo is created.
@@ -38,15 +55,17 @@ export function PartnerDemos({ demos, appUrl }: { demos: PartnerDemoRow[]; appUr
             when they say yes.
           </p>
         </div>
-        <button
-          onClick={() => setShowAdd((s) => !s)}
-          className="rounded-full border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold hover:bg-brand-surface"
-        >
-          {showAdd ? "Close" : "+ New demo"}
-        </button>
+        {canBuild && (
+          <button
+            onClick={() => setShowAdd((s) => !s)}
+            className="rounded-full border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold hover:bg-brand-surface"
+          >
+            {showAdd ? "Close" : "+ New demo"}
+          </button>
+        )}
       </div>
 
-      {showAdd && (
+      {canBuild && showAdd && (
         <form key={state?.ok ? "ok" : "form"} action={action} className="mt-4 grid gap-2 rounded-lg border border-brand-ink/10 bg-brand-surface/40 p-3 sm:grid-cols-2">
           <input name="name" required placeholder="Restaurant name *" className={`${field} sm:col-span-2`} />
           <input name="tagline" placeholder="Tagline (optional)" className={field} />
@@ -64,16 +83,30 @@ export function PartnerDemos({ demos, appUrl }: { demos: PartnerDemoRow[]; appUr
 
       <div className="mt-4 space-y-2">
         {demos.length === 0 ? (
-          <p className="text-sm text-brand-ink/50">No demos yet. Create one to pitch a prospect.</p>
+          <p className="text-sm text-brand-ink/50">
+            {canBuild
+              ? "No demos yet. Create one to pitch a prospect."
+              : "No demos yet."}
+          </p>
         ) : (
-          demos.map((d) => <DemoRow key={d.id} demo={d} appUrl={appUrl} />)
+          demos.map((d) => (
+            <DemoRow key={d.id} demo={d} appUrl={appUrl} canBuild={canBuild} />
+          ))
         )}
       </div>
     </div>
   );
 }
 
-function DemoRow({ demo, appUrl }: { demo: PartnerDemoRow; appUrl: string }) {
+function DemoRow({
+  demo,
+  appUrl,
+  canBuild,
+}: {
+  demo: PartnerDemoRow;
+  appUrl: string;
+  canBuild: boolean;
+}) {
   const router = useRouter();
   const url = `${appUrl.replace(/\/$/, "")}/r/${demo.slug}`;
   const [copied, setCopied] = useState(false);
@@ -139,7 +172,7 @@ function DemoRow({ demo, appUrl }: { demo: PartnerDemoRow; appUrl: string }) {
           {/* A converted account is somebody's real shop, with real orders in
               it — deleting it from here isn't a thing a partner should be able
               to do by accident. The server refuses it too. */}
-          {!demo.converted && (
+          {canBuild && !demo.converted && (
             <form action={deletePartnerDemo}>
               <input type="hidden" name="id" value={demo.id} />
               <button className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-guava hover:bg-guava/10">
@@ -150,29 +183,31 @@ function DemoRow({ demo, appUrl }: { demo: PartnerDemoRow; appUrl: string }) {
         </div>
       </div>
 
-      {!demo.converted && (
+      {canBuild && !demo.converted && (
         <div className="mt-3 border-t border-brand-ink/5 pt-3">
           <PartnerConvertForm restaurantId={demo.id} />
         </div>
       )}
 
       {/* AI menu scan — fills the storefront from a photo/PDF of the menu. */}
-      <form action={scanAction} className="mt-3 flex flex-wrap items-center gap-2 border-t border-brand-ink/5 pt-3">
-        <input type="hidden" name="restaurantId" value={demo.id} />
-        <input
-          ref={fileRef}
-          name="images"
-          type="file"
-          accept="image/jpeg,image/png,image/webp,application/pdf"
-          multiple
-          className="text-xs"
-        />
-        <button className="rounded-lg border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold hover:bg-brand-surface">
-          Scan menu photo →
-        </button>
-        {scanState?.ok && <span className="text-xs text-brand-primary">Added {scanState.added} items ✓</span>}
-        {scanState?.error && <span className="text-xs text-guava">{scanState.error}</span>}
-      </form>
+      {canBuild && (
+        <form action={scanAction} className="mt-3 flex flex-wrap items-center gap-2 border-t border-brand-ink/5 pt-3">
+          <input type="hidden" name="restaurantId" value={demo.id} />
+          <input
+            ref={fileRef}
+            name="images"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            multiple
+            className="text-xs"
+          />
+          <button className="rounded-lg border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold hover:bg-brand-surface">
+            Scan menu photo →
+          </button>
+          {scanState?.ok && <span className="text-xs text-brand-primary">Added {scanState.added} items ✓</span>}
+          {scanState?.error && <span className="text-xs text-guava">{scanState.error}</span>}
+        </form>
+      )}
     </div>
   );
 }

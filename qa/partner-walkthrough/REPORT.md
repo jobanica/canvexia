@@ -376,14 +376,18 @@ check is missing.
 
 ## 7. Proposed fix order
 
-1. **Bug 1** — move `demo.ts` onto `requireWritablePartner()`. Blocker, security.
-2. **Bug 2** — give the twelve demo actions capabilities: `merchants.create`
-   for create/convert, `merchants.manage` for edit/delete. Blocker, security.
-3. **Widen the drift guard** in `tests/hq/impersonation.test.ts` from
-   `*-actions.ts` to *every* file containing `"use server"`, so 1 and 2 cannot
-   recur. Do this in the same change or it will.
-4. **Bug 4** — `requirePartnerPageWith("brand.write")` on `/partner/brand`, and
-   a capability on `/partner/demo/[id]`.
+1. ~~**Bug 1** — move `demo.ts` onto `requireWritablePartner()`.~~ **Done.**
+2. ~~**Bug 2** — give the twelve demo actions capabilities.~~ **Done**, but
+   **not** with the split this report proposed. See "One deviation" below.
+3. ~~**Widen the drift guard**~~ **Done**, in the same change, and proved: the
+   widened guard fails three ways against the unfixed `demo.ts` and passes
+   against the fixed one. It also now strips comments before scanning, so a
+   file can neither pass by *mentioning* the gate it lacks nor fail for
+   explaining why it moved off `getCurrentPartner`.
+4. **Bug 4** — `requirePartnerPageWith("brand.write")` on `/partner/brand`.
+   The `/partner/demo/[id]` half of this item was done with 1–3, since leaving
+   that page open to every seat would have meant a full menu editor whose every
+   button silently no-ops.
 5. **Bug 3** — write `onboardingSteps` when training is watched and the kickoff
    is booked, or remove the two steps.
 6. **Bug 5** — wire the digest to a cron route, or delete it and the
@@ -394,6 +398,25 @@ check is missing.
 10. Referral ledger line (§4.8), then the per-merchant referral column (§6).
 11. Extend trial, payment-failure reason, prospect edit (§4.5, §4.12, §4.11).
 12. Ticket system and "log in as merchant" — both large; schedule separately.
+
+### One deviation from what this report proposed
+
+Items 1–3 landed as written except for the capability split. The report said
+`merchants.create` for create/convert and `merchants.manage` for edit/delete.
+Everything in `demo.ts` is behind **`merchants.create`** instead.
+
+`merchants.manage` is "change plan, extend trial, suspend, reactivate, mark
+invoice paid" — commercial actions on a merchant that exists. A demo storefront
+has no login, no plan, no invoices and no orders, and the whole file is one
+flow: open a demo, fill in its menu, hand over a login. Splitting it would have
+left a `sales` seat — which holds `merchants.create` and not `merchants.manage`
+— able to open an empty demo and unable to put anything in it, which is the one
+thing a `sales` seat exists to do. `deletePartnerDemo` is included because it
+refuses anything with staff, so it can only remove a demo that never became a
+real merchant.
+
+The security hole is closed either way; this mapping closes it without breaking
+the sales seat.
 
 ---
 
