@@ -5,11 +5,27 @@
  * sharp on a phone at any density, it recolours (the footer needs it on dark),
  * and it adds no binary to a repository that is public.
  *
- * APPROXIMATION. Redrawn from the supplied logo — four blocks pinwheeling
- * around a gap, three in ink and the upper-right one carrying the coral→ember
- * gradient. If the real vector differs, replace the paths here; nothing else
- * references the geometry.
+ * REDRAWN, not traced. Four thick bands pinwheeling around a small square
+ * gap, each running diagonally out from the centre and ending in a right-angle
+ * notch that points back at it; three in ink, the upper-right one carrying the
+ * coral→ember gradient. The geometry is 4-fold rotationally symmetric, so the
+ * three ink paths are the first one mirrored in x, in y, and in both — change
+ * one and you must change all four.
+ *
+ * This is drawn rather than linked because the supplied logo is a raster on the
+ * founder's desktop and cannot be written into this repository from here. SVG
+ * also stays sharp at any density, recolours for the dark footer, and adds no
+ * binary to a public repo. If you drop the real vector in, replace the four `d`
+ * attributes below; nothing else references the geometry.
  */
+
+/** The upper-left band. The other three are this one, mirrored. */
+const BAND = {
+  topLeft: "M10 16.5 16.5 10 22 15.5V22h-6.5L10 16.5Z",
+  bottomLeft: "M10 31.5 16.5 38 22 32.5V26h-6.5L10 31.5Z",
+  bottomRight: "M38 31.5 31.5 38 26 32.5V26h6.5L38 31.5Z",
+  topRight: "M38 16.5 31.5 10 26 15.5V22h6.5L38 16.5Z",
+};
 
 export function Mark({ size = 32, title }: { size?: number; title?: string }) {
   // A FIXED id, not a random one. Random ids differ between the server render
@@ -30,27 +46,20 @@ export function Mark({ size = 32, title }: { size?: number; title?: string }) {
       aria-hidden={title ? undefined : true}
     >
       <defs>
-        <linearGradient id={id} x1="26" y1="22" x2="46" y2="2" gradientUnits="userSpaceOnUse">
+        <linearGradient id={id} x1="26" y1="22" x2="38" y2="10" gradientUnits="userSpaceOnUse">
           <stop stopColor="#E8536A" />
           <stop offset="1" stopColor="#F2894E" />
         </linearGradient>
       </defs>
-      {/* upper-left, lower-left, lower-right: ink */}
-      <path d="M2 8.5 8.5 2 22 15.5V22h-6.5L2 8.5Z" fill="#1A1A1E" />
-      <path d="M2 39.5 8.5 46 22 32.5V26h-6.5L2 39.5Z" fill="#1A1A1E" />
-      <path d="M46 39.5 39.5 46 26 32.5V26h6.5L46 39.5Z" fill="#1A1A1E" />
-      {/* upper-right: the one place the gradient appears */}
-      <path d={`M46 8.5 39.5 2 26 15.5V22h6.5L46 8.5Z`} fill={`url(#${id})`} />
+      <path d={BAND.topLeft} fill="#1A1A1E" />
+      <path d={BAND.bottomLeft} fill="#1A1A1E" />
+      <path d={BAND.bottomRight} fill="#1A1A1E" />
+      {/* The one place the gradient appears. */}
+      <path d={BAND.topRight} fill={`url(#${id})`} />
     </svg>
   );
 }
 
-/**
- * Mark plus name. `tone="light"` for the dark footer.
- *
- * The tagline is optional because it belongs under the logo on a footer and
- * nowhere near a sticky nav, where it would be unreadable at 11px.
- */
 export function Wordmark({
   size = 28,
   tagline = false,
