@@ -377,10 +377,22 @@ statement freeze a month out of place.
 ### What is queued and never sent
 
 `outbound_emails` now holds the daily digest, the four A7 notifications and the
-partner welcome email. **Nothing drains it**: `CREDENTIALS_ENCRYPTION_KEY` is
-unset, so Resend's key cannot be stored and no code path here can put mail on
-the wire. Queued rows are visible, which is the point — "not going out" and
-"nothing to say" stop producing identical evidence.
+partner welcome email. **Nothing drains it.**
+
+`CREDENTIALS_ENCRYPTION_KEY` **is now set** (production, preview and
+development, on the `canvexia` project only — `www` and `resceta` only mention
+it in comments). That unblocks the FIRST of three steps, not all three:
+
+1. ~~the key, so credentials can be stored at all~~ — done;
+2. a Resend API key entered at `/super-admin/email`, which needs a Resend
+   account;
+3. a sender that drains `outbound_emails` — **does not exist**.
+
+So mail still does not go out, and queued rows are still the visible record of
+that. **The key can never be rotated casually**: everything in `*Enc` columns
+is AES-256-GCM under it, and changing it makes those columns unreadable with no
+recovery. Nothing was encrypted when it was set, so there is no legacy
+ciphertext under an older key.
 
 The digest is composed TWICE for a partner with both kinds of reader: a
 salesperson's copy must not carry a list of who did not check in. Audiences for

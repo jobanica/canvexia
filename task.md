@@ -127,3 +127,15 @@ eight.
 
 **A7 is complete.** All seven sub-phases, 9/9 green serially, servd 1204 → 1341
 tests. `system_architecture.md` carries the save state.
+
+---
+
+## After A7
+
+- [x] `CREDENTIALS_ENCRYPTION_KEY` set on the `canvexia` project (all three
+      targets), verified live at `/api/health`. Nothing was encrypted when it
+      was set, so there is no ciphertext under an older key. **It cannot be
+      rotated without making every `*Enc` column unreadable.**
+- [ ] A Resend API key at `/super-admin/email` — needs a Resend account.
+- [ ] A sender that drains `outbound_emails`. Until this exists, no mail goes
+      out however the other two are set.

@@ -121,8 +121,18 @@ export function ConvertApplication({
         </div>
 
         <p className="mt-3 text-xs text-brand-ink/55">
+          {/*
+            This used to name CREDENTIALS_ENCRYPTION_KEY as the blocker. That
+            key is set now, so the sentence had become false — and it was
+            hard-coded rather than derived, which is how a status line outlives
+            the status it describes. The remaining blocker is stated without
+            naming an environment variable, because the next thing to change
+            will not be that one either: what is missing now is a sender that
+            drains `outbound_emails`, and a Resend key entered at
+            /super-admin/email.
+          */}
           {state.emailQueued
-            ? "A welcome email is queued and has NOT gone out: CREDENTIALS_ENCRYPTION_KEY is unset on this project, so email cannot be configured. It sends the day that changes."
+            ? "A welcome email is QUEUED and has not gone out — nothing drains the queue yet. Send them the link above yourself for now."
             : "No welcome email was queued. Contact them yourself."}
         </p>
 
