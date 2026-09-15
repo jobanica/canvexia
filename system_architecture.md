@@ -205,3 +205,17 @@ are whole pesos and deliberately never added to a centavos total.
   is worth arguing about, it is worth testing without a database.
 - `NEXT_PUBLIC_*` is inlined at **build** time: changing one needs a redeploy,
   and it must be read as a literal `process.env.NEXT_PUBLIC_X` reference.
+- **Every serverless function runs in `sin1`** (Singapore), beside the Supabase
+  project in `ap-southeast-1`. This is set in TWO places and both matter: the
+  `regions` key in each app's `vercel.json`, and `serverlessFunctionRegion` on
+  the Vercel project, which is a dashboard setting and therefore not in this
+  repository. The projects defaulted to `iad1` (Washington), which put the
+  Pacific between every query and its answer — that alone was most of a
+  seven-second partner dashboard. If a NEW app ever feels inexplicably slow,
+  check the project's region before reading any code.
+- **A scoped read is four round trips, not one.** `tenantDb`/`partnerDb`/
+  `systemDb` each open a transaction: BEGIN, the SET that applies the scope, the
+  query, COMMIT. So reads that belong to one screen share one scope wrapper, and
+  independent reads go out through `Promise.all` rather than one `await` after
+  another. Awaiting nine scope wrappers in series is how the overview page got
+  slow the first time.
