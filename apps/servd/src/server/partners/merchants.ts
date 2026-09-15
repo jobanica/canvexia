@@ -45,26 +45,34 @@ export async function listPartnerMerchants(partnerId: string): Promise<PartnerMe
   const since = new Date(Date.now() - THIRTY_DAYS);
 
   return partnerDb(partnerId, async (tx) => {
-    const restaurants = await tx.restaurant.findMany({
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        status: true,
-        businessAddress: true,
-        createdAt: true,
-        subscriptions: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: {
-            status: true,
-            trialEndsAt: true,
-            plan: { select: { name: true, priceMonthly: true } },
+    // The two axes are independent, so they are asked together. Awaiting the
+    // pharmacy list after the restaurant list added a round trip for nothing.
+    const [restaurants, pharmacies] = await Promise.all([
+      tx.restaurant.findMany({
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          status: true,
+          businessAddress: true,
+          createdAt: true,
+          subscriptions: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              status: true,
+              trialEndsAt: true,
+              plan: { select: { name: true, priceMonthly: true } },
+            },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+      }),
+      tx.pharmacy.findMany({
+        select: { id: true, name: true, slug: true, status: true, address: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
 
     // Counted per merchant rather than per row: groupBy keeps this one query
     // instead of one per restaurant, which on a partner with fifty shops is the
@@ -87,11 +95,6 @@ export async function listPartnerMerchants(partnerId: string): Promise<PartnerMe
 
     const countBy = new Map(recent.map((r) => [r.restaurantId, r._count._all]));
     const lastBy = new Map(latest.map((r) => [r.restaurantId, r._max.createdAt]));
-
-    const pharmacies = await tx.pharmacy.findMany({
-      select: { id: true, name: true, slug: true, status: true, address: true, createdAt: true },
-      orderBy: { createdAt: "desc" },
-    });
 
     const rows: PartnerMerchant[] = [
       ...restaurants.map((r) => {

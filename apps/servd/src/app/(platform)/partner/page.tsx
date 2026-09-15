@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePartnerPage } from "@/server/partners/auth";
 import { getPartnerOverview, getPartnerProfile, onboardingChecklist } from "@/server/partners/overview";
-import { getPartnerDashboard, getPartnerTrainingUrl } from "@/server/partners/portal";
+import { getPartnerTrainingUrl } from "@/server/partners/portal";
 import { listPartnerDemos } from "@/server/partners/demo-queries";
 import { listPartnerPharmacies } from "@/server/partners/pharmacies";
 import { provisionableProducts } from "@/server/products";
@@ -48,15 +48,19 @@ export default async function PartnerPortalPage() {
     );
   }
 
-  const overview = await getPartnerOverview(partner.id);
-  const profile = await getPartnerProfile(partner.id);
+  // Every one of these opens its own scoped transaction, so awaiting them in
+  // sequence paid for each round trip end to end. Nothing here depends on
+  // anything else here, so they go out together.
+  const [overview, profile, demos, trainingUrl, pharmacies] = await Promise.all([
+    getPartnerOverview(partner.id),
+    getPartnerProfile(partner.id),
+    listPartnerDemos(partner.id),
+    getPartnerTrainingUrl(),
+    // Resceta merchants live on their own axis (D29), so they are a second query.
+    listPartnerPharmacies(partner.id),
+  ]);
   const territory = profile?.territory ?? null;
-  const data = await getPartnerDashboard(partner.id);
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const demos = await listPartnerDemos(partner.id);
-  const trainingUrl = await getPartnerTrainingUrl();
-  // Resceta merchants live on their own axis (D29), so they are a second query.
-  const pharmacies = await listPartnerPharmacies(partner.id);
   // From the registry, not a list written here: a vertical appears in the form
   // by registering an adapter (D36).
   const products = provisionableProducts().map((id) => ({

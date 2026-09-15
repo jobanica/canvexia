@@ -61,15 +61,9 @@ function buildSeries(merchants: readonly PartnerMerchant[], asOf: Date) {
   return out;
 }
 
-export async function getPartnerOverview(
-  partnerId: string,
-  asOf: Date = new Date(),
-): Promise<PartnerOverview> {
-  const merchants = await listPartnerMerchants(partnerId);
-
-  // The partner's own row: read through partnerDb so the `partner_self` policy
-  // is what scopes it, not a where clause.
-  const partner = await partnerDb(partnerId, (tx) =>
+/** Only here so the `catch` in getPartnerOverview has a type to name. */
+async function getPartnerRow(partnerId: string) {
+  return partnerDb(partnerId, (tx) =>
     tx.partner.findFirst({
       select: {
         revenueSharePct: true,
@@ -81,13 +75,55 @@ export async function getPartnerOverview(
       },
     }),
   );
+}
 
-  const prospects = await partnerDb(partnerId, (tx) =>
-    tx.prospect.findMany({
-      where: { stage: { notIn: ["paid", "lost"] }, nextFollowUpAt: { not: null } },
-      select: { id: true, businessName: true, nextFollowUpAt: true },
-    }),
-  ).catch(() => []); // prospects not migrated yet — the rest of the page still works
+export async function getPartnerOverview(
+  partnerId: string,
+  asOf: Date = new Date(),
+): Promise<PartnerOverview> {
+  // ONE transaction, not three.
+  //
+  // Every scope wrapper opens its own transaction, and a transaction is four
+  // round trips: BEGIN, the SET that applies the scope, the query, COMMIT. The
+  // database is in Singapore and these functions run beside it, but four trips
+  // is still four trips — and this page used to open NINE transactions in
+  // series, which is where six of its seven seconds went.
+  //
+  // So the reads that belong to one screen share one scope. They are also
+  // issued together rather than awaited one after another: `prospects` does not
+  // depend on `partner`, and making the database wait to be asked is the other
+  // half of the same mistake.
+  const [merchants, [partner, prospects]] = await Promise.all([
+    listPartnerMerchants(partnerId),
+    partnerDb(partnerId, async (tx) =>
+      Promise.all([
+        tx.partner.findFirst({
+          select: {
+            revenueSharePct: true,
+            collectionMode: true,
+            milestones: true,
+            licenseStartedAt: true,
+            exclusivityExpiresAt: true,
+            onboardingSteps: true,
+          },
+        }),
+        // Prospects may not be migrated on a given database; an empty list
+        // keeps the rest of the page working.
+        tx.prospect
+          .findMany({
+            where: { stage: { notIn: ["paid", "lost"] }, nextFollowUpAt: { not: null } },
+            select: { id: true, businessName: true, nextFollowUpAt: true },
+          })
+          .catch(() => [] as { id: string; businessName: string; nextFollowUpAt: Date | null }[]),
+      ]),
+    ).catch(
+      () =>
+        [null, []] as [
+          Awaited<ReturnType<typeof getPartnerRow>>,
+          { id: string; businessName: string; nextFollowUpAt: Date | null }[],
+        ],
+    ),
+  ]);
 
   const paying = merchants.filter(isPaying);
   const mrr = mrrCentavos(merchants);

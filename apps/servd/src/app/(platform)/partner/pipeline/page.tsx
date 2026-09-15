@@ -18,13 +18,13 @@ import { ProspectForm } from "@/components/partner/ProspectForm";
  */
 export default async function PartnerPipelinePage() {
   const partner = await requirePartnerPageWith("pipeline.read");
-  const [prospects, seats] = await Promise.all([
+  const [prospects, seats, profile] = await Promise.all([
     listProspects(partner.id),
     listAssignableSeats(partner.id),
+    getPartnerProfile(partner.id),
   ]);
 
   const products = provisionableProducts().map((id) => ({ id, name: PRODUCTS[id].name }));
-  const profile = await getPartnerProfile(partner.id);
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
   return (
