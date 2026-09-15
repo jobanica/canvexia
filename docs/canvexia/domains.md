@@ -9,19 +9,29 @@ Three domains, two deployments, one database. D31.
 | **partner.canvexia.com** | CANVEXIA — the partner portal | `apps/servd` — **not yet pointed here** |
 | **resceta.com** | Resceta — the pharmacy product | `apps/resceta` |
 
-> **D37 is built in code but not in DNS.** `canvexia.com` still resolves to the
-> `canvexia` project (`apps/servd`) and still serves the portal. The public site
-> is live and viewable at **`canvexia-www.vercel.app`**. Two changes flip it,
-> and they must happen together or one of the two brands is dark:
+> **NO DOMAIN IS REGISTERED YET.** `canvexia.com`, `servdph.net` and
+> `resceta.com` all return NXDOMAIN — checked, not assumed. The table above is
+> the INTENDED routing; nothing in it is live. Today everything answers on
+> Vercel URLs:
 >
-> 1. Remove `canvexia.com` and `www.canvexia.com` from the `canvexia` project;
->    add them to `canvexia-www`.
+> | What | Where it actually is today |
+> |---|---|
+> | The public site | `https://canvexia-www.vercel.app` |
+> | The partner portal | `https://canvexia-two.vercel.app/partner/login` |
+> | Resceta | `https://resceta.vercel.app` |
+>
+> On a `*.vercel.app` host `parseHost` returns `platform`, so the middleware
+> does NOT rewrite `/` to `/partner` — the portal is reachable at its real path
+> and the apex shows Servd. That is why the portal URL above carries
+> `/partner/login` and the bare host does not.
+>
+> **When the domains are bought**, D37 is a two-step flip and both steps go
+> together or one brand is dark:
+>
+> 1. Add `canvexia.com` + `www.canvexia.com` to the `canvexia-www` project.
 > 2. Add `partner.canvexia.com` to the `canvexia` project, and set
 >    `NEXT_PUBLIC_PORTAL_URL` on `canvexia-www` to
->    `https://partner.canvexia.com/partner/login`. Until then it points at
->    `https://canvexia.com/partner/login`, which is where the portal actually
->    is — a button aimed at a host that does not resolve is worse than no
->    button, which is the rule the rest of this app follows.
+>    `https://partner.canvexia.com/partner/login`.
 >
 > `parseHost` already answers `partner_root` for BOTH the apex and
 > `partner.canvexia.com`, so the order of those two steps cannot strand the

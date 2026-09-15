@@ -9,6 +9,9 @@ export interface CurrentPartner {
   email: string;
   status: string;
   tier: string;
+  /// 0 for every legacy reseller, 70 for a CANVEXIA operator. Selected because
+  /// the dashboard has to tell the two apart: see the note in partner/page.tsx.
+  revenueSharePct: number;
 }
 
 /** Resolve the logged-in Supabase user to a partner row, if any. */
@@ -22,7 +25,10 @@ export async function getCurrentPartner(): Promise<CurrentPartner | null> {
     const partner = await systemDb((tx) =>
       tx.partner.findUnique({
         where: { authUserId: user.id },
-        select: { id: true, name: true, email: true, status: true, tier: true },
+        select: {
+          id: true, name: true, email: true, status: true, tier: true,
+          revenueSharePct: true,
+        },
       }),
     );
     return partner ?? null;

@@ -73,10 +73,27 @@ export default async function PartnerPortalPage() {
 
       <h1 className="mt-6 font-heading text-2xl font-bold">Partner dashboard</h1>
 
-      <p className="mt-1 text-sm text-plum-ink/55">
-        Set up as many restaurants as you like. What you charge them is yours to decide —
-        Servd doesn&apos;t take a cut and never sees the price.
-      </p>
+      {/*
+        The two tiers are paid differently, so they cannot be told the same
+        thing. "Servd doesn't take a cut" is the LEGACY reseller contract — it
+        was said in writing and those partners keep it (see Partner.tier in the
+        schema). A CANVEXIA operator is on a revenue share, and showing them the
+        zero-cut line contradicts canvexia.com, which states the 70/30 split on
+        the page that recruited them. A partner reading both would be right to
+        wonder which one is true.
+      */}
+      {partner.tier === "operator" ? (
+        <p className="mt-1 text-sm text-plum-ink/55">
+          Set up as many merchants as you like. You keep{" "}
+          <strong className="font-semibold text-plum-ink/80">{partner.revenueSharePct}%</strong>{" "}
+          of what each one pays every month; CANVEXIA keeps {100 - partner.revenueSharePct}%.
+        </p>
+      ) : (
+        <p className="mt-1 text-sm text-plum-ink/55">
+          Set up as many restaurants as you like. What you charge them is yours to decide —
+          Servd doesn&apos;t take a cut and never sees the price.
+        </p>
+      )}
 
       {trainingUrl && (
         <div className="mt-4">
