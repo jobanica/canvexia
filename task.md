@@ -2,7 +2,7 @@
 
 CANVEXIA is separate from servdph.com — its own database, its own merchants, its
 own domains (D31). Two products live: **Servd** (restaurants) and **Resceta**
-(pharmacy). 1,263 tests pass, none skipped.
+(pharmacy). 1,274 tests pass, none skipped.
 
 | Domain | Serves | Deployment |
 |---|---|---|
@@ -81,9 +81,11 @@ change in `apps/servd` no longer redeploys the pharmacy — but a change in
 
 Then, in this order:
 
-1. **Settings** → enter the TIN, address, FDA LTO and PRC number. Until they are
-   in, every receipt prints marked *NOT AN OFFICIAL RECEIPT*, which is on
-   purpose.
+1. **Settings** → enter the TIN, address, FDA LTO and PRC number as the
+   documents arrive. None of them is required to save: until they are in, the
+   receipt prints marked *NOT AN OFFICIAL RECEIPT*, which is the honest
+   version. The **VAT rate** is the one field that will not save blank — an
+   empty box would read as 0, i.e. "not VAT-registered".
 2. Run the activation SQL above.
 3. **Receive** a delivery → **Counter** to sell it → **Print receipt** →
    **Receipts** to void or return it.
@@ -164,7 +166,7 @@ of field names, because what an audit asks is what the TIN *used to be*.
 
 ## Numbers
 
-- **Resceta 150 offline + 45 DB-backed**
+- **Resceta 161 offline + 45 DB-backed**
 - **Servd 1,030 offline + 38 DB-backed**
 - both typecheck, both build
 

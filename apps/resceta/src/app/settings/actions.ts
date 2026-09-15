@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { requireStaff } from "@/server/tenancy/current-user";
 import { updatePharmacySettings } from "@/server/pharmacy/settings";
+import { SettingsInput } from "@/lib/pharmacy/settings-input";
 
 /**
  * Save the pharmacy's statutory identity.
@@ -16,31 +16,10 @@ import { updatePharmacySettings } from "@/server/pharmacy/settings";
  * A blank is meaningfully different from a space: `receiptGaps` treats
  * whitespace as missing and marks the receipt unofficial, which is the right
  * answer and is only reachable if "" never reaches the column.
+ *
+ * The shape itself is in `lib/pharmacy/settings-input.ts`, where it can be
+ * tested — a `"use server"` file may only export async functions.
  */
-
-/** Trim, and treat an empty box as "not set". */
-const Optional = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max)
-    .transform((v) => v || null)
-    .nullable()
-    .default(null);
-
-const Settings = z.object({
-  displayName: Optional(120),
-  address: Optional(300),
-  phone: Optional(40),
-  email: Optional(200),
-  tin: Optional(40),
-  fdaLtoNumber: Optional(60),
-  prcLicenseNo: Optional(60),
-  // A whole percent, and capped well below anything a tax authority has ever
-  // charged — the field exists so a statutory rate change is not a code change,
-  // not so a till can be talked into a 900% VAT line.
-  vatRatePct: z.coerce.number().int().min(0).max(25),
-});
 
 export type SettingsState =
   | { status: "idle" }
@@ -64,7 +43,7 @@ export async function saveSettings(
     };
   }
 
-  const parsed = Settings.safeParse({
+  const parsed = SettingsInput.safeParse({
     displayName: formData.get("displayName") ?? "",
     address: formData.get("address") ?? "",
     phone: formData.get("phone") ?? "",
@@ -72,10 +51,18 @@ export async function saveSettings(
     tin: formData.get("tin") ?? "",
     fdaLtoNumber: formData.get("fdaLtoNumber") ?? "",
     prcLicenseNo: formData.get("prcLicenseNo") ?? "",
-    vatRatePct: formData.get("vatRatePct") ?? 12,
+    vatRatePct: formData.get("vatRatePct") ?? "",
   });
   if (!parsed.success) {
-    return { status: "error", message: "Check the details — something didn't look right." };
+    // Surface the schema's own message where it has one — "enter the VAT rate"
+    // is actionable; "something didn't look right" is not.
+    const first = parsed.error.issues[0]?.message;
+    return {
+      status: "error",
+      message: first && !first.startsWith("Invalid")
+        ? first
+        : "Check the details — something didn't look right.",
+    };
   }
 
   const saved = await updatePharmacySettings({

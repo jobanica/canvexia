@@ -12,19 +12,31 @@ function Field({
   hint,
   defaultValue,
   required,
+  forReceipt,
   ...rest
 }: {
   name: string;
   label: string;
   hint?: string;
   defaultValue?: string | null;
+  /** Cannot be saved empty. Only for a field whose blank value would be wrong. */
   required?: boolean;
+  /** Needed for a receipt to be official — but the form saves without it. */
+  forReceipt?: boolean;
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "defaultValue">) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block font-medium text-slate-700">
+      <span className="mb-1 flex flex-wrap items-center gap-2 font-medium text-slate-700">
         {label}
-        {required && <span className="ml-1 text-red-600">*</span>}
+        {required && <span className="text-red-600">*</span>}
+        {/* Not a red star: this does not block saving. A pharmacy chasing its
+            LTO still needs to record its address today, and a form that
+            refuses is a form people work around. */}
+        {forReceipt && (
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-normal text-slate-600">
+            needed on a receipt
+          </span>
+        )}
       </span>
       <input
         name={name}
@@ -40,10 +52,16 @@ function Field({
 /**
  * The pharmacy's own details.
  *
- * The starred fields are starred because a receipt without them is not an
- * official receipt — that is what the star means here, not "we would like
- * this". The print page says the same thing in the same words, so the two
- * screens do not disagree about what is required.
+ * Nothing here blocks saving except the VAT rate, and that one is not a
+ * preference: `z.coerce.number()` turns an empty box into 0, which would
+ * silently record the pharmacy as NOT VAT-registered and drop the VAT box off
+ * every future receipt. A blank that means something false has to be refused.
+ *
+ * The licence numbers are marked "needed on a receipt" instead. A pharmacy
+ * still chasing its FDA LTO has to be able to record its address and trading
+ * name today, and `receiptGaps` already tells the truth on the document itself
+ * — the receipt prints NOT AN OFFICIAL RECEIPT until they are on file. Saying
+ * it twice, once as a block, only teaches people to enter a placeholder.
  */
 export function SettingsForm({ settings }: { settings: PharmacySettings }) {
   const [state, action, pending] = useActionState(saveSettings, IDLE);
@@ -73,7 +91,7 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
           hint="The registered address. BIR requires it on the face of an invoice."
           defaultValue={settings.address}
           maxLength={300}
-          required
+          forReceipt
         />
         <div className="grid gap-4 sm:grid-cols-2">
           <Field name="phone" label="Phone" defaultValue={settings.phone} maxLength={40} />
@@ -91,10 +109,11 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
         <div>
           <h2 className="font-semibold">Licences and registration</h2>
           <p className="mt-1 text-sm text-slate-600">
-            A receipt missing any of these prints marked{" "}
-            <strong>NOT AN OFFICIAL RECEIPT</strong> — a blank space where a
-            licence number belongs still looks official to a customer, and the
-            pharmacy finds out at audit.
+            Leave any of these blank and it saves — but the receipt then
+            prints marked <strong>NOT AN OFFICIAL RECEIPT</strong>, because a
+            blank space where a licence number belongs still looks official to
+            a customer, and the pharmacy finds out at audit. Fill them in as
+            the documents arrive.
           </p>
         </div>
 
@@ -105,7 +124,7 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
           defaultValue={settings.tin}
           maxLength={40}
           placeholder="000-000-000-00000"
-          required
+          forReceipt
         />
         <Field
           name="fdaLtoNumber"
@@ -113,7 +132,7 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
           hint="The LTO number for this outlet."
           defaultValue={settings.fdaLtoNumber}
           maxLength={60}
-          required
+          forReceipt
         />
         <Field
           name="prcLicenseNo"
@@ -121,7 +140,7 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
           hint="The registered pharmacist under whose supervision this outlet dispenses."
           defaultValue={settings.prcLicenseNo}
           maxLength={60}
-          required
+          forReceipt
         />
       </section>
 
