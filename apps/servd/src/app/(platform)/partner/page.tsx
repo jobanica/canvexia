@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { requirePartnerPage } from "@/server/partners/auth";
+import { getPartnerOverview, getPartnerProfile, onboardingChecklist } from "@/server/partners/overview";
 import { getPartnerDashboard, getPartnerTrainingUrl } from "@/server/partners/portal";
 import { listPartnerDemos } from "@/server/partners/demo-queries";
 import { listPartnerPharmacies } from "@/server/partners/pharmacies";
@@ -10,6 +12,14 @@ import { PartnerPharmacies } from "@/components/partner/PartnerPharmacies";
 import { NewMerchant } from "@/components/partner/NewMerchant";
 import { TrainingVideo } from "@/components/partner/TrainingVideo";
 import { CanvexiaLockup } from "@/components/partner/CanvexiaBrand";
+import {
+  AttentionList,
+  MilestoneTracker,
+  OnboardingChecklist,
+  StatCards,
+} from "@/components/partner/Overview";
+import { GrowthChart } from "@/components/partner/GrowthChart";
+import { PortalNav } from "@/components/partner/PortalNav";
 
 const DEMO = { label: "Demo", cls: "bg-brand-ink/5 text-brand-ink/60" };
 const LIVE = { label: "Live ✓", cls: "bg-brand-primary/15 text-brand-primary" };
@@ -38,6 +48,8 @@ export default async function PartnerPortalPage() {
     );
   }
 
+  const overview = await getPartnerOverview(partner.id);
+  const profile = await getPartnerProfile(partner.id);
   const data = await getPartnerDashboard(partner.id);
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const demos = await listPartnerDemos(partner.id);
@@ -53,22 +65,10 @@ export default async function PartnerPortalPage() {
   }));
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-10">
-      <div className="flex items-center justify-between">
-        <CanvexiaLockup size={26} />
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-brand-ink/50">
-            {partner.name} · {partner.tier}
-          </span>
-          <form action={signOutPartner}>
-            <button className="rounded-full border border-brand-ink/15 px-3 py-1.5 text-xs font-semibold text-brand-ink/70 hover:bg-brand-surface">
-              Log out
-            </button>
-          </form>
-        </div>
-      </div>
-
-      <h1 className="mt-6 font-heading text-2xl font-bold">Partner dashboard</h1>
+    <>
+    <PortalNav partner={partner} />
+    <div className="mx-auto max-w-5xl px-6 py-8">
+      <h1 className="font-heading text-2xl font-bold">Partner dashboard</h1>
 
       {/*
         The two tiers are paid differently, so they cannot be told the same
@@ -92,6 +92,25 @@ export default async function PartnerPortalPage() {
         </p>
       )}
 
+      <div className="mt-6">
+        <StatCards o={overview} />
+      </div>
+
+      {profile && (
+        <div className="mt-4">
+          <OnboardingChecklist steps={onboardingChecklist(overview, profile)} />
+        </div>
+      )}
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <AttentionList items={overview.attention} />
+        <MilestoneTracker o={overview} />
+      </div>
+
+      <div className="mt-4">
+        <GrowthChart series={overview.series} />
+      </div>
+
       {trainingUrl && (
         <div className="mt-4">
           <TrainingVideo url={trainingUrl} />
@@ -102,37 +121,31 @@ export default async function PartnerPortalPage() {
         <PartnerDemos demos={demos} appUrl={base} />
       </div>
 
-      <div className="mt-4 rounded-tile border border-brand-ink/10 bg-white p-5">
-        <p className="mb-3 text-sm font-semibold">
-          Your restaurants
-          {data.accounts.length > 0 &&
-            ` (${data.accounts.filter((a) => a.converted).length} live · ${
-              data.accounts.filter((a) => !a.converted).length
-            } demo)`}
-        </p>
-        {data.accounts.length === 0 ? (
-          <p className="text-sm text-brand-ink/50">
-            None yet. Build a preview above to show a restaurant what theirs would look like.
+      {/*
+        The flat list of restaurants that used to live here moved to
+        /partner/merchants, which shows every product on one axis rather than
+        restaurants here and pharmacies below. What stays is the way in.
+      */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-tile border border-brand-ink/10 bg-white p-5">
+        <div>
+          <p className="text-sm font-semibold">
+            {overview.merchants.length === 0
+              ? "No merchants yet"
+              : `${overview.merchants.length} merchant${overview.merchants.length === 1 ? "" : "s"}`}
           </p>
-        ) : (
-          <ul className="divide-y divide-brand-ink/5">
-            {data.accounts.map((r) => {
-              const s = r.converted ? LIVE : DEMO;
-              return (
-                <li key={r.id} className="flex items-center justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{r.name}</p>
-                    <p className="text-xs text-brand-ink/45">
-                      Set up {new Date(r.createdAt).toLocaleDateString()} · /{r.slug}
-                    </p>
-                  </div>
-                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.cls}`}>
-                    {s.label}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          <p className="mt-0.5 text-xs text-brand-ink/50">
+            {overview.merchants.length === 0
+              ? "Open your first account below, or build a preview to pitch with."
+              : `${overview.payingCount} paying, across every product.`}
+          </p>
+        </div>
+        {overview.merchants.length > 0 && (
+          <Link
+            href="/partner/merchants"
+            className="rounded-full border border-brand-ink/15 px-4 py-2 text-sm font-semibold hover:bg-brand-surface"
+          >
+            See all merchants
+          </Link>
         )}
       </div>
 
@@ -140,10 +153,19 @@ export default async function PartnerPortalPage() {
 
       <PartnerPharmacies pharmacies={pharmacies} />
 
+      {/*
+        The same tier split as the line at the top, and for the same reason: "no
+        commission in either direction" is the LEGACY reseller contract, and
+        telling an operator that contradicts both canvexia.com and the numbers
+        in the cards directly above it.
+      */}
       <p className="mt-6 text-xs text-brand-ink/40">
-        There is no cap on how many restaurants you can set up, and no commission in either
-        direction — you bill your clients yourself, at whatever you decide.
+        {partner.tier === "operator"
+          ? `There is no cap on how many merchants you can open. You keep ${partner.revenueSharePct}% of what each one pays, every month they stay.`
+          : "There is no cap on how many restaurants you can set up, and no commission in either direction — you bill your clients yourself, at whatever you decide."}
       </p>
+      <p className="mt-2 text-xs text-brand-ink/35">Partner portal by CANVEXIA.</p>
     </div>
+    </>
   );
 }

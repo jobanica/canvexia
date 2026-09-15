@@ -43,7 +43,38 @@ RLS, so this can never be invisible again.
       than blind-edited: the change is three lines each and needs a database to
       verify.
 
-## A2 — Overview + Merchants + create-from-prospect  ⬜ NEXT
+## A2 — Overview + Merchants  ✅ DONE (actions deferred)
+
+- [x] `lib/partners/attention.ts` + 10 tests — four rules, pure, fixed-date
+- [x] `server/partners/merchants.ts` — cross-product fan-out, MRR, `isPaying`
+- [x] `server/partners/overview.ts` — stats, milestone ladder, attention, series
+- [x] `components/partner/Overview.tsx` — stat cards, milestones, attention,
+      onboarding checklist (five of six steps DERIVED, not self-ticked)
+- [x] `components/partner/GrowthChart.tsx` — recharts, already a dependency
+- [x] `components/partner/PortalNav.tsx` — links hidden, not disabled
+- [x] `/partner` rebuilt · `/partner/merchants` · `/partner/merchants/[key]`
+
+### Deferred out of A2, on purpose
+
+- [ ] **Merchant actions**: change plan, extend trial, suspend/reactivate,
+      resend invite, mark invoice paid. Each writes to another tenant's data and
+      needs its own audit row and confirmation.
+- [ ] **"Log in as merchant."** Flagged at plan time and still true: it is the
+      one feature that puts one tenant inside another tenant's data by design.
+      It lands after the isolation suite is dense enough to catch a mistake in
+      it, not before. The detail page says so rather than showing a dead button.
+- [ ] **CSV export** and the per-merchant notes/audit panel.
+
+### Honest gaps surfaced by the data, not invented
+
+- Only restaurants have subscriptions — `Subscription` keys on `restaurantId`.
+  A pharmacy reports `plan: null`, rendered "Not billed yet" rather than ₱0.
+- The chart is a GROWTH curve: merchants by creation date at today's prices.
+  Real revenue history needs the ledger (A4). The caption says so.
+- "Open tickets awaiting partner reply" has no ticket system to read. The rule
+  is absent rather than always-empty.
+
+## A3 — Pipeline + lead form  ⬜ NEXT
 ## A3 — Pipeline + lead form  ⬜
 ## A4 — Revenue + pricing + statements  ⬜
 ## A5 — Brand + domains + sender identity  ⬜
