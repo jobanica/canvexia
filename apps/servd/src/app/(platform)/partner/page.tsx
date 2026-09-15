@@ -102,7 +102,9 @@ export default async function PartnerPortalPage() {
         </div>
       )}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      {/* items-start, or the attention card stretches to match the milestone
+          card beside it and an empty state becomes a tall empty box. */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-2 lg:items-start">
         <AttentionList items={overview.attention} />
         <MilestoneTracker o={overview} />
       </div>
