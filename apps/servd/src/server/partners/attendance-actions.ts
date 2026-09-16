@@ -260,8 +260,29 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
   if (subjectType !== "prospect" && subjectType !== "merchant") {
     return { error: "Pick a prospect or a merchant." };
   }
-  const subjectId = String(formData.get("subjectId") ?? "").trim();
-  if (!subjectId) return { error: "Pick who you visited." };
+  let subjectId = String(formData.get("subjectId") ?? "").trim();
+
+  /**
+   * A BUSINESS THAT IS NOT ON ANYBODY'S LIST YET.
+   *
+   * The dropdown offers the prospects assigned to this seat and the merchants
+   * they look after — so a salesperson standing inside a carinderia nobody has
+   * heard of could not log the visit at all. Which is the exact case the rest
+   * of this file is written around: "a salesperson walking into a carinderia
+   * they have never seen is how the business gets discovered". Discovery was
+   * the one thing the form would not let them record.
+   *
+   * So a name is enough. The prospect is created here rather than asking them
+   * to stop, open the pipeline, add it, and come back — a form that sends
+   * somebody to another screen mid-conversation is a form that loses the visit.
+   *
+   * Created INSIDE the visit's transaction below, so a replayed `clientRef`
+   * rolls the prospect back with it. Creating it out here would leave a
+   * duplicate business behind every time a queued visit was retried.
+   */
+  const newSubjectName = String(formData.get("newSubjectName") ?? "")
+    .trim()
+    .slice(0, 160);
 
   const productId = String(formData.get("productId") ?? "").trim() || null;
   const outcome = String(formData.get("outcome") ?? "") as Outcome;
@@ -271,13 +292,61 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
   const clientRef = String(formData.get("clientRef") ?? "").trim() || null;
   const { point, accuracy } = pointFrom(formData);
 
-  const { point: subjectPoint, name } = await subjectLocation(
-    who.partnerId,
-    subjectType,
-    productId,
-    subjectId,
-  );
-  if (name === null) return { error: "We can't find that on your list." };
+  let name: string | null;
+  let subjectPoint: Point | null;
+
+  if (subjectId) {
+    ({ point: subjectPoint, name } = await subjectLocation(
+      who.partnerId,
+      subjectType,
+      productId,
+      subjectId,
+    ));
+    if (name === null) return { error: "We can't find that on your list." };
+  } else {
+    if (!newSubjectName) return { error: "Pick who you visited." };
+    if (subjectType !== "prospect") {
+      // A merchant already exists by definition. Only a prospect can be new.
+      return { error: "Pick who you visited." };
+    }
+    // `support` holds attendance.checkin and explicitly has no pipeline. The
+    // field app hides the option for them; this is the half that matters.
+    if (!who.partner.permissions.has("pipeline.write")) {
+      return { error: "You can't add new businesses. Ask an admin to add it first." };
+    }
+    if (!productId) return { error: "Pick which product you were pitching." };
+
+    /**
+     * REUSED IF THE PARTNER ALREADY HAS IT, under any seat.
+     *
+     * Two people working the same street would otherwise put the same
+     * carinderia in the pipeline twice, and a pipeline with duplicates is one
+     * nobody trusts. The row is NOT reassigned — whoever owns it keeps it, and
+     * the visit records who actually walked in.
+     */
+    const existing = await systemDb((tx) =>
+      tx.prospect.findFirst({
+        where: {
+          partnerId: who.partnerId,
+          businessName: { equals: newSubjectName, mode: "insensitive" },
+        },
+        select: { id: true, businessName: true, latitude: true, longitude: true },
+      }),
+    );
+    if (existing) {
+      subjectId = existing.id;
+      name = existing.businessName;
+      subjectPoint =
+        existing.latitude !== null && existing.longitude !== null
+          ? { lat: existing.latitude, lng: existing.longitude }
+          : null;
+    } else {
+      name = newSubjectName;
+      // Nothing to compare a first visit against. `checkVisit` reports
+      // `no_address`, honestly, and the photo is what stands in its place.
+      subjectPoint = null;
+    }
+  }
 
   const check = checkVisit(point, subjectPoint, accuracy);
 
@@ -309,14 +378,50 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
   }
 
   try {
-    await systemDb(async (tx) => {
+    subjectId = await systemDb(async (tx) => {
+      /**
+       * The new business, created in the SAME transaction as its visit.
+       *
+       * A queued visit is retried until the server accepts it, and the
+       * `clientRef` unique index is what makes a replay a no-op. If the
+       * prospect were created before this transaction, every retry would leave
+       * another copy of the business behind while the visit itself was
+       * correctly rejected as a duplicate.
+       */
+      let sid = subjectId;
+      if (!sid) {
+        const created = await tx.prospect.create({
+          data: {
+            partnerId: who.partnerId,
+            businessName: name!,
+            productId: productId!,
+            // Walked into, which is exactly what this is.
+            source: "walk_in",
+            // `lead`, not `contacted`: the outcome below moves it if the
+            // conversation earned that, and defaulting past a stage nobody
+            // reached is how a pipeline stops meaning anything.
+            stage: "lead",
+            // Theirs to follow up. They are the one standing in it.
+            assignedToId: who.userId,
+          },
+          select: { id: true },
+        });
+        sid = created.id;
+        await writeSeatAudit(tx, who, {
+          action: "partner.prospect_created_in_field",
+          entityType: "prospect",
+          entityId: sid,
+          after: { businessName: name, productId, source: "walk_in" },
+        });
+      }
+
       const visit = await tx.staffVisit.create({
         data: {
           partnerId: who.partnerId,
           partnerUserId: who.userId!,
           subjectType,
           productId,
-          subjectId,
+          subjectId: sid,
           subjectName: name,
           lat: point?.lat ?? null,
           lng: point?.lng ?? null,
@@ -336,7 +441,7 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
           kind: "visit.logged",
           subjectType,
           productId,
-          subjectId,
+          subjectId: sid,
           detail: { name, outcome, flag: check.flag },
         },
         select: { id: true },
@@ -345,11 +450,11 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
       /**
        * THE FIRST VISIT RECORDS WHERE THE BUSINESS IS.
        *
-       * Nothing here geocodes an address string, so a prospect has never had
-       * coordinates and every prospect visit has been unverifiable — not just
-       * the first. Writing the first visit's position fixes every LATER visit:
-       * from then on "were they where they were last time?" is a question with
-       * an answer.
+       * Nothing here geocodes an address string, so a prospect has no
+       * coordinates until somebody stands in it. Writing the first visit's
+       * position is what makes every LATER visit checkable: `subjectLocation`
+       * reads this back, so from then on "were they where they were last
+       * time?" is a question with an answer.
        *
        * ONLY WHEN IT IS NOT ALREADY SET. A second visit must not move the pin,
        * or somebody who logs from the wrong place quietly redefines where the
@@ -357,7 +462,7 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
        */
       if (subjectType === "prospect" && point) {
         await tx.prospect.updateMany({
-          where: { id: subjectId, partnerId: who.partnerId, latitude: null },
+          where: { id: sid, partnerId: who.partnerId, latitude: null },
           data: {
             latitude: point.lat,
             longitude: point.lng,
@@ -376,7 +481,7 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
           outcome === "signed" ? "paid" : outcome === "follow_up" ? "contacted" : null;
         if (stage) {
           await tx.prospect.updateMany({
-            where: { id: subjectId, partnerId: who.partnerId },
+            where: { id: sid, partnerId: who.partnerId },
             // `stage` only. There is no "last contacted" column on this table
             // and inventing one from a visit would make the pipeline's own
             // follow-up dates disagree with it.
@@ -388,7 +493,7 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
               partnerUserId: who.userId!,
               kind: "prospect.stage",
               subjectType: "prospect",
-              subjectId,
+              subjectId: sid,
               detail: { name, stage },
             },
             select: { id: true },
@@ -399,9 +504,10 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
       await writeSeatAudit(tx, who, {
         action: "partner.visit_logged",
         entityType: subjectType,
-        entityId: subjectId,
+        entityId: sid,
         after: { outcome, flag: check.flag, distanceMeters: check.distanceMeters },
       });
+      return sid;
     });
   } catch {
     // A replayed clientRef. Already logged is success from the phone's point of

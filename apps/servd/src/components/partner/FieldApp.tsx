@@ -40,6 +40,8 @@ export function FieldApp({
   session,
   visits,
   subjects,
+  products,
+  canAddNew,
   name,
   kioskRequired,
   scanned,
@@ -47,6 +49,10 @@ export function FieldApp({
   session: SessionRow | null;
   visits: VisitRow[];
   subjects: Subject[];
+  /** What this operator sells, for a business being added on the spot. */
+  products: { id: string; name: string }[];
+  /** Does this seat hold `pipeline.write`? Support seats do not. */
+  canAddNew: boolean;
   name: string;
   /** This seat must clock in at a kiosk; the GPS-only buttons are refused. */
   kioskRequired: boolean;
@@ -278,7 +284,13 @@ export function FieldApp({
       </section>
 
       {/* --- Log a visit -------------------------------------------------- */}
-      <VisitForm subjects={subjects} onSubmit={(extra) => submit("visit", extra)} busy={pending} />
+      <VisitForm
+        subjects={subjects}
+        products={products}
+        canAddNew={canAddNew}
+        onSubmit={(extra) => submit("visit", extra)}
+        busy={pending}
+      />
 
       {/* --- Today's visits ----------------------------------------------- */}
       <section className="rounded-tile border border-brand-ink/10 bg-white p-5">
@@ -329,16 +341,41 @@ export function FieldApp({
   );
 }
 
+/**
+ * The sentinel for "this business is not on the list".
+ *
+ * A `:`-free value, because a real subject key is `type:productId:id` and is
+ * split on colons below.
+ */
+const NEW_SUBJECT = "new";
+
 function VisitForm({
   subjects,
+  products,
+  canAddNew,
   onSubmit,
   busy,
 }: {
   subjects: Subject[];
+  products: { id: string; name: string }[];
+  canAddNew: boolean;
   onSubmit: (extra: Record<string, string>) => Promise<void>;
   busy: boolean;
 }) {
   const [subjectKey, setSubjectKey] = useState("");
+  /**
+   * A BUSINESS NOBODY HAS ENTERED YET.
+   *
+   * The dropdown holds the prospects assigned to this seat and the merchants
+   * they look after, which left no way at all to log a visit to a carinderia
+   * discovered five minutes ago — the exact thing this app is for. Sending
+   * somebody to the pipeline screen and back mid-conversation is how a visit
+   * stops getting logged, so a name is enough and the prospect is created with
+   * the visit.
+   */
+  const [newName, setNewName] = useState("");
+  // Skipped entirely when the operator sells one thing, which is most of them.
+  const [newProductId, setNewProductId] = useState(products.length === 1 ? products[0].id : "");
   const [outcome, setOutcome] = useState("met_owner");
   const [notes, setNotes] = useState("");
   /**
@@ -381,8 +418,11 @@ function VisitForm({
    * screen than most, because the person hitting it is standing in front of the
    * shopkeeper they just photographed, and the only way out was to guess.
    */
+  const isNew = subjectKey === NEW_SUBJECT;
   const missing = [
     !subjectKey && "who you visited",
+    isNew && !newName.trim() && "the business name",
+    isNew && !newProductId && "which product",
     !photo && "a photo",
     consent === null && "the answer about texting them",
     consent === true && !mobile.trim() && "their mobile number",
@@ -403,7 +443,52 @@ function VisitForm({
               {s.name} {s.type === "prospect" ? "(prospect)" : ""}
             </option>
           ))}
+          {/* Last, not first: the common case is somebody already on the list,
+              and an "add new" sitting at the top invites a duplicate. */}
+          {canAddNew && <option value={NEW_SUBJECT}>+ Someone new — add them</option>}
         </select>
+
+        {isNew && (
+          <div className="space-y-2 rounded-lg border border-brand-primary/25 bg-brand-primary/[0.04] p-3">
+            <p className="text-[0.68rem] leading-relaxed text-brand-ink/55">
+              The name is enough. It goes into your pipeline as a new lead, assigned to
+              you, and this visit is its first.
+            </p>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              maxLength={160}
+              autoFocus
+              placeholder="Business name — e.g. Aling Nena's Carinderia"
+              className={field}
+            />
+            {/* Only when there is a choice to make. One product is not a
+                question worth asking somebody standing in a doorway. */}
+            {products.length > 1 && (
+              <select
+                value={newProductId}
+                onChange={(e) => setNewProductId(e.target.value)}
+                className={field}
+              >
+                <option value="">Which product were you pitching?</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
+        {subjects.length === 0 && !canAddNew && (
+          // Otherwise this is an empty dropdown above a dead button with no
+          // explanation anywhere — the same dead end, one step earlier.
+          <p className="rounded-lg bg-brand-surface px-3 py-2 text-xs leading-snug text-brand-ink/60">
+            Nothing is assigned to you yet, and your account can&rsquo;t add businesses.
+            Ask your admin to assign you a prospect or a merchant.
+          </p>
+        )}
 
         {/* Buttons, not a select: four options, tapped with a thumb. */}
         <div className="grid grid-cols-2 gap-2">
@@ -556,11 +641,17 @@ function VisitForm({
           disabled={missing.length > 0 || busy}
           aria-describedby={missing.length > 0 ? "visit-missing" : undefined}
           onClick={async () => {
-            const [type, productId, id] = subjectKey.split(":");
+            // A new business has no id yet; the server creates the prospect in
+            // the visit's own transaction, so a replayed queue item cannot
+            // leave a duplicate behind.
+            const [type, productId, id] = isNew
+              ? ["prospect", newProductId, ""]
+              : subjectKey.split(":");
             await onSubmit({
               subjectType: type,
               productId,
               subjectId: id,
+              newSubjectName: isNew ? newName.trim() : "",
               outcome,
               notes,
               smsConsent: consent === true ? "yes" : "no",
@@ -568,6 +659,8 @@ function VisitForm({
               photo: photo ?? "",
             });
             setSubjectKey("");
+            setNewName("");
+            setNewProductId(products.length === 1 ? products[0].id : "");
             setNotes("");
             setOutcome("met_owner");
             setConsent(null);

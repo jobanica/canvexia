@@ -294,12 +294,28 @@ export async function subjectLocation(
       const p = await systemDb((tx) =>
         tx.prospect.findFirst({
           where: { id: subjectId, partnerId },
-          select: { businessName: true, address: true },
+          select: { businessName: true, latitude: true, longitude: true },
         }),
       );
-      // Prospects carry an address string, not coordinates. Nothing in this
-      // repository geocodes, so this is honestly null rather than a guess.
-      return { point: null, name: p?.businessName ?? null };
+      /**
+       * THE COORDINATES LEARNED FROM THE FIRST VISIT, not the address string.
+       *
+       * This used to return `point: null` unconditionally, with a comment
+       * saying prospects carry an address and nothing here geocodes. That was
+       * true until `latitude`/`longitude` were added and the first visit
+       * started writing them — after which this function was the only thing
+       * standing between that column and the check it exists for. Every repeat
+       * visit still came back `no_address`, so the pin was written and never
+       * read, and "were they where they were last time?" stayed unanswerable.
+       *
+       * Still honestly null on a FIRST visit, because there is nothing to
+       * compare to yet. That is the case the photo covers.
+       */
+      const point =
+        p && isUsable({ lat: p.latitude ?? NaN, lng: p.longitude ?? NaN })
+          ? { lat: p.latitude as number, lng: p.longitude as number }
+          : null;
+      return { point, name: p?.businessName ?? null };
     }
     if (productId === "pharmacy") {
       const m = await systemDb((tx) =>

@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
-import { requirePartnerPageWith } from "@/server/partners/auth";
+import { PRODUCTS } from "@servd/core";
+import { partnerAllows, requirePartnerPageWith } from "@/server/partners/auth";
+import { provisionableProducts } from "@/server/products";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { manilaDayKey, todaySession, visitsForDay } from "@/server/partners/attendance";
 import { myMerchants } from "@/server/partners/my-day";
@@ -70,12 +72,29 @@ export default async function PartnerAttendancePage({
     })),
   ];
 
+  // For a business added on the spot. Same list the pipeline's own add form
+  // offers, so a prospect created in the field is indistinguishable from one
+  // typed at a desk.
+  const products = provisionableProducts().map((id) => ({ id, name: PRODUCTS[id].name }));
+
+  /**
+   * `pipeline.write`, not `attendance.checkin`.
+   *
+   * Sales holds both by default, so this is on for the people it is for.
+   * Support holds attendance.checkin and explicitly "has no pipeline at all" —
+   * they check in and answer for merchants that already exist, and should not
+   * be creating pipeline rows from a phone.
+   */
+  const canAddNew = partnerAllows(partner, "pipeline.write");
+
   return (
     <div className="brand-canvexia min-h-screen bg-brand-surface text-brand-ink">
       <FieldApp
         session={session}
         visits={visits}
         subjects={subjects}
+        products={products}
+        canAddNew={canAddNew}
         name={partner.user.name ?? partner.user.email}
         kioskRequired={mustUseKiosk}
         scanned={scanned}

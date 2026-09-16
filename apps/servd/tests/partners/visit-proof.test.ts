@@ -230,3 +230,144 @@ describe("a photo the browser cannot decode", () => {
     expect(photo).toContain('throw new Error("That file isn\'t a photo.")');
   });
 });
+
+
+/**
+ * A9 follow-up: the business that was not on the list.
+ *
+ * REPORTED FROM THE FIELD — "its asking me who did i visit, but i cannot find
+ * any option where to write the name of the business."
+ *
+ * The dropdown offered the prospects assigned to that seat and the merchants
+ * they look after, and nothing else. A salesperson standing inside a carinderia
+ * nobody had entered could not log the visit at all — which is the exact case
+ * this whole feature is written around, and the one the required photo exists
+ * for. Discovery was the single thing the form refused to record.
+ */
+describe("logging a visit to a business nobody has entered yet", () => {
+  const form = codeOf("components/partner/FieldApp.tsx");
+  const action = codeOf("server/partners/attendance-actions.ts");
+  const visit = action.slice(action.indexOf("export async function logVisitAction"));
+
+  it("offers the option, at the bottom of the list", () => {
+    // At the bottom because the common case is somebody already on the list,
+    // and an "add new" at the top invites a duplicate.
+    expect(form).toContain("NEW_SUBJECT");
+    expect(form).toContain("Someone new");
+    const options = form.indexOf("{subjects.map(");
+    expect(form.indexOf("canAddNew && <option"), "add-new should come after the list")
+      .toBeGreaterThan(options);
+  });
+
+  it("asks for a name, and for a product only when there is a choice", () => {
+    expect(form).toContain("setNewName");
+    // One product is not a question worth asking somebody in a doorway.
+    expect(form).toContain("products.length > 1 &&");
+    expect(form).toContain("products.length === 1 ? products[0].id");
+  });
+
+  it("counts the new fields in the same `missing` list as everything else", () => {
+    const start = form.indexOf("const missing = [");
+    const list = form.slice(start, form.indexOf("];", start));
+    expect(list).toContain('"the business name"');
+    expect(list).toContain('"which product"');
+  });
+
+  it("sends no subject id, so the server is the one that creates the row", () => {
+    // A client-minted id would be a client deciding what exists.
+    expect(form).toContain('["prospect", newProductId, ""]');
+    expect(form).toContain("newSubjectName: isNew ? newName.trim()");
+  });
+
+  it("creates the prospect INSIDE the visit transaction", () => {
+    // THE REASON THIS MATTERS: a queued visit is retried until accepted, and
+    // the clientRef index makes the replay a no-op. Creating the business
+    // outside the transaction would leave another copy of it behind on every
+    // retry while the visit itself was correctly rejected.
+    const tx = visit.slice(visit.indexOf("subjectId = await systemDb"));
+    expect(tx).toContain("tx.prospect.create");
+    expect(tx.indexOf("tx.prospect.create")).toBeLessThan(tx.indexOf("tx.staffVisit.create"));
+  });
+
+  it("files it as a walk-in lead assigned to whoever walked in", () => {
+    expect(visit).toContain('source: "walk_in"');
+    // `lead`, not `contacted`: the outcome moves it if the conversation earned
+    // that. Defaulting past a stage nobody reached empties the pipeline of
+    // meaning.
+    expect(visit).toContain('stage: "lead"');
+    expect(visit).toContain("assignedToId: who.userId");
+  });
+
+  it("reuses a business the partner already has rather than duplicating it", () => {
+    // Two reps working the same street would otherwise enter the same
+    // carinderia twice. The row is not reassigned — the visit records who
+    // actually walked in.
+    expect(visit).toContain('mode: "insensitive"');
+    // The reuse branch READS and nothing more: it sets the local id, name and
+    // point. If it ever starts writing, the second rep to visit would take the
+    // first rep's prospect off them.
+    const at = visit.indexOf("if (existing) {");
+    // Search forward from there: an earlier `} else {` closes the "is this an
+    // existing subject at all" branch, and slicing to that gives an empty
+    // string every assertion below would pass against.
+    const reuse = visit.slice(at, visit.indexOf("} else {", at));
+    expect(reuse.length).toBeGreaterThan(0);
+    expect(reuse).toContain("subjectId = existing.id");
+    expect(reuse).not.toContain("update");
+    expect(reuse).not.toContain("assignedToId");
+  });
+
+  it("refuses a seat without pipeline.write, on the server", () => {
+    // `support` holds attendance.checkin and explicitly has no pipeline. The
+    // hidden option is a courtesy; this is the gate.
+    expect(visit).toContain('who.partner.permissions.has("pipeline.write")');
+  });
+
+  it("still refuses a nameless visit, and a new MERCHANT", () => {
+    // A merchant exists by definition. Only a prospect can be new.
+    expect(visit).toContain("if (!newSubjectName) return");
+    expect(visit).toContain('if (subjectType !== "prospect")');
+  });
+
+  it("tells a seat that can neither pick nor add what to do", () => {
+    // An empty dropdown over a dead button is the same dead end, one step
+    // earlier.
+    expect(form).toContain("subjects.length === 0 && !canAddNew");
+  });
+
+  it("gates the option on pipeline.write at the page too", () => {
+    const page = codeOf("app/(platform)/partner/attendance/page.tsx");
+    expect(page).toContain('partnerAllows(partner, "pipeline.write")');
+    expect(page).toContain("provisionableProducts()");
+  });
+});
+
+/**
+ * The pin written by the first visit, and the read that was missing.
+ */
+describe("a repeat visit is checked against the first one", () => {
+  const attendance = codeOf("server/partners/attendance.ts");
+  const prospect = attendance.slice(
+    attendance.indexOf("export async function subjectLocation"),
+    attendance.indexOf('if (productId === "pharmacy")'),
+  );
+
+  it("reads the coordinates the first visit recorded", () => {
+    // THE BUG: this returned `point: null` unconditionally, from before
+    // prospects had coordinates at all. Once the first visit started writing
+    // latitude/longitude, this function was the only thing between that column
+    // and the check it exists for — so the pin was written and never read, and
+    // every repeat visit still came back `no_address`.
+    expect(prospect).toContain("latitude: true");
+    expect(prospect).toContain("longitude: true");
+    expect(prospect).toContain("isUsable(");
+    expect(prospect).not.toContain("return { point: null, name:");
+  });
+
+  it("is still honestly null on a first visit", () => {
+    // Nothing to compare to yet. That is the case the photo covers, and
+    // inventing a point would make an unverifiable visit look verified.
+    expect(prospect).toContain("? { lat: p.latitude as number, lng: p.longitude as number }");
+    expect(prospect).toContain(": null");
+  });
+});
