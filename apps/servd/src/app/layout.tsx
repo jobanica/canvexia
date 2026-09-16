@@ -32,7 +32,18 @@ export const metadata: Metadata = {
     title: "Servd Orders",
     statusBarStyle: "default",
   },
+  /**
+   * SERVD'S icons, declared explicitly.
+   *
+   * `app/favicon.ico` used to supply the tab icon and is now deleted, because
+   * Next emits the root favicon on EVERY page including the CANVEXIA ones —
+   * /hq and /partner ended up declaring both marks and leaving the browser to
+   * pick. Deleting it removes the ambiguity; each brand's layout now says what
+   * it wears, and the CANVEXIA segments override this block.
+   */
   icons: {
+    icon: [{ url: "/brand/servd-icon.svg", type: "image/svg+xml" }],
+    shortcut: [{ url: "/brand/servd-icon.svg", type: "image/svg+xml" }],
     apple: "/brand/icon-apple-180.png",
   },
 };

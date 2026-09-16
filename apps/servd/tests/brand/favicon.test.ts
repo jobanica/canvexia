@@ -125,3 +125,22 @@ describe("the field app a partner installs", () => {
     expect(manifest.icons.some((i) => i.purpose === "maskable")).toBe(true);
   });
 });
+
+/**
+ * The root favicon, and why it is gone.
+ */
+describe("no global favicon leaks onto a CANVEXIA page", () => {
+  it("has no app/favicon.ico", () => {
+    // Next emits the root favicon on EVERY page, including /hq and /partner.
+    // With one there, those pages declared both marks and left the browser to
+    // choose — which is not a thing to leave to a heuristic.
+    expect(existsSync(join(__dirname, "../../src/app/favicon.ico"))).toBe(false);
+  });
+
+  it("makes Servd declare its own icon instead", () => {
+    // Deleting the favicon only works if the Servd surfaces still have one.
+    const root = readFileSync(join(__dirname, "../../src/app/layout.tsx"), "utf8");
+    expect(root).toContain('icon: [{ url: "/brand/servd-icon.svg"');
+    expect(root).toContain('apple: "/brand/icon-apple-180.png"');
+  });
+});
