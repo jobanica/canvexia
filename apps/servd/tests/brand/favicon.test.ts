@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { BAND, MARK_COLORS } from "@servd/ui";
+import { partnerManifest } from "@/lib/partners/manifest";
 
 /**
  * The favicon is the same drawing as the mark.
@@ -108,9 +109,10 @@ describe("the CANVEXIA raster icons", () => {
 });
 
 describe("the field app a partner installs", () => {
-  const manifest = JSON.parse(
-    readFileSync(join(__dirname, "../../public/partner-field.webmanifest"), "utf8"),
-  ) as { name: string; icons: { src: string; purpose: string }[] };
+  // Built per host now rather than read from public/ — an operator's branded
+  // subdomain serves the portal at bare paths and needs a different scope. The
+  // icons, which are what this file is about, are the same either way.
+  const manifest = partnerManifest("field", false);
 
   it("is called CANVEXIA and carries CANVEXIA's icons", () => {
     // It was named "CANVEXIA Field" while pointing at Servd's icon files, so a

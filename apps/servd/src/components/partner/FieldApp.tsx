@@ -9,6 +9,7 @@ import { shrinkPhoto } from "@/lib/partners/photo";
 import { OUTCOME_LABELS, VISIT_OUTCOMES } from "@/lib/partners/outcomes";
 import { QrScanner } from "@/components/partner/QrScanner";
 import type { SessionRow, VisitRow } from "@/server/partners/attendance";
+import { InstallApp } from "@/components/pwa/InstallApp";
 
 type Subject = { id: string; name: string; type: "prospect" | "merchant"; productId: string };
 
@@ -310,6 +311,20 @@ export function FieldApp({
           </ul>
         )}
       </section>
+
+      {/*
+        INSTALL, LAST, AND ONLY WHEN THERE IS SOMETHING TO OFFER.
+
+        This is the screen that most needs installing — it works offline, it is
+        opened twenty times a day, and a browser tab is one accidental swipe
+        away from being closed. But a salesperson who already installed it, or
+        who is on a browser that cannot, should never see a word about it, so
+        InstallApp renders nothing in both cases.
+
+        Below the day's work rather than above it: nothing on this page should
+        push the check-in button further down the screen.
+      */}
+      <InstallApp label="Field" storageKey="canvexia-install-field" />
     </div>
   );
 }

@@ -7,7 +7,7 @@
  *  - Everything else (POST / server actions / API): passthrough, never cached —
  *    the app's own offline queue handles writes.
  */
-const VERSION = "servd-v4";
+const VERSION = "servd-v5";
 const PAGES = `${VERSION}-pages`;
 const ASSETS = `${VERSION}-assets`;
 
@@ -66,6 +66,26 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
+/* The page to show when a navigation fails and nothing matching is cached.
+ *
+ * ONE DEPLOYMENT SERVES TWO PRODUCTS. This used to be `/cashier` for every
+ * path, which was fine while only the cashier and kitchen registered this
+ * worker. Now that /hq and /partner do too, an offline CANVEXIA user would
+ * have been dropped onto a Servd screen for a restaurant they do not run —
+ * a stranger's product, wearing a stranger's brand, at the exact moment they
+ * have no signal to work out what happened.
+ *
+ * Falling back to the surface's OWN entry point keeps them where they are. If
+ * that is not cached either, Response.error() shows the browser's offline
+ * page, which is at least honest.
+ */
+function offlineShell(pathname) {
+  if (pathname.startsWith("/partner/attendance")) return "/partner/attendance";
+  if (pathname.startsWith("/partner")) return "/partner";
+  if (pathname.startsWith("/hq")) return "/hq";
+  return "/cashier";
+}
+
 function isAsset(url) {
   return url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/brand/") || /\.(?:png|svg|jpg|jpeg|webp|ico|woff2?)$/.test(url.pathname);
 }
@@ -87,7 +107,7 @@ self.addEventListener("fetch", (event) => {
           return fresh;
         } catch {
           const cached = await caches.match(req);
-          return cached || (await caches.match("/cashier")) || Response.error();
+          return cached || (await caches.match(offlineShell(url.pathname))) || Response.error();
         }
       })(),
     );

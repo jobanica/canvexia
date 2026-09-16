@@ -17,9 +17,20 @@ export const metadata: Metadata = {
   title: "Field — CANVEXIA",
   manifest: "/partner-field.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Field" },
+  /**
+   * CANVEXIA'S MARK, not Servd's.
+   *
+   * These two lines pointed at `/brand/icon-192.png` and
+   * `/brand/icon-apple-180.png` — Servd's icons — so a salesperson who added
+   * the field app to their home screen got a competitor product's logo sitting
+   * on their phone. The manifest above had already been switched to the
+   * CANVEXIA set; this block, which overrides it for the tab and for iOS, had
+   * not.
+   */
   icons: {
-    icon: [{ url: "/brand/icon-192.png", sizes: "192x192", type: "image/png" }],
-    apple: [{ url: "/brand/icon-apple-180.png", sizes: "180x180", type: "image/png" }],
+    icon: [{ url: "/brand/canvexia-mark.svg", type: "image/svg+xml" }],
+    shortcut: [{ url: "/brand/canvexia-mark.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/brand/canvexia-180.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
@@ -36,6 +47,13 @@ export const viewport: Viewport = {
 export default function FieldLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
+      {/*
+        The parent /partner layout registers this too, now that the portal is
+        installable in its own right. Kept here anyway: `register()` for the
+        same script and scope returns the existing registration rather than
+        making a second one, and this is the screen where losing the worker
+        costs somebody a day's visits.
+      */}
       <ServiceWorkerRegister />
       {children}
     </>

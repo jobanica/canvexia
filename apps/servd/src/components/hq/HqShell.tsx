@@ -4,6 +4,7 @@ import { Mark } from "@servd/ui";
 import type { CurrentHqUser } from "@/server/hq/auth";
 import { Avatar } from "@/components/canvexia/Cards";
 import { signOutHq } from "@/server/hq/login-action";
+import { InstallApp } from "@/components/pwa/InstallApp";
 import {
   IconFunnel,
   IconGear,
@@ -156,6 +157,18 @@ export function HqShell({
               {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
             </div>
             <div className="mt-6">{children}</div>
+
+            {/*
+              IN THE MAIN COLUMN, not the sidebar: the sidebar is `lg:flex` and
+              an ops admin checking applications from a phone would never see
+              it there. Renders nothing unless this browser can install the
+              console and has not already.
+            */}
+            <InstallApp
+              label="CANVEXIA HQ"
+              storageKey="canvexia-install-hq"
+              className="mt-8 max-w-sm"
+            />
           </main>
         </div>
       </div>

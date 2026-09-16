@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { ServiceWorkerRegister } from "@/components/offline/ServiceWorkerRegister";
 
 /**
  * The partner portal wears CANVEXIA's brand, not Servd's.
@@ -38,7 +39,31 @@ export const metadata: Metadata = {
     title: "CANVEXIA",
     statusBarStyle: "default",
   },
-  manifest: "/partner-field.webmanifest",
+  /**
+   * THE PORTAL'S manifest, not the field app's.
+   *
+   * This used to point at `/partner-field.webmanifest`, whose start_url is
+   * `/partner/attendance`. Since this layout covers every partner route, an
+   * operator admin who installed from the pipeline or the merchant list got an
+   * app that opened on the staff check-in screen — the one page of the portal
+   * they never use.
+   *
+   * So there are two apps on `/partner`, and the `id` in each manifest is what
+   * keeps the browser from treating them as one:
+   *   /partner.webmanifest        — the portal, opens on the Overview;
+   *   /partner-field.webmanifest  — Field, opens on check-in, declared by
+   *                                 attendance/layout.tsx, which overrides this.
+   *
+   * Both are scoped to `/partner`, so neither kicks the user into a browser tab
+   * when they tap through to the other's pages.
+   */
+  manifest: "/partner.webmanifest",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#3B1E54",
+  width: "device-width",
+  initialScale: 1,
 };
 export default function PartnerBrandLayout({
   children,
@@ -47,6 +72,15 @@ export default function PartnerBrandLayout({
 }) {
   return (
     <div className="brand-canvexia min-h-screen bg-brand-surface text-brand-ink">
+      {/*
+        A manifest alone makes nothing installable — the browser also wants a
+        service worker with a fetch handler controlling the start_url. It was
+        registered only under /partner/attendance, which is why the portal
+        itself could never be installed. `/sw.js` is served from the root, so
+        one registration covers both apps; registering it again from the field
+        layout is a no-op.
+      */}
+      <ServiceWorkerRegister />
       {children}
     </div>
   );

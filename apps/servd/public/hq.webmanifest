@@ -1,0 +1,16 @@
+{
+  "id": "/hq",
+  "name": "CANVEXIA HQ",
+  "short_name": "CANVEXIA HQ",
+  "description": "The operator console — partners, applications, territories and billing across every account",
+  "start_url": "/hq",
+  "scope": "/hq",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#3B1E54",
+  "icons": [
+    { "src": "/brand/canvexia-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/brand/canvexia-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/brand/canvexia-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { lastSevenDays, manilaDayKey, manilaDayRange } from "@/server/partners/attendance";
+import { partnerManifest } from "@/lib/partners/manifest";
 
 /**
  * A7.4: the Manila day, and the four promises the field app makes.
@@ -175,15 +176,14 @@ describe("the sync route", () => {
 
 describe("the PWA is registered, not just described", () => {
   it("ships a manifest scoped to the whole portal", () => {
-    const manifest = JSON.parse(read("public/partner-field.webmanifest")) as {
-      start_url: string;
-      scope: string;
-      display: string;
-    };
+    // Built per host now rather than read from public/ — see
+    // tests/pwa/installable.test.ts for why, and for the branded-host case.
+    // What this file cares about is unchanged: Field opens on check-in and is
+    // scoped WIDER than that, because an installed app that kicked the user
+    // into a browser tab the moment they tapped a merchant would be worse than
+    // no install.
+    const manifest = partnerManifest("field", false);
     expect(manifest.start_url).toBe("/partner/attendance");
-    // Scoped to /partner, not /partner/attendance: an installed app that kicked
-    // the user into a browser tab the moment they tapped a merchant would be
-    // worse than no install.
     expect(manifest.scope).toBe("/partner");
     expect(manifest.display).toBe("standalone");
   });

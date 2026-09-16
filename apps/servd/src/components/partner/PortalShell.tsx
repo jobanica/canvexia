@@ -2,6 +2,7 @@ import Link from "next/link";
 import { type PartnerPermission } from "@servd/core";
 import type { CurrentPartner } from "@/server/partners/auth";
 import { signOutPartner } from "@/server/partners/login-action";
+import { InstallApp } from "@/components/pwa/InstallApp";
 import { Mark } from "@servd/ui";
 import {
   IconBell,
@@ -299,6 +300,19 @@ export function PortalShell({
             </div>
 
             <div className="mt-6">{children}</div>
+
+            {/*
+              IN THE MAIN COLUMN, not the sidebar. The sidebar is `lg:flex` —
+              hidden on a phone — and a phone is the device a partner actually
+              installs this on. Below the content rather than above it so it
+              never pushes the work down the screen; it renders nothing at all
+              unless this browser can install the portal and has not already.
+            */}
+            <InstallApp
+              label="CANVEXIA"
+              storageKey="canvexia-install-portal"
+              className="mt-8 max-w-sm"
+            />
           </main>
         </div>
       </div>
