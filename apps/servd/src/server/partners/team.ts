@@ -151,8 +151,15 @@ export interface InviteSent {
   /** Shown once. Still handed back even when the email went out — see below. */
   token: string;
   inviteId: string;
-  /** False when nothing was queued: no encryption key, or the insert failed. */
-  emailed: boolean;
+  /**
+   * The queued `outbound_emails` row, or null when nothing was queued (no
+   * encryption key, or the insert failed).
+   *
+   * Handed back so the CALLER can drain this one row immediately. An invitation
+   * is the one email somebody is standing there waiting for, and "queued" is
+   * not what an admin means when they press Invite.
+   */
+  emailId: string | null;
 }
 
 export async function inviteSeat(
@@ -210,14 +217,14 @@ export async function inviteSeat(
     return { ok: false, message: "Could not send that invite." };
   }
 
-  const emailed = await queueAndLink(actor, {
+  const emailId = await queueAndLink(actor, {
     id: inviteId,
     email: clean,
     role,
     token,
     expiresAt,
   });
-  return { ok: true, token, inviteId, emailed };
+  return { ok: true, token, inviteId, emailId };
 }
 
 /**
@@ -236,7 +243,7 @@ export async function inviteSeat(
 async function queueAndLink(
   actor: InviteActor,
   invite: { id: string; email: string; role: string; token: string; expiresAt: Date },
-): Promise<boolean> {
+): Promise<string | null> {
   const emailId = await queueInviteEmail({
     partnerId: actor.partnerId,
     partnerName: actor.partnerName || "your team",
@@ -246,7 +253,7 @@ async function queueAndLink(
     invitedBy: actor.name || actor.email,
     expiresAt: invite.expiresAt,
   });
-  if (!emailId) return false;
+  if (!emailId) return null;
 
   try {
     await partnerDb(actor.partnerId, (tx) =>
@@ -258,7 +265,7 @@ async function queueAndLink(
   } catch {
     /* the email is queued and will go out; only the status column is behind */
   }
-  return true;
+  return emailId;
 }
 
 /**
@@ -276,7 +283,9 @@ async function queueAndLink(
 export async function resendInvite(
   actor: InviteActor,
   inviteId: string,
-): Promise<{ ok: true; token: string; emailed: boolean } | { ok: false; message: string }> {
+): Promise<
+  { ok: true; token: string; emailId: string | null } | { ok: false; message: string }
+> {
   const token = randomBytes(24).toString("base64url");
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const expiresAt = new Date(Date.now() + INVITE_DAYS * 864e5);
@@ -308,8 +317,8 @@ export async function resendInvite(
   }
   if (!invite) return { ok: false, message: "That invite is already gone." };
 
-  const emailed = await queueAndLink(actor, { ...invite, token, expiresAt });
-  return { ok: true, token, emailed };
+  const emailId = await queueAndLink(actor, { ...invite, token, expiresAt });
+  return { ok: true, token, emailId };
 }
 
 export async function revokeInvite(

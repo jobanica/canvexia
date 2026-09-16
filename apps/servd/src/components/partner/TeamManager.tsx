@@ -25,7 +25,7 @@ const ROLE_BLURB: Record<string, string> = {
 /** What the pending-invite row says about the email that carries it. */
 const DELIVERY_LABEL: Record<InviteRow["delivery"], string> = {
   none: "not emailed — send them the link yourself",
-  queued: "email queued",
+  queued: "email queued — not sent yet",
   sent: "emailed",
   failed: "email failed",
 };
@@ -168,7 +168,11 @@ export function TeamManager({
           {resendState.status === "invited" && (
             <div className="mt-2 rounded-lg border border-brand-primary/25 bg-brand-primary/[0.04] p-4">
               <p className="text-sm font-semibold">
-                {resendState.emailed ? "New invite sent." : "New invite link"}
+                {resendState.delivery === "sent"
+                  ? "New invite emailed."
+                  : resendState.delivery === "queued"
+                    ? "New invite link — not emailed yet"
+                    : "New invite link — we couldn't email it"}
               </p>
               <p className="mt-1 text-xs text-brand-ink/60">
                 The previous link has stopped working. This one is shown once — we only keep
@@ -243,23 +247,44 @@ export function TeamManager({
           </p>
         )}
         {state.status === "invited" && (
-          <div className="mt-3 rounded-lg border border-brand-primary/25 bg-brand-primary/[0.04] p-4">
+          <div
+            className={`mt-3 rounded-lg border p-4 ${
+              state.delivery === "none"
+                ? "border-mango/40 bg-mango/10"
+                : "border-brand-primary/25 bg-brand-primary/[0.04]"
+            }`}
+          >
+            {/*
+              THREE OUTCOMES, THREE SENTENCES. This box used to say "Invite
+              sent" whenever a row had been queued — which is how somebody ends
+              up searching their spam folder for an email that never left.
+            */}
             <p className="text-sm font-semibold">
-              {state.emailed
-                ? `Invite sent to ${state.email}`
-                : `Invite created for ${state.email}`}
+              {state.delivery === "sent"
+                ? `Invite emailed to ${state.email}`
+                : state.delivery === "queued"
+                  ? `Invite created for ${state.email} — not emailed yet`
+                  : `Invite created for ${state.email} — we couldn't email it`}
             </p>
             <p className="mt-1 text-xs text-brand-ink/60">
               {/*
-                THE LINK IS SHOWN EITHER WAY. Mail goes out on a fifteen-minute
-                drain tick and inboxes lose things; an admin sitting next to the
-                new hire should be able to hand it over. Shown ONCE — the
-                database stores only a hash of it.
+                THE LINK IS SHOWN EITHER WAY. Inboxes lose mail, and an admin
+                sitting next to the new hire should be able to hand it over.
+                Shown ONCE — the database stores only a hash of it.
               */}
-              {state.emailed
-                ? "It goes out with the next mail run. Here is the same link if you want to pass it on now — shown once, we only keep a hash."
-                : "We couldn't email this one, so send it to them yourself. Shown once — we only keep a hash."}
+              {state.delivery === "sent"
+                ? "Here is the same link if you want to pass it on as well — shown once, we only keep a hash."
+                : state.delivery === "queued"
+                  ? "It is saved and will be retried automatically. Send them this link if you don't want to wait — shown once, we only keep a hash."
+                  : "Send them this link yourself. Shown once — we only keep a hash."}
             </p>
+            {state.detail && (
+              // The provider's own words. An admin can act on "API key is
+              // invalid"; they cannot act on "something went wrong".
+              <p className="mt-2 text-xs text-brand-ink/50">
+                Mail provider said: <span className="font-mono">{state.detail}</span>
+              </p>
+            )}
             <code className="mt-2 block break-all rounded bg-white px-3 py-2 text-xs">
               {state.token}
             </code>

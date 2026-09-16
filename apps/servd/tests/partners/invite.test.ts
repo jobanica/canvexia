@@ -249,8 +249,68 @@ describe("what must stay true", () => {
     // Inside the transaction, a rollback would leave a live link to a row that
     // does not exist. queueAndLink is called from outside it.
     const code = codeOf("team.ts");
-    const tx = code.slice(code.indexOf("inviteId = await partnerDb"), code.indexOf("const emailed = await queueAndLink"));
+    // The end marker is the call itself rather than the variable it is
+    // assigned to — a rename of the variable must not silently turn this slice
+    // into "the rest of the file", which passes for the wrong reason.
+    const tx = code.slice(
+      code.indexOf("inviteId = await partnerDb"),
+      code.indexOf("await queueAndLink(actor, {"),
+    );
     expect(tx).not.toContain("queueInviteEmail");
     expect(tx).not.toContain("queueAndLink");
+  });
+});
+
+/**
+ * What the screen is allowed to claim.
+ *
+ * The first version of /team said "Invite sent" as soon as a row was QUEUED.
+ * The row then sat in the outbox for up to fifteen minutes, and when the mail
+ * provider rejected it — a dead API key, in the case that found this — the
+ * screen had already told the admin it was sent. They go looking in a spam
+ * folder for an email that never left.
+ */
+describe("the invite screen's claim", () => {
+  const actions = codeOf("team-actions.ts");
+  const ui = readFileSync(
+    join(__dirname, "../../src/components/partner/TeamManager.tsx"),
+    "utf8",
+  );
+
+  it("drains the invitation's own row in the request", () => {
+    // Not the whole outbox, and not on the next tick: somebody is standing
+    // there waiting for this one.
+    expect(actions).toContain("drainOutbox(appUrl, { onlyIds: [emailId] })");
+  });
+
+  it("only says 'emailed' when the provider actually accepted it", () => {
+    expect(actions).toContain('if (result.sent > 0) return { delivery: "sent" }');
+    // A claimed-and-refused row is NOT reported as sent or as merely queued.
+    expect(actions).toContain('delivery: result.failed > 0 ? "none" : "queued"');
+  });
+
+  it("has a different sentence for each of the three outcomes", () => {
+    for (const phrase of [
+      "Invite emailed to",
+      "not emailed yet",
+      "we couldn't email it",
+    ]) {
+      expect(ui, phrase).toContain(phrase);
+    }
+    // And never the old unconditional claim.
+    expect(ui).not.toContain("`Invite sent to ${state.email}`");
+  });
+
+  it("shows the provider's own words when it refused", () => {
+    // An admin can act on "API key is invalid". They cannot act on "something
+    // went wrong".
+    expect(ui).toContain("Mail provider said:");
+    expect(actions).toContain("detail: result.errors[0]");
+  });
+
+  it("still hands over the link in every case", () => {
+    // The link is the thing that works. Inboxes lose mail.
+    const box = ui.slice(ui.indexOf('state.status === "invited"'));
+    expect(box).toContain("{state.token}");
   });
 });

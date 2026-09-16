@@ -132,7 +132,18 @@ export function renderQueued(row: QueuedRow, appUrl: string): OutgoingEmail | nu
  * deployment with no Resend key configured should accumulate a queue, not a
  * pile of permanently-failed rows that somebody has to un-fail by hand.
  */
-export async function drainOutbox(appUrl: string): Promise<DrainResult> {
+export async function drainOutbox(
+  appUrl: string,
+  /**
+   * Restrict the run to specific rows.
+   *
+   * For the one email somebody is standing there waiting for — a staff
+   * invitation — so it goes out in the same request rather than on the next
+   * fifteen-minute tick. It is the SAME sending path, claim and all; the only
+   * difference is which rows it looks at.
+   */
+  opts: { onlyIds?: string[] } = {},
+): Promise<DrainResult> {
   const creds = await getEmailCreds();
   if (!creds?.apiKey || !creds.fromEmail) {
     return { configured: false, claimed: 0, sent: 0, failed: 0, parked: 0, errors: [] };
@@ -142,7 +153,12 @@ export async function drainOutbox(appUrl: string): Promise<DrainResult> {
   try {
     rows = await systemDb((tx) =>
       tx.outboundEmail.findMany({
-        where: { sentAt: null, failedAt: null, attempts: { lt: MAX_ATTEMPTS } },
+        where: {
+          sentAt: null,
+          failedAt: null,
+          attempts: { lt: MAX_ATTEMPTS },
+          ...(opts.onlyIds ? { id: { in: opts.onlyIds } } : {}),
+        },
         orderBy: { createdAt: "asc" },
         take: BATCH,
         select: {
