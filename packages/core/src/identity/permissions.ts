@@ -135,6 +135,20 @@ export const HQ_CAPABILITIES = [
   "hq.impersonate",
   "announcements.write",
   "audit.read",
+  /**
+   * The platform's own sending credentials — the Resend key and the address
+   * mail goes out from.
+   *
+   * SUPER ADMIN ONLY, and in the same class as `billing.adjust`: it is a live
+   * credential, and whoever holds it decides what address every partner
+   * invitation and every merchant email appears to come from. An ops seat
+   * running the day-to-day has no reason to touch it.
+   *
+   * It exists because this screen used to live ONLY in Servd's `/super-admin`
+   * console — so configuring CANVEXIA's own email meant logging into the other
+   * product's admin, which is how it was found.
+   */
+  "settings.email",
 ] as const;
 
 export type HqCapability = (typeof HQ_CAPABILITIES)[number];
@@ -143,7 +157,8 @@ export type HqCapability = (typeof HQ_CAPABILITIES)[number];
  * The brief names four things ops may not do: billing adjustments, plan-floor
  * changes, partner suspension/revocation, and HQ team management. Those four,
  * plus impersonation — which the brief does not list because the flow did not
- * exist when it was written, and which is plainly in the same class.
+ * exist when it was written — and the sending credentials, which are a live
+ * secret. Both are plainly in the same class.
  */
 const HQ_DENIED_TO_OPS: readonly HqCapability[] = [
   "partners.suspend",
@@ -151,6 +166,7 @@ const HQ_DENIED_TO_OPS: readonly HqCapability[] = [
   "billing.adjust",
   "hq.team",
   "hq.impersonate",
+  "settings.email",
 ];
 
 const HQ_MATRIX: Record<HqUserRole, readonly HqCapability[]> = {

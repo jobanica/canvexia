@@ -28,13 +28,17 @@ describe("HQ capabilities", () => {
     for (const c of HQ_CAPABILITIES) expect(hqCan("super_admin", c), c).toBe(true);
   });
 
-  it("denies ops exactly the four the brief names, plus impersonation", () => {
+  it("denies ops exactly the four the brief names, plus impersonation and the sending key", () => {
     const denied: HqCapability[] = [
       "partners.suspend",
       "plans.floor",
       "billing.adjust",
       "hq.team",
       "hq.impersonate",
+      // Added with /hq/settings/email. A live provider credential, in the same
+      // class as billing.adjust: whoever holds it decides what address every
+      // partner invitation appears to come from.
+      "settings.email",
     ];
     for (const c of denied) expect(hqCan("ops", c), c).toBe(false);
 

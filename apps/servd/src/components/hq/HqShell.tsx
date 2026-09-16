@@ -8,6 +8,7 @@ import {
   IconFunnel,
   IconGear,
   IconGrid,
+  IconMail,
   IconGlobe,
   IconStore,
   IconUsers,
@@ -58,6 +59,7 @@ export function HqShell({
 
   const lower: Item[] = [
     { href: "/hq/team", label: "HQ team", icon: <IconUsers />, need: "hq.team" },
+    { href: "/hq/settings/email", label: "Email", icon: <IconMail />, need: "settings.email" },
     { href: "/hq/audit", label: "Audit", icon: <IconGear />, need: "audit.read" },
   ];
 

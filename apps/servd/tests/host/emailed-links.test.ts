@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { PASS_THROUGH } from "@/middleware";
+import { PASS_THROUGH, ROOT_ONLY_PASS_THROUGH } from "@/middleware";
 import { partnerUrl, platformUrl } from "@/lib/urls";
 
 /**
@@ -104,5 +104,26 @@ describe("every path we send somebody to on the partner host", () => {
     // in by "/invite".
     expect(allowed("/invitees")).toBe(false);
     expect(allowed("/unsubscribed")).toBe(false);
+  });
+});
+
+/**
+ * CANVEXIA's own console, on CANVEXIA's own host — and not on an operator's.
+ */
+describe("/hq on the partner domain", () => {
+  const rootOnly = (path: string) =>
+    ROOT_ONLY_PASS_THROUGH.some((p) => path.startsWith(p));
+
+  it("passes through on the portal root, so HQ has a CANVEXIA address", () => {
+    // Otherwise configuring CANVEXIA's own email means signing into Servd's
+    // admin on a *.vercel.app URL, which is how this was found.
+    expect(rootOnly("/hq")).toBe(true);
+    expect(rootOnly("/hq/settings/email")).toBe(true);
+  });
+
+  it("is NOT in the list that applies to an operator's own subdomain", () => {
+    // davao.canvexia.com is that operator's branded portal. CANVEXIA's HQ login
+    // appearing there would be role-gated, harmless, and still wrong.
+    expect(PASS_THROUGH).not.toContain("/hq");
   });
 });

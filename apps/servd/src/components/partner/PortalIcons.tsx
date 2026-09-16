@@ -125,3 +125,11 @@ export const IconChat = (p: P) => (
     <path d="M4 5.5h16v10H9l-5 4v-4H4z" />
   </Svg>
 );
+
+/** An envelope, for the email settings screen. */
+export const IconMail = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="5.5" width="18" height="13" rx="2" />
+    <path d="M3.5 7l8.5 6 8.5-6" />
+  </Svg>
+);

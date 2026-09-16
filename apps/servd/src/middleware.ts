@@ -145,6 +145,19 @@ export const PASS_THROUGH = [
   "/unsubscribe/",
 ] as const;
 
+/**
+ * Paths that pass through on CANVEXIA's OWN host but not on an operator's.
+ *
+ * `/hq` is CANVEXIA's console. It belongs on a CANVEXIA address — configuring
+ * CANVEXIA's own email should not mean signing into Servd's admin on a
+ * `*.vercel.app` URL — and it does NOT belong on `davao.canvexia.com`, which is
+ * an operator's own branded portal. Serving CANVEXIA's HQ login there would be
+ * role-gated and harmless and still wrong: it is not their console.
+ *
+ * So this list is checked only for `partner_root`, never for `partner`.
+ */
+export const ROOT_ONLY_PASS_THROUGH = ["/hq"] as const;
+
 export async function middleware(req: NextRequest) {
   const host = (req.headers.get("host") ?? "").split(":")[0].toLowerCase();
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
@@ -176,7 +189,11 @@ export async function middleware(req: NextRequest) {
     const session = await refreshSession(req);
     const headers = new Headers(req.headers);
     headers.set(PATH_HEADER, pathname);
-    const target = PASS_THROUGH.some((prefix) => pathname.startsWith(prefix))
+    const passes =
+      PASS_THROUGH.some((prefix) => pathname.startsWith(prefix)) ||
+      (info.kind === "partner_root" &&
+        ROOT_ONLY_PASS_THROUGH.some((prefix) => pathname.startsWith(prefix)));
+    const target = passes
       ? `${pathname}${search}`
       : `/partner${pathname === "/" ? "" : pathname}${search}`;
     return withSession(
