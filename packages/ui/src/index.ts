@@ -5,4 +5,4 @@
  * it, not when someone imagines a second app might. The CANVEXIA mark qualified
  * the moment the partner portal started drawing it alongside canvexia.com.
  */
-export { Mark, Wordmark } from "./brand";
+export { Mark, Wordmark, BAND, MARK_COLORS } from "./brand";

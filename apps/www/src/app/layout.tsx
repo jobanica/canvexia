@@ -29,6 +29,13 @@ const DESCRIPTION =
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://canvexia.com"),
+  // `icon.svg` beside this file is the tab icon; this is the PNG iOS wants for
+  // a home-screen bookmark. Without either, the browser fell back to
+  // /favicon.ico — which this app does not have — and showed a blank page icon
+  // on CANVEXIA's own front door.
+  icons: {
+    apple: "/brand/canvexia-180.png",
+  },
   title: {
     default: "CANVEXIA — one city, one partner, your brand",
     template: "%s · CANVEXIA",

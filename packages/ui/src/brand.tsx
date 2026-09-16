@@ -25,13 +25,27 @@
  * shell here and not a section earlier: one consumer is not a library.
  */
 
-/** The upper-left band. The other three are this one, mirrored. */
-const BAND = {
+/**
+ * The upper-left band. The other three are this one, mirrored.
+ *
+ * EXPORTED because the favicon is the same drawing. `/hq` and `/partner` serve
+ * a static `icon.svg` — a browser tab cannot render a React component — and a
+ * hand-copied path is a logo that drifts the first time this one is adjusted.
+ * `tests/brand/favicon` asserts the files still match these four strings.
+ */
+export const BAND = {
   topLeft: "M10 16.5 16.5 10 22 15.5V22h-6.5L10 16.5Z",
   bottomLeft: "M10 31.5 16.5 38 22 32.5V26h-6.5L10 31.5Z",
   bottomRight: "M38 31.5 31.5 38 26 32.5V26h6.5L38 31.5Z",
   topRight: "M38 16.5 31.5 10 26 15.5V22h6.5L38 16.5Z",
 };
+
+/** The mark's three colours, exported for the same reason BAND is. */
+export const MARK_COLORS = {
+  ink: "#1A1A1E",
+  coral: "#E8536A",
+  ember: "#F2894E",
+} as const;
 
 export function Mark({ size = 32, title }: { size?: number; title?: string }) {
   // A FIXED id, not a random one. Random ids differ between the server render
@@ -53,13 +67,13 @@ export function Mark({ size = 32, title }: { size?: number; title?: string }) {
     >
       <defs>
         <linearGradient id={id} x1="26" y1="22" x2="38" y2="10" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#E8536A" />
-          <stop offset="1" stopColor="#F2894E" />
+          <stop stopColor={MARK_COLORS.coral} />
+          <stop offset="1" stopColor={MARK_COLORS.ember} />
         </linearGradient>
       </defs>
-      <path d={BAND.topLeft} fill="#1A1A1E" />
-      <path d={BAND.bottomLeft} fill="#1A1A1E" />
-      <path d={BAND.bottomRight} fill="#1A1A1E" />
+      <path d={BAND.topLeft} fill={MARK_COLORS.ink} />
+      <path d={BAND.bottomLeft} fill={MARK_COLORS.ink} />
+      <path d={BAND.bottomRight} fill={MARK_COLORS.ink} />
       {/* The one place the gradient appears. */}
       <path d={BAND.topRight} fill={`url(#${id})`} />
     </svg>
