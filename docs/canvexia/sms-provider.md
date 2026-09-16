@@ -64,9 +64,16 @@ has a pass-through line for what a segment costs us; a made-up figure there
 produces a made-up margin on a document an operator uses to decide whether this
 business is worth running.
 
-Until a real figure is entered in `platform_settings.smsProviderCostCentavos`,
+The rate lives in **`passthrough_costs`**, channel `sms`, as centavos per
+**1,000** segments — the units that table already uses, because one SMS costs
+well under a peso and an integer per-unit rate would round every message to ₱0
+or ₱1. HQ edits it at `/hq/billing`. Until somebody enters it,
 `providerCostLine()` prints *"Provider cost not configured"* rather than a
 number. See `packages/core/src/sms/credits.ts`.
+
+Segments sent are rolled up into `passthrough_usage` (partner × Manila month ×
+channel) by every send path, so the statement's line is real as soon as the rate
+is entered.
 
 **What we need:** the per-segment rate actually billed, and whether it differs
 by network (Globe / Smart / DITO) or by volume tier.
@@ -80,6 +87,18 @@ is rejected by the network rather than by us.
 
 **What we need:** the turnaround time and what documents an operator must
 supply, so the portal can say so instead of leaving people waiting.
+
+**And one thing that is missing on our side:** there is no HQ screen yet for
+approving a partner's sender name — the SMS brief deferred it ("build the table
+and the partner-side status now, HQ UI in the next HQ phase"). Until that
+exists, an approval is one statement:
+
+```sql
+UPDATE "partners" SET "smsSenderStatus" = 'approved' WHERE "id" = '<partner id>';
+```
+
+A partner whose name is not approved is not blocked — their texts go out under
+CANVEXIA's registered sender, and the portal says so on the settings screen.
 
 ---
 
