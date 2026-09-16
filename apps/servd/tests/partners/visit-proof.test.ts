@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { codeAt } from "../support/source";
+import { partnerManifest } from "@/lib/partners/manifest";
 import { OUTCOME_LABELS, VISIT_OUTCOMES, isVisitOutcome } from "@/lib/partners/outcomes";
 import { QUEUE_PHOTO_LIMIT } from "@/lib/partners/visit-queue";
 
@@ -369,5 +370,48 @@ describe("a repeat visit is checked against the first one", () => {
     // inventing a point would make an unverifiable visit look verified.
     expect(prospect).toContain("? { lat: p.latitude as number, lng: p.longitude as number }");
     expect(prospect).toContain(": null");
+  });
+});
+
+
+describe("the way out of the field app", () => {
+  const form = codeOf("components/partner/FieldApp.tsx");
+
+  it("has a link back to the portal", () => {
+    // THE BUG: this screen is deliberately outside PortalShell, and "no chrome"
+    // had been taken to mean "no links at all". On the web the browser's back
+    // button only helps if you arrived from somewhere; in the INSTALLED app
+    // there is no browser back button at all, because this page is the
+    // start_url. Staff were stuck on it.
+    expect(form).toContain('href="/partner"');
+    expect(form).toContain("IconArrowLeft");
+  });
+
+  it("is a thumb-sized target, at the top", () => {
+    expect(form).toContain("min-h-[44px]");
+    const link = form.indexOf('href="/partner"');
+    expect(link).toBeLessThan(form.indexOf("<header"));
+  });
+
+  it("stays inside the installed app's scope", () => {
+    // A link out of `/partner` would open a browser tab with a URL bar on top
+    // of the installed app. Both partner manifests are scoped to the portal,
+    // so /partner is in scope on either host shape.
+    // The href the component actually uses. `/partner` passes through
+    // unprefixed on a branded host too (PASS_THROUGH in middleware), so one
+    // link is correct on both.
+    const href = "/partner";
+    expect(form).toContain(`href="${href}"`);
+    for (const bare of [true, false]) {
+      const m = partnerManifest("field", bare);
+      expect(href.startsWith(m.scope), `scope ${m.scope}`).toBe(true);
+    }
+  });
+
+  it("leaves the wall-mounted kiosk screen with no way out, on purpose", () => {
+    // That page is a locked display in a shop. A link out of it is a link a
+    // customer taps.
+    const kiosk = codeOf("app/(platform)/partner/attendance/kiosk/[id]/page.tsx");
+    expect(kiosk).not.toContain('href="/partner"');
   });
 });

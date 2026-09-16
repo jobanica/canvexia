@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useOnline } from "@/lib/offline/useOnline";
 import { drain, enqueue, newClientRef, queued } from "@/lib/partners/visit-queue";
@@ -8,6 +9,7 @@ import { parseScan } from "@/lib/partners/kiosk-scan";
 import { shrinkPhoto } from "@/lib/partners/photo";
 import { OUTCOME_LABELS, VISIT_OUTCOMES } from "@/lib/partners/outcomes";
 import { QrScanner } from "@/components/partner/QrScanner";
+import { IconArrowLeft } from "@/components/partner/PortalIcons";
 import type { SessionRow, VisitRow } from "@/server/partners/attendance";
 import { InstallApp } from "@/components/pwa/InstallApp";
 
@@ -193,6 +195,29 @@ export function FieldApp({
   return (
     <div className="mx-auto max-w-lg space-y-4 px-4 py-5">
       {scanning && <QrScanner onResult={acceptScan} onClose={() => setScanning(false)} />}
+
+      {/*
+        THE WAY OUT.
+
+        This screen is deliberately outside PortalShell — a sidebar, a top bar
+        and a bottom nav on a 390px phone leave about half of it for the three
+        controls somebody is here to tap. But "no chrome" was taken to mean "no
+        links at all", and the result was a page with no exit: on the web the
+        browser's own back button only helps if you arrived from somewhere, and
+        in the INSTALLED app there is no browser back button, because this is
+        the start_url. Staff were stuck on it.
+
+        One link, not a nav bar. Everything else the portal offers is a tap
+        further on from the Overview.
+      */}
+      <Link
+        href="/partner"
+        className="-ml-1 inline-flex min-h-[44px] items-center gap-1.5 pr-2 text-sm font-semibold text-brand-ink/55 hover:text-brand-ink"
+      >
+        <IconArrowLeft size={18} />
+        Portal
+      </Link>
+
       <header className="flex items-baseline justify-between gap-3">
         <div>
           <h1 className="font-heading text-xl font-bold">Hi, {name.split(/[\s@]/)[0]}</h1>

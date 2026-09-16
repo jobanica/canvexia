@@ -133,3 +133,11 @@ export const IconMail = (p: P) => (
     <path d="M3.5 7l8.5 6 8.5-6" />
   </Svg>
 );
+
+/** A left arrow, for the field app's way back to the portal. */
+export const IconArrowLeft = (p: P) => (
+  <Svg {...p}>
+    <path d="M19 12H5" />
+    <path d="M11 18l-6-6 6-6" />
+  </Svg>
+);
