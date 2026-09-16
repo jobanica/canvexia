@@ -908,6 +908,26 @@ create policy partner_permissions_write on "partner_role_permissions" for all
 revoke all on "partner_role_permissions" from anon;
 revoke all on "partner_role_permissions" from authenticated;
 
+-- attendance_kiosks holds a SIGNING SECRET, so it is SUPER-ONLY at the policy
+-- level and read through systemDb with an explicit partnerId, exactly as
+-- outbound_emails is. A partner_scope policy here would be the obvious thing to
+-- write and would be wrong: it would make every seat in the partner able to
+-- select `secret`, and anybody holding a kiosk secret can mint a valid clock-in
+-- code for that kiosk from their sofa. The kiosk screen gets codes from the
+-- server; nothing else ever needs the column.
+do $$
+begin
+  if to_regclass('public.attendance_kiosks') is null then return; end if;
+  alter table "attendance_kiosks" enable row level security;
+  alter table "attendance_kiosks" force row level security;
+  drop policy if exists super_only on "attendance_kiosks";
+  drop policy if exists partner_scope on "attendance_kiosks";
+  create policy super_only on "attendance_kiosks" for all
+    using (app.is_super_admin()) with check (app.is_super_admin());
+  revoke all on "attendance_kiosks" from anon;
+  revoke all on "attendance_kiosks" from authenticated;
+end $$;
+
 -- ----------------------------------------------------------------------------
 -- Backstop: lock down every remaining table.
 --

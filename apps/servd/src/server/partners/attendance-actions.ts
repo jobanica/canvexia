@@ -5,9 +5,10 @@ import { requireWritablePartner } from "@/server/partners/auth";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { writeSeatAudit } from "@/server/audit/log";
 import { uploadFieldPhoto } from "@/server/storage/field-photos";
-import { checkVisit, isUsable, type Point } from "@/lib/partners/geo";
+import { checkVisit, distanceMeters, isUsable, type Point } from "@/lib/partners/geo";
 import { manilaDayKey, subjectLocation } from "@/server/partners/attendance";
 import { managerSeats, queueNotification } from "@/server/partners/notify";
+import { kioskRequired, SCAN_MESSAGE, verifyScan } from "@/server/partners/kiosk";
 
 export type FieldState = { ok?: boolean; error?: string; queued?: boolean } | null;
 
@@ -28,6 +29,54 @@ function pointFrom(formData: FormData): { point: Point | null; accuracy: number 
   return { point: isUsable(point) ? point : null, accuracy: num("accuracy") };
 }
 
+/** Rounded metres between the phone and the kiosk, when both are known. */
+function metersFromKiosk(phone: Point | null, kiosk: Point | null): number | null {
+  if (!phone || !kiosk) return null;
+  return Math.round(distanceMeters(phone, kiosk));
+}
+
+/**
+ * Resolve the kiosk half of a clock-in.
+ *
+ * THREE OUTCOMES, and the middle one is the point: a seat marked
+ * `kioskRequired` that sends no scan is REFUSED, while everybody else falls
+ * back to a GPS check-in exactly as before. The flag is per seat because a
+ * field salesperson has no kiosk to stand in front of.
+ *
+ * A scan that fails verification is refused for everyone, required or not. A
+ * stale code silently becoming a GPS check-in would mean the method column says
+ * "gps" for somebody who was standing at the kiosk, and — worse — that nobody
+ * ever finds out the kiosk screen is frozen.
+ */
+async function resolveKiosk(
+  who: { partnerId: string; userId: string | null },
+  formData: FormData,
+): Promise<
+  | { ok: true; method: "gps" | "qr"; kioskId: string | null; kioskPoint: Point | null }
+  | { ok: false; error: string }
+> {
+  const kioskId = String(formData.get("kioskId") ?? "").trim();
+  const code = String(formData.get("kioskCode") ?? "").trim();
+
+  if (kioskId && code) {
+    const scan = await verifyScan(who.partnerId, kioskId, code);
+    if (!scan.ok) return { ok: false, error: SCAN_MESSAGE[scan.reason] };
+    return {
+      ok: true,
+      method: "qr",
+      kioskId: scan.kioskId,
+      kioskPoint: isUsable({ lat: scan.lat ?? 0, lng: scan.lng ?? 0 })
+        ? { lat: scan.lat as number, lng: scan.lng as number }
+        : null,
+    };
+  }
+
+  if (who.userId && (await kioskRequired(who.partnerId, who.userId))) {
+    return { ok: false, error: "Scan the kiosk code to clock in." };
+  }
+  return { ok: true, method: "gps", kioskId: null, kioskPoint: null };
+}
+
 /**
  * Check in for the day.
  *
@@ -46,6 +95,9 @@ function pointFrom(formData: FormData): { point: Point | null; accuracy: number 
 export async function checkInAction(_prev: FieldState, formData: FormData): Promise<FieldState> {
   const who = await requireWritablePartner("attendance.checkin");
   if (!who?.userId) return { error: "You can't check in from this account." };
+
+  const kiosk = await resolveKiosk(who, formData);
+  if (!kiosk.ok) return { error: kiosk.error };
 
   const { point, accuracy } = pointFrom(formData);
   const dayKey = manilaDayKey();
@@ -74,6 +126,11 @@ export async function checkInAction(_prev: FieldState, formData: FormData): Prom
           checkInLng: point?.lng ?? null,
           checkInAccuracy: accuracy,
           checkInPhoto: photoPath,
+          // GPS is still recorded on a QR check-in, per the brief: the code
+          // proves which device they stood at, the coordinates are the
+          // corroboration, and a manager wants both on the row.
+          method: kiosk.method,
+          kioskId: kiosk.kioskId,
           device,
           clientRef,
         },
@@ -84,7 +141,17 @@ export async function checkInAction(_prev: FieldState, formData: FormData): Prom
           partnerId: who.partnerId,
           partnerUserId: who.userId!,
           kind: "attendance.check_in",
-          detail: { dayKey, located: !!point },
+          // How far the phone was from the kiosk it scanned, when both are
+          // known. There is no column for it on the session — the QR is the
+          // proof of presence, this is corroboration — but a manager looking
+          // at a suspicious day wants it recorded somewhere, and the event log
+          // is where "what happened" already lives.
+          detail: {
+            dayKey,
+            located: !!point,
+            method: kiosk.method,
+            metersFromKiosk: metersFromKiosk(point, kiosk.kioskPoint),
+          },
         },
         select: { id: true },
       });
@@ -111,6 +178,9 @@ export async function checkInAction(_prev: FieldState, formData: FormData): Prom
 export async function checkOutAction(_prev: FieldState, formData: FormData): Promise<FieldState> {
   const who = await requireWritablePartner("attendance.checkin");
   if (!who?.userId) return { error: "You can't check out from this account." };
+
+  const kiosk = await resolveKiosk(who, formData);
+  if (!kiosk.ok) return { error: kiosk.error };
 
   const { point, accuracy } = pointFrom(formData);
   const dayKey = manilaDayKey();
@@ -139,6 +209,8 @@ export async function checkOutAction(_prev: FieldState, formData: FormData): Pro
         checkOutLng: point?.lng ?? null,
         checkOutAccuracy: accuracy,
         checkOutPhoto: photoPath,
+        checkOutMethod: kiosk.method,
+        checkOutKioskId: kiosk.kioskId,
       },
     });
     if (r.count > 0) {
@@ -147,7 +219,12 @@ export async function checkOutAction(_prev: FieldState, formData: FormData): Pro
           partnerId: who.partnerId,
           partnerUserId: who.userId!,
           kind: "attendance.check_out",
-          detail: { dayKey, located: !!point },
+          detail: {
+            dayKey,
+            located: !!point,
+            method: kiosk.method,
+            metersFromKiosk: metersFromKiosk(point, kiosk.kioskPoint),
+          },
         },
         select: { id: true },
       });

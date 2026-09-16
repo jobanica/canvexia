@@ -11,6 +11,7 @@ import {
   reactivateStaffAction,
   type StaffState,
 } from "@/server/partners/staff-actions";
+import { setKioskRequiredAction } from "@/server/partners/kiosk-actions";
 
 const ROLE_LABELS: Record<PartnerUserRole, string> = {
   admin: "Admin",
@@ -54,6 +55,7 @@ export function StaffDetail({
     offboardStaffAction,
     null,
   );
+  const [kioskState, kioskAction] = useActionState(setKioskRequiredAction, null);
   const inactive = profile.status !== "active";
 
   const tabs = TABS.filter((t) => t !== "Activity" || canSeeActivity);
@@ -152,7 +154,29 @@ export function StaffDetail({
                   v={profile.acceptedAt ? fmt(profile.acceptedAt) : "Invitation not accepted"}
                 />
                 <Row k="Last seen" v={profile.lastSeenAt ? fmt(profile.lastSeenAt) : "Never"} />
+                <Row k="Clocks in" v={profile.kioskRequired ? "At a kiosk only" : "Anywhere"} />
               </dl>
+
+              {/*
+                Off by default and per seat. A field salesperson has no kiosk to
+                stand in front of, so this is for office staff — and turning it
+                on for somebody who works the streets locks them out of
+                recording that they turned up.
+              */}
+              {canEdit && (
+                <form action={kioskAction} className="mt-3">
+                  <input type="hidden" name="seatId" value={profile.id} />
+                  <input type="hidden" name="required" value={profile.kioskRequired ? "0" : "1"} />
+                  <button className="rounded-full border border-brand-ink/15 bg-white px-4 py-2 text-xs font-semibold hover:bg-brand-surface">
+                    {profile.kioskRequired ? "Let them clock in anywhere" : "Require a kiosk"}
+                  </button>
+                  {kioskState?.error && (
+                    <p role="alert" className="mt-2 text-xs text-guava">
+                      {kioskState.error}
+                    </p>
+                  )}
+                </form>
+              )}
             </div>
 
             {canEdit && (

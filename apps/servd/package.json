@@ -2,7 +2,7 @@
   "name": "servd",
   "version": "0.1.0",
   "private": true,
-  "description": "Servd \u2014 multi-tenant QR restaurant ordering platform",
+  "description": "Servd — multi-tenant QR restaurant ordering platform",
   "engines": {
     "node": "22.x"
   },
@@ -34,6 +34,7 @@
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.10",
     "@types/web-push": "^3.6.4",
+    "jsqr": "^1.4.0",
     "leaflet": "^1.9.4",
     "next": "^15.5.19",
     "next-intl": "^4.13.0",

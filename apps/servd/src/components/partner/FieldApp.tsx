@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useOnline } from "@/lib/offline/useOnline";
 import { drain, enqueue, newClientRef, queued } from "@/lib/partners/visit-queue";
+import { parseScan } from "@/lib/partners/kiosk-scan";
+import { QrScanner } from "@/components/partner/QrScanner";
 import type { SessionRow, VisitRow } from "@/server/partners/attendance";
 
 type Subject = { id: string; name: string; type: "prospect" | "merchant"; productId: string };
@@ -36,17 +38,33 @@ export function FieldApp({
   visits,
   subjects,
   name,
+  kioskRequired,
+  scanned,
 }: {
   session: SessionRow | null;
   visits: VisitRow[];
   subjects: Subject[];
   name: string;
+  /** This seat must clock in at a kiosk; the GPS-only buttons are refused. */
+  kioskRequired: boolean;
+  /** A code already in the URL, because the phone's camera app opened it. */
+  scanned: { kioskId: string; code: string } | null;
 }) {
   const router = useRouter();
   const online = useOnline();
   const [pending, startTransition] = useTransition();
   const [waiting, setWaiting] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+  /**
+   * The scan in hand, if any.
+   *
+   * Held in state rather than submitted the moment it is read, because the
+   * person may have scanned before deciding whether they are clocking in or
+   * out. A code is good for up to two minutes, which is the window this is
+   * allowed to sit in — and the server is what enforces that, not this.
+   */
+  const [scan, setScan] = useState<{ kioskId: string; code: string } | null>(scanned);
+  const [scanning, setScanning] = useState(false);
 
   const refreshQueue = useCallback(async () => {
     setWaiting((await queued()).length);
@@ -107,8 +125,18 @@ export function FieldApp({
     const fields: Record<string, string> = {
       ...extra,
       ...pos,
+      ...(scan ? { kioskId: scan.kioskId, kioskCode: scan.code } : {}),
       device: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 200) : "",
     };
+
+    // A kiosk code is NEVER queued. It expires in about two minutes, so an
+    // offline queue would send a dead one hours later and produce a failure
+    // nobody can explain. A seat that must use a kiosk is a seat that must be
+    // online at the counter, which is where the kiosk is.
+    if (!online && (kioskRequired || scan)) {
+      setNote("You need a connection to clock in at the kiosk. Try again in a moment.");
+      return;
+    }
 
     if (!online) {
       await enqueue({ clientRef, kind, fields });
@@ -127,6 +155,9 @@ export function FieldApp({
         return;
       }
       setNote(kind === "visit" ? "Visit logged." : "Done.");
+      // Used once. Keeping it would let a second tap re-use the same code, and
+      // would leave a stale one in hand after it expires.
+      if (kind !== "visit") setScan(null);
       startTransition(() => router.refresh());
     } catch {
       // Online a moment ago, not now. Queue it rather than losing it.
@@ -138,8 +169,21 @@ export function FieldApp({
 
   const checkedIn = !!session && !session.checkOutAt;
 
+  /** A scanned string becomes a kiosk id and a code, or an honest complaint. */
+  const acceptScan = useCallback((text: string) => {
+    setScanning(false);
+    const parsed = parseScan(text);
+    if (!parsed) {
+      setNote("That doesn't look like a kiosk code. Point at the square on the screen.");
+      return;
+    }
+    setScan(parsed);
+    setNote(null);
+  }, []);
+
   return (
     <div className="mx-auto max-w-lg space-y-4 px-4 py-5">
+      {scanning && <QrScanner onResult={acceptScan} onClose={() => setScanning(false)} />}
       <header className="flex items-baseline justify-between gap-3">
         <div>
           <h1 className="font-heading text-xl font-bold">Hi, {name.split(/[\s@]/)[0]}</h1>
@@ -174,6 +218,7 @@ export function FieldApp({
         {session ? (
           <p className="mt-1 text-sm text-brand-ink/55">
             In at {fmtTime(session.checkInAt)}
+            {session.method === "qr" && " at the kiosk"}
             {session.checkOutAt && ` · out at ${fmtTime(session.checkOutAt)}`}
             {session.autoClosed && " (closed automatically)"}
           </p>
@@ -181,12 +226,34 @@ export function FieldApp({
           <p className="mt-1 text-sm text-brand-ink/55">Not checked in yet.</p>
         )}
 
+        {/* The kiosk half. Shown to everybody — anybody may clock in at a
+            screen — but it is the ONLY way in for a seat marked kioskRequired,
+            which is why the buttons below are disabled without a code. */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setScanning(true)}
+            className="min-h-[44px] rounded-full border border-brand-ink/15 px-4 text-sm font-semibold"
+          >
+            {scan ? "Scan again" : "Scan kiosk code"}
+          </button>
+          {scan && (
+            <span className="text-xs font-semibold text-brand-primary">
+              Code scanned — tap {session ? "check out" : "check in"}.
+            </span>
+          )}
+          {!scan && kioskRequired && (
+            <span className="text-xs text-brand-ink/50">
+              You clock in at the kiosk, so scan the screen first.
+            </span>
+          )}
+        </div>
+
         <div className="mt-4 flex gap-2">
           {!session && (
             <button
               onClick={() => void submit("check_in", {})}
-              disabled={pending}
-              className="min-h-[48px] flex-1 rounded-full px-5 text-sm font-semibold btn-brand text-white"
+              disabled={pending || (kioskRequired && !scan)}
+              className="min-h-[48px] flex-1 rounded-full px-5 text-sm font-semibold btn-brand text-white disabled:opacity-50"
             >
               Check in
             </button>
@@ -194,8 +261,8 @@ export function FieldApp({
           {checkedIn && (
             <button
               onClick={() => void submit("check_out", {})}
-              disabled={pending}
-              className="min-h-[48px] flex-1 rounded-full border border-brand-ink/15 px-5 text-sm font-semibold"
+              disabled={pending || (kioskRequired && !scan)}
+              className="min-h-[48px] flex-1 rounded-full border border-brand-ink/15 px-5 text-sm font-semibold disabled:opacity-50"
             >
               Check out
             </button>

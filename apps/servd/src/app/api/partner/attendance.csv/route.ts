@@ -37,6 +37,9 @@ export async function GET(req: Request) {
       first_in: d.firstIn ? d.firstIn.toISOString() : "",
       last_out: d.lastOut ? d.lastOut.toISOString() : "",
       auto_closed: d.autoClosed ? "yes" : "",
+      // How the day was clocked in. Empty on a day with no check-in, which is
+      // not the same as "gps" and must not read as it.
+      method: d.method ?? "",
       visits: d.visits,
       // Joined with a semicolon, not a comma: this is a CSV cell.
       flags: d.flags.join("; "),
@@ -44,7 +47,10 @@ export async function GET(req: Request) {
   );
 
   return new Response(
-    toCsv(["person", "day", "first_in", "last_out", "auto_closed", "visits", "flags"], rows),
+    toCsv(
+      ["person", "day", "first_in", "last_out", "auto_closed", "method", "visits", "flags"],
+      rows,
+    ),
     {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",

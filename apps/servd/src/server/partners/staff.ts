@@ -26,6 +26,8 @@ export interface StaffProfile {
   photoPath: string | null;
   acceptedAt: Date | null;
   lastSeenAt: Date | null;
+  /** Office staff who must clock in at a kiosk rather than from anywhere. */
+  kioskRequired: boolean;
   /**
    * Present ONLY when the reader holds `hr.view_all`.
    *
@@ -54,6 +56,7 @@ export async function getStaffProfile(
         zone: true,
         startDate: true,
         photoPath: true,
+        kioskRequired: true,
         acceptedAt: true,
         lastSeenAt: true,
         // Conditional SELECT, not a conditional render. Prisma takes a boolean

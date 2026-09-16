@@ -1366,6 +1366,7 @@ model Partner {
 
   @@index([territoryId])
   @@map("partners")
+  attendanceKiosks AttendanceKiosk[]
 }
 
 // ----------------------------------------------------------------------------
@@ -1415,6 +1416,10 @@ model PartnerUser {
   mobile    String?
   zone      String?
   startDate DateTime?
+  /// Office staff who must clock in at a kiosk rather than from anywhere with
+  /// a GPS fix. FALSE by default and it has to be: turning it on for everybody
+  /// would lock out every field salesperson, who has no kiosk to stand at.
+  kioskRequired Boolean @default(false)
   /// Storage PATH in the private partner-attendance bucket, never a URL.
   photoPath String?
   /// Read ONLY by a seat holding hr.view_all. Never selected otherwise — a
@@ -3824,6 +3829,18 @@ model AttendanceSession {
   /// that was never checked out of is a fact a manager needs, not one to paper
   /// over by writing a plausible time.
   autoClosed Boolean @default(false)
+
+  /// "gps" | "qr" — how the check-in was proved. Defaults to gps because every
+  /// row that existed before the kiosks did was one, and a nullable column
+  /// would make the manager's filter say "or unknown" forever.
+  method     String  @default("gps")
+  /// The kiosk scanned, if any. Deliberately NOT a foreign key: deleting a
+  /// kiosk must not cascade into somebody's attendance history, and a row
+  /// naming a kiosk that no longer exists is still what happened.
+  kioskId    String?
+  checkOutMethod  String?
+  checkOutKioskId String?
+
   device     String?
   /// Minted on the device before it has a connection. Unique, so a replayed
   /// sync is a no-op rather than a second session.
@@ -3836,6 +3853,33 @@ model AttendanceSession {
   @@unique([clientRef])
   @@index([partnerId, dayKey])
   @@map("attendance_sessions")
+}
+
+/// A clock-in point: a tablet or screen showing a QR code that rotates every
+/// minute.
+///
+/// THE SECRET IS PER KIOSK, not one platform signing key. Revoking a kiosk
+/// whose screen was photographed is then a row update by the operator rather
+/// than an env change that invalidates every kiosk on the platform. The column
+/// is never selected outside the server, and the table is super-only in RLS for
+/// that reason — see rls.sql.
+model AttendanceKiosk {
+  id        String  @id @default(uuid())
+  partnerId String
+  label     String
+  lat       Float?
+  lng       Float?
+  active    Boolean @default(true)
+  /// 32 random bytes, hex. Rotated by replacing it.
+  secret    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@map("attendance_kiosks")
 }
 
 /// A geotagged call on a prospect or a merchant.

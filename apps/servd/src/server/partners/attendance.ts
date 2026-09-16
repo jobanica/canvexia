@@ -36,6 +36,7 @@ export interface SessionRow {
   checkInLat: number | null;
   checkInLng: number | null;
   autoClosed: boolean;
+  method: string;
 }
 
 /** This seat's session for one Manila day, or null if they have not checked in. */
@@ -57,6 +58,7 @@ export async function todaySession(
           checkInLat: true,
           checkInLng: true,
           autoClosed: true,
+          method: true,
         },
       }),
     );
@@ -160,6 +162,8 @@ export interface AttendanceDay {
   lastOut: Date | null;
   autoClosed: boolean;
   visits: number;
+  /** "gps" | "qr" | null when there was no check-in. How it was proved. */
+  method: string | null;
   /** No check-in at all, on a day when they logged visits — or the reverse. */
   flags: ("no_check_in" | "no_visits" | "never_checked_out" | "gps_mismatch")[];
 }
@@ -195,6 +199,7 @@ export async function attendanceWeek(
           checkInAt: true,
           checkOutAt: true,
           autoClosed: true,
+          method: true,
         },
       })
       .catch(() => []),
@@ -245,6 +250,7 @@ export async function attendanceWeek(
         lastOut: s?.checkOutAt ?? null,
         autoClosed: s?.autoClosed ?? false,
         visits: v.total,
+        method: s?.method ?? null,
         flags,
       };
     });

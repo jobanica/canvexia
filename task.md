@@ -35,6 +35,14 @@ continuously, Part 3 first. The six open questions resolved as follows:
 - [x] `partner_invites.emailId` (`add-invite-email.sql`) — applied
 
 ## PART 2 — QR clock-in (A7.4 patch)
+
+- [x] `add-attendance-kiosks.sql` + per-kiosk secret + `method`/`kioskId`
+- [x] `kiosk-token.ts` — pure HMAC, current + previous 60 s bucket
+- [x] `kiosk.ts` / `kiosk-actions.ts` — manager-gated, secret never selected
+- [x] Kiosk display (polls the server; the tablet never holds the secret)
+- [x] `QrScanner` — native BarcodeDetector, jsqr fallback
+- [x] `kioskRequired` per seat, manager method column, CSV column
+- [x] 18 tests + a database gate: `app_user` cannot read a planted kiosk row
 ## PART 1 — A8 SMS
 - [ ] A8.0 lift to two axes (the risky one, alone)
 - [ ] A8.1 contacts + consent + opt-out

@@ -54,6 +54,7 @@ export default async function AttendanceManagerPage({
             checkInAt: true,
             checkInLat: true,
             checkInLng: true,
+            method: true,
           },
         })
         .catch(() => []),
@@ -76,7 +77,7 @@ export default async function AttendanceManagerPage({
         lat: s.checkInLat as number,
         lng: s.checkInLng as number,
         label: nameOf.get(s.partnerUserId) ?? "Someone",
-        detail: `Checked in ${fmtTime(s.checkInAt)}`,
+        detail: `Checked in ${fmtTime(s.checkInAt)}${s.method === "qr" ? " at a kiosk" : ""}`,
         kind: "in" as const,
       })),
     ...visits
@@ -97,12 +98,20 @@ export default async function AttendanceManagerPage({
       title="Attendance"
       subtitle="Where the team worked, and what they logged."
       actions={
-        <Link
-          href={`/api/partner/attendance.csv?from=${days[0]}&to=${days[days.length - 1]}`}
-          className="rounded-full border border-brand-ink/15 bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-ink/65 hover:bg-brand-surface"
-        >
-          Export CSV
-        </Link>
+        <>
+          <Link
+            href="/partner/attendance/kiosk"
+            className="rounded-full border border-brand-ink/15 bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-ink/65 hover:bg-brand-surface"
+          >
+            Kiosks →
+          </Link>
+          <Link
+            href={`/api/partner/attendance.csv?from=${days[0]}&to=${days[days.length - 1]}`}
+            className="rounded-full border border-brand-ink/15 bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-ink/65 hover:bg-brand-surface"
+          >
+            Export CSV
+          </Link>
+        </>
       }
     >
       <div className="space-y-4">
@@ -164,7 +173,8 @@ export default async function AttendanceManagerPage({
                         d.flags.length > 0
                           ? d.flags.map((f) => FLAG_COPY[f]).join("; ")
                           : d.firstIn
-                            ? `${fmtTime(d.firstIn)}${d.lastOut ? `–${fmtTime(d.lastOut)}` : ""}`
+                            ? `${fmtTime(d.firstIn)}${d.lastOut ? `–${fmtTime(d.lastOut)}` : ""}` +
+                              (d.method === "qr" ? " · kiosk" : "")
                             : "No check-in"
                       }
                     >
