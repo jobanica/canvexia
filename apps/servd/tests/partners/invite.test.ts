@@ -280,7 +280,7 @@ describe("the invite screen's claim", () => {
   it("drains the invitation's own row in the request", () => {
     // Not the whole outbox, and not on the next tick: somebody is standing
     // there waiting for this one.
-    expect(actions).toContain("drainOutbox(appUrl, { onlyIds: [emailId] })");
+    expect(actions).toContain("drainOutbox(platformUrl(), { onlyIds: [emailId] })");
   });
 
   it("only says 'emailed' when the provider actually accepted it", () => {

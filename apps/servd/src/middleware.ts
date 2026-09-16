@@ -105,6 +105,46 @@ function withSession(res: NextResponse, cookies: PendingCookie[]): NextResponse 
   return res;
 }
 
+/**
+ * Paths that must NOT be prefixed with `/partner` on a partner host.
+ *
+ * THE RULE IS "ANYTHING AN EMAIL LINKS TO", plus the portal's own paths.
+ *
+ * Every link this codebase puts in an email is built from
+ * `NEXT_PUBLIC_APP_URL`, and that variable now points at the portal host
+ * (`partner.canvexia.com`). On that host the branch below prefixes `/partner`
+ * onto everything it does not recognise — so an emailed link to a top-level
+ * page resolves to `/partner/<that page>`, which does not exist, and the person
+ * who clicked it gets a 404 with nothing to explain it.
+ *
+ * Each entry is a page a STRANGER reaches with no session:
+ *
+ *   /partner        the portal itself, so a redirect to /partner/login from
+ *                   inside it does not become /partner/partner/login;
+ *   /l/             a partner's public lead form — the one page a member of the
+ *                   public sees;
+ *   /invite/        a staff invitation. This is the link in every invitation
+ *                   email, so getting it wrong means nobody can be onboarded —
+ *                   the exact failure the invite route was built to fix;
+ *   /reset-password the shared reset page. Partner resets link here rather than
+ *                   to a /partner copy, which does not exist;
+ *   /unsubscribe/   the unsubscribe link in marketing email. A broken one is
+ *                   not a 404 somebody shrugs at — it is the link a recipient
+ *                   uses to make you stop, and the fastest way to get a sending
+ *                   domain blocked.
+ *
+ * ADDING A NEW EMAILED LINK MEANS ADDING IT HERE. `tests/host/emailed-links`
+ * scans for link construction and fails if a path is missing from this list, so
+ * the next one does not have to be found in production.
+ */
+export const PASS_THROUGH = [
+  "/partner",
+  "/l/",
+  "/invite/",
+  "/reset-password",
+  "/unsubscribe/",
+] as const;
+
 export async function middleware(req: NextRequest) {
   const host = (req.headers.get("host") ?? "").split(":")[0].toLowerCase();
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
@@ -136,16 +176,9 @@ export async function middleware(req: NextRequest) {
     const session = await refreshSession(req);
     const headers = new Headers(req.headers);
     headers.set(PATH_HEADER, pathname);
-    // Already-prefixed paths are left alone so a redirect to /partner/login from
-    // inside the portal does not become /partner/partner/login.
-    //
-    // `/l/...` is left alone too: it is a partner's PUBLIC lead form, which has
-    // no session and must not inherit the portal chrome. Prefixing it would
-    // rewrite the one page a stranger sees into /partner/l/<slug> and 404 it.
-    const target =
-      pathname.startsWith("/partner") || pathname.startsWith("/l/")
-        ? `${pathname}${search}`
-        : `/partner${pathname === "/" ? "" : pathname}${search}`;
+    const target = PASS_THROUGH.some((prefix) => pathname.startsWith(prefix))
+      ? `${pathname}${search}`
+      : `/partner${pathname === "/" ? "" : pathname}${search}`;
     return withSession(
       captureAttribution(
         req,

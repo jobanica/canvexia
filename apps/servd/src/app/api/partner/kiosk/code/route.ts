@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireWritablePartner } from "@/server/partners/auth";
 import { currentCode } from "@/server/partners/kiosk";
+import { partnerUrl } from "@/lib/urls";
 
 /**
  * The code a kiosk screen is displaying right now.
@@ -36,7 +37,9 @@ export async function GET(req: NextRequest) {
       label: current.label,
       // The scan target, composed here so the display never has to know the
       // URL shape. The phone's own camera app opens this directly.
-      url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/partner/attendance?kiosk=${encodeURIComponent(
+      // The PORTAL host: a phone camera opens this, and the staff app lives on
+      // the partner domain.
+      url: `${partnerUrl()}/partner/attendance?kiosk=${encodeURIComponent(
         kioskId,
       )}&code=${encodeURIComponent(current.code)}`,
     },

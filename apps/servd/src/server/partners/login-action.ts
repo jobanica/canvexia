@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { partnerUrl } from "@/lib/urls";
 
 export type LoginState = { error?: string } | null;
 
@@ -38,7 +39,9 @@ export async function requestPartnerPasswordReset(
   const email = String(formData.get("email") ?? "").trim();
   if (!email) return { error: "Enter your email address." };
   const supabase = await createSupabaseServerClient();
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  // The portal's own host: this link goes to a partner, and `/reset-password`
+  // is one of the paths the middleware passes through there.
+  const base = partnerUrl();
   try {
     await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${base}/reset-password?next=${encodeURIComponent("/partner/login")}`,

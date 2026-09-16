@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireWritablePartner } from "@/server/partners/auth";
 import { deactivateSeat, inviteSeat, resendInvite, revokeInvite, type InviteActor } from "./team";
 import { drainOutbox } from "@/server/email/outbox";
+import { platformUrl } from "@/lib/urls";
 
 export type TeamState =
   | { status: "idle" }
@@ -54,9 +55,10 @@ async function sendNow(
 ): Promise<{ delivery: "sent" | "queued" | "none"; detail?: string }> {
   if (!emailId) return { delivery: "none" };
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://canvexia.com";
+  // The drainer's own base is the platform's; the invite template overrides it
+  // with the partner URL, which is the whole point of `partnerUrl()`.
   try {
-    const result = await drainOutbox(appUrl, { onlyIds: [emailId] });
+    const result = await drainOutbox(platformUrl(), { onlyIds: [emailId] });
     if (result.sent > 0) return { delivery: "sent" };
     if (!result.configured) {
       return {

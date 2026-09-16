@@ -3,6 +3,7 @@ import { systemDb } from "@/server/tenancy/scoped-db";
 import { renderAccountEmail } from "@/lib/email/render";
 import { getEmailCreds, sendBatch, type OutgoingEmail } from "./provider";
 import { renderInvite } from "@/server/partners/invite-email";
+import { partnerUrl } from "@/lib/urls";
 
 /**
  * The thing that finally drains `outbound_emails`.
@@ -89,7 +90,9 @@ export function renderQueued(row: QueuedRow, appUrl: string): OutgoingEmail | nu
     // A null here means the row was written under a different encryption key
     // and can never become a working link; skipping leaves it queued and
     // visible rather than sending somebody a dead one.
-    const invite = renderInvite(p, appUrl);
+    // THE PARTNER URL, not the platform one. The invitation link lives on the
+    // portal host; `appUrl` here is the merchant product's address.
+    const invite = renderInvite(p, partnerUrl());
     if (!invite) return null;
     return {
       to: row.toEmail,
