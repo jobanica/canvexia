@@ -5,37 +5,74 @@ Three domains, two deployments, one database. D31.
 | Domain | Serves | Deployment |
 |---|---|---|
 | **servdph.net** | Servd — the restaurant product | `apps/servd` |
-| **canvexia.com** | CANVEXIA — the public site | `apps/www` — **not yet pointed here** |
-| **partner.canvexia.com** | CANVEXIA — the partner portal | `apps/servd` — **not yet pointed here** |
+| **canvexia.com** | CANVEXIA — the public site | `apps/www` — attached, awaiting DNS |
+| **partner.canvexia.com** | CANVEXIA — the partner portal | `apps/servd` — attached, awaiting DNS |
 | **resceta.com** | Resceta — the pharmacy product | `apps/resceta` |
 
-> **NO DOMAIN IS REGISTERED YET.** `canvexia.com`, `servdph.net` and
-> `resceta.com` all return NXDOMAIN — checked, not assumed. The table above is
-> the INTENDED routing; nothing in it is live. Today everything answers on
-> Vercel URLs:
->
-> | What | Where it actually is today |
-> |---|---|
-> | The public site | `https://canvexia-www.vercel.app` |
-> | The partner portal | `https://canvexia-two.vercel.app/partner/login` |
-> | Resceta | `https://resceta.vercel.app` |
->
-> On a `*.vercel.app` host `parseHost` returns `platform`, so the middleware
-> does NOT rewrite `/` to `/partner` — the portal is reachable at its real path
-> and the apex shows Servd. That is why the portal URL above carries
-> `/partner/login` and the bare host does not.
->
-> **When the domains are bought**, D37 is a two-step flip and both steps go
-> together or one brand is dark:
->
-> 1. Add `canvexia.com` + `www.canvexia.com` to the `canvexia-www` project.
-> 2. Add `partner.canvexia.com` to the `canvexia` project, and set
->    `NEXT_PUBLIC_PORTAL_URL` on `canvexia-www` to
->    `https://partner.canvexia.com/partner/login`.
->
-> `parseHost` already answers `partner_root` for BOTH the apex and
-> `partner.canvexia.com`, so the order of those two steps cannot strand the
-> portal.
+**`canvexia.com` IS REGISTERED AND ATTACHED** (16 Sep 2026). Nameservers are
+`01–04.dnsv.jp` — Onamae.com / GMO — and DNS stays there, because the Resend
+email records live on that zone. See "Connecting the domain" below.
+
+| Host | Vercel project | Serves |
+|---|---|---|
+| `canvexia.com` | `canvexia-www` | the public site (`apps/www`) |
+| `www.canvexia.com` | `canvexia-www` | 308 → `canvexia.com` |
+| `partner.canvexia.com` | `canvexia` | the partner portal (`apps/servd`) |
+
+All three are attached and report `verified: true` — Vercel needs no TXT
+ownership challenge, only the DNS below.
+
+`servdph.net` and `resceta.com` are still unregistered, so those rows in the
+table above remain intentions. Today they answer on Vercel URLs:
+
+| What | Where it actually is today |
+|---|---|
+| Resceta | `https://resceta.vercel.app` |
+| Servd | `https://canvexia-two.vercel.app` (the same deployment as the portal) |
+
+---
+
+## Connecting the domain
+
+### The records, at Onamae.com
+
+| Type | Host | Value |
+|---|---|---|
+| A | `@` (blank / apex) | `216.150.1.1` |
+| CNAME | `www` | `cname.vercel-dns.com` |
+| CNAME | `partner` | `cname.vercel-dns.com` |
+
+### DO NOT switch the nameservers to Vercel
+
+Vercel offers "use Vercel DNS" and it would be the wrong move here. The zone at
+dnsv.jp already holds the records that make partner invitations deliverable:
+
+| | |
+|---|---|
+| `send.canvexia.com` MX | `feedback-smtp.ap-northeast-1.amazonses.com` |
+| `send.canvexia.com` TXT | `v=spf1 include:amazonses.com ~all` |
+| `resend._domainkey` TXT | the DKIM public key |
+| `canvexia.com` TXT | `v=spf1 include:spf.titan.email ~all` (the registrar's mailbox) |
+
+Moving the nameservers moves the zone, and every one of those has to be
+recreated by hand at the new one. Miss the DKIM record and Resend stops signing
+— invitations silently stop arriving, which is a failure nobody sees until a new
+hire says they never got an email. Adding an A record and two CNAMEs to the
+existing zone touches none of it.
+
+### After DNS resolves
+
+Two environment variables still point at `*.vercel.app` and must move, or invite
+links will keep sending people to the old host:
+
+| Project | Variable | New value |
+|---|---|---|
+| `canvexia` | `NEXT_PUBLIC_APP_URL` | `https://partner.canvexia.com` |
+| `canvexia-www` | `NEXT_PUBLIC_PORTAL_URL` | `https://partner.canvexia.com/partner/login` |
+
+Both need a redeploy to take effect: `NEXT_PUBLIC_*` is inlined at build time.
+
+---
 
 `servdph.com` is a **different business on a different database** and is not part
 of this project. If it is ever pointed here it resolves as an ordinary custom
@@ -54,11 +91,19 @@ domain — looked up as a restaurant, and not found.
 | `app`, `admin`, `api`, `tutorials` `.servdph.net` | reserved; stay on the platform |
 | `order.bistro.ph` (any other host) | a merchant's own custom domain |
 
-### canvexia.com → the SAME deployment, partner mode
+### canvexia.com → `apps/www`; partner.canvexia.com → `apps/servd`
+
+THE APEX MOVED. D31 put the portal on the bare apex; it now belongs to the
+public site, and the portal lives at `partner.canvexia.com`. `parseHost` still
+answers `partner_root` for the apex, deliberately — see the note on that type in
+`lib/host.ts`: this app should never receive `canvexia.com`, so the answer only
+matters when something is misconfigured, and of the two wrong pages to serve
+there, the portal beats Servd's restaurant marketing.
 
 | Host | What it is |
 |---|---|
-| `canvexia.com`, `www.canvexia.com` | **CANVEXIA's front door** — the partner portal |
+| `canvexia.com`, `www.canvexia.com` | the public site — **a different Vercel project** |
+| `partner.canvexia.com` | **CANVEXIA's front door** — the partner portal |
 | `davao.canvexia.com` | that partner's own branded portal |
 | `app`, `admin`, `api`, `tutorials` `.canvexia.com` | reserved; fall through to the platform |
 
