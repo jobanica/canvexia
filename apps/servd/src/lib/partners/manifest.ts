@@ -28,18 +28,37 @@ import { parseHost } from "@/lib/host";
  * people already put on their home screens.
  */
 
-const ICONS = [
-  { src: "/brand/canvexia-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-  { src: "/brand/canvexia-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-  {
-    src: "/brand/canvexia-maskable-512.png",
-    sizes: "512x512",
-    type: "image/png",
-    // Without a maskable icon Android pastes the square PNG into its circle and
-    // crops the mark's corners off.
-    purpose: "maskable",
-  },
-] as const;
+/**
+ * A TILE COLOUR PER APP, because the name is not enough.
+ *
+ * One deployment ships three installable apps off one mark, and a home screen
+ * truncates the label — "CANVEXIA H…" sat next to "CANVEXIA", both on identical
+ * white tiles, and nothing on the screen said which was which. The colour is
+ * what actually distinguishes them at a glance.
+ *
+ * The mark and its coral-into-ember band are the same in all three; only the
+ * field behind it changes. That is the difference between "three apps from one
+ * company" and "three copies of the same app".
+ *
+ *   HQ      white  — the desktop install, where a coloured tile is the odd one out
+ *   portal  #3B1E54 — CANVEXIA's own purple, already this app's theme_color
+ *   field   #1A1A1E — near-black, readable at a glance in sunlight
+ */
+function iconsFor(app: PartnerApp) {
+  const stem = app === "field" ? "canvexia-field" : "canvexia-portal";
+  return [
+    { src: `/brand/${stem}-192.png`, sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: `/brand/${stem}-512.png`, sizes: "512x512", type: "image/png", purpose: "any" },
+    {
+      src: `/brand/${stem}-maskable-512.png`,
+      sizes: "512x512",
+      type: "image/png",
+      // Without a maskable icon Android pastes the square PNG into its circle
+      // and crops the mark's corners off.
+      purpose: "maskable",
+    },
+  ] as const;
+}
 
 export type PartnerApp = "portal" | "field";
 
@@ -95,7 +114,7 @@ export function partnerManifest(app: PartnerApp, bare: boolean): WebManifest {
       orientation: "portrait",
       background_color: "#FFFFFF",
       theme_color: "#3B1E54",
-      icons: ICONS,
+      icons: iconsFor(app),
     };
   }
 
@@ -113,7 +132,7 @@ export function partnerManifest(app: PartnerApp, bare: boolean): WebManifest {
     display: "standalone",
     background_color: "#FFFFFF",
     theme_color: "#3B1E54",
-    icons: ICONS,
+    icons: iconsFor(app),
   };
 }
 

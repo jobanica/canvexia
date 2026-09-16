@@ -56,15 +56,27 @@ def inside(poly, x, y):
                 c = not c
     return c
 
-def render(size, pad=0.0, bg=None, ss=4):
-    """RGBA bytes. `pad` insets the 48-unit artwork (maskable icons need room)."""
+def render(size, pad=0.0, bg=None, ss=4, ink=None):
+    """RGBA bytes.
+
+    `pad` insets the 48-unit artwork (maskable icons need room).
+    `bg`   fills behind the mark; None leaves it transparent.
+    `ink`  overrides the three dark bands. Needed because one deployment now
+           ships THREE installable apps off the same mark, and the only thing
+           telling them apart on a home screen is the tile colour — so the
+           partner portal's tile is CANVEXIA purple and Field's is near-black.
+           On either, the #1A1A1E bands would be invisible.
+    """
     W = size
     inner = size * (1 - 2*pad)
     scale = inner / 48.0
     off = size * pad
-    polys = [(parse(band["topLeft"]),   ("flat", cols["ink"])),
-             (parse(band["bottomLeft"]),("flat", cols["ink"])),
-             (parse(band["bottomRight"]),("flat", cols["ink"])),
+    dark = ink or cols["ink"]
+    polys = [(parse(band["topLeft"]),   ("flat", dark)),
+             (parse(band["bottomLeft"]),("flat", dark)),
+             (parse(band["bottomRight"]),("flat", dark)),
+             # The gradient band is NOT recoloured. Coral into ember is the one
+             # thing all three apps keep, so they still read as one family.
              (parse(band["topRight"]),  ("grad", None))]
     gx1, gy1, gx2, gy2 = 26.0, 22.0, 38.0, 10.0
     gdx, gdy = gx2-gx1, gy2-gy1
@@ -113,14 +125,37 @@ def render(size, pad=0.0, bg=None, ss=4):
             + chunk(b"IDAT", zlib.compress(bytes(px), 9))
             + chunk(b"IEND", b""))
 
+# One deployment, three installable apps, one mark. On a home screen the NAME
+# is truncated — "CANVEXIA H…" next to "CANVEXIA" — so the tile colour is what
+# actually tells them apart, and three identical white tiles told them apart not
+# at all.
+#
+# The mark and its coral-into-ember band are identical in all three. Only the
+# field behind it changes, which is the difference between "three apps from one
+# company" and "three copies of the same app".
+VARIANTS = {
+    # HQ keeps the original transparent/white set: it is the one people install
+    # on a desktop, where a coloured tile is the odd one out.
+    "canvexia":        {"bg": None,      "mask_bg": "#FFFFFF", "ink": None},
+    # The partner portal. CANVEXIA's own purple, the same #3B1E54 already in its
+    # manifest's theme_color and on its status bar.
+    "canvexia-portal": {"bg": "#3B1E54", "mask_bg": "#3B1E54", "ink": "#FFFFFF"},
+    # Field. Near-black, so a salesperson glancing at a home screen in sunlight
+    # can tell it from the portal without reading either label.
+    "canvexia-field":  {"bg": "#1A1A1E", "mask_bg": "#1A1A1E", "ink": "#FFFFFF"},
+}
+
 if __name__ == "__main__":
     out = "/home/user/canvexia/apps/servd/public/brand"
-    jobs = [("canvexia-180.png", 180, 0.0,  None),
-            ("canvexia-192.png", 192, 0.0,  None),
-            ("canvexia-512.png", 512, 0.0,  None),
-            # Maskable: Android crops to a circle, so the art sits in the safe
-            # zone on an opaque field rather than being clipped.
-            ("canvexia-maskable-512.png", 512, 0.20, "#FFFFFF")]
-    for name, size, pad, bg in jobs:
-        open(f"{out}/{name}", "wb").write(render(size, pad, bg))
-        print("wrote", name, size)
+    only = sys.argv[1:] or list(VARIANTS)
+    for stem in only:
+        v = VARIANTS[stem]
+        jobs = [(f"{stem}-180.png", 180, 0.0, v["bg"]),
+                (f"{stem}-192.png", 192, 0.0, v["bg"]),
+                (f"{stem}-512.png", 512, 0.0, v["bg"]),
+                # Maskable: Android crops to a circle, so the art sits in the
+                # safe zone on an OPAQUE field rather than being clipped.
+                (f"{stem}-maskable-512.png", 512, 0.20, v["mask_bg"])]
+        for name, size, pad, bg in jobs:
+            open(f"{out}/{name}", "wb").write(render(size, pad, bg, ink=v["ink"]))
+            print("wrote", name, size)

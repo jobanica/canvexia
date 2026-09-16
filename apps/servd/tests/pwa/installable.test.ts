@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { partnerManifest, servesBarePaths } from "@/lib/partners/manifest";
+import { codeAt } from "../support/source";
 
 /**
  * Three audiences, three installable apps, one deployment.
@@ -213,13 +214,10 @@ describe("the parts a manifest cannot supply on its own", () => {
     // The field layout declared /brand/icon-192.png and /brand/icon-apple-180.png
     // — Servd's — which override the manifest for the tab and for iOS. A
     // salesperson got a competitor product's logo on their home screen.
-    // Comments stripped: the note explaining this change names both old paths.
-    const layout = read("src/app/(platform)/partner/attendance/layout.tsx")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const layout = codeAt("src/app/(platform)/partner/attendance/layout.tsx");
     expect(layout).not.toContain("/brand/icon-192.png");
     expect(layout).not.toContain("/brand/icon-apple-180.png");
-    expect(layout).toContain("/brand/canvexia-180.png");
+    expect(layout).toContain("/brand/canvexia-field-180.png");
   });
 });
 
@@ -277,5 +275,77 @@ describe("Servd's own manifest is left alone", () => {
     };
     expect(m.start_url).toBe("/cashier");
     expect(m.icons.every((i) => !i.src.startsWith("/brand/canvexia-"))).toBe(true);
+  });
+});
+
+
+/**
+ * The three tiles, and why they are three.
+ *
+ * REPORTED: two CANVEXIA icons on one Android home screen, identical white
+ * circles, labels truncated to "CANVEXIA H…" and "CANVEXIA". Nothing on the
+ * screen said which was which.
+ */
+describe("each installable app has its own tile colour", () => {
+  const hq = JSON.parse(read("public/hq.webmanifest")) as { icons: { src: string }[] };
+  const portal = partnerManifest("portal", false);
+  const field = partnerManifest("field", false);
+
+  const stems = (icons: readonly { src: string }[]) =>
+    new Set(icons.map((i) => i.src.replace(/-(?:180|192|512|maskable-512)\.png$/, "")));
+
+  it("gives no two apps the same icon set", () => {
+    const sets = [hq.icons, portal.icons, field.icons].map((i) => [...stems(i)].sort().join("|"));
+    expect(new Set(sets).size, `three apps, ${new Set(sets).size} distinct icon sets`).toBe(3);
+  });
+
+  it("names each set after the app it belongs to", () => {
+    expect([...stems(hq.icons)]).toEqual(["/brand/canvexia"]);
+    expect([...stems(portal.icons)]).toEqual(["/brand/canvexia-portal"]);
+    expect([...stems(field.icons)]).toEqual(["/brand/canvexia-field"]);
+  });
+
+  it("still gives every one of them a maskable variant", () => {
+    // Android crops to a circle. Losing this while recolouring would clip the
+    // mark's corners off on exactly the devices this was reported from.
+    for (const [what, m] of [["portal", portal], ["field", field]] as const) {
+      expect(m.icons.some((i) => i.purpose === "maskable"), what).toBe(true);
+    }
+    expect(
+      (JSON.parse(read("public/hq.webmanifest")) as { icons: { purpose?: string }[] }).icons.some(
+        (i) => i.purpose === "maskable",
+      ),
+    ).toBe(true);
+  });
+
+  it("renders them from one script, so they cannot drift apart", () => {
+    // Three hand-edited PNGs is three chances for the mark to differ between
+    // apps. Only the field behind it is allowed to.
+    const script = read("scripts/render-brand-icons.py");
+    expect(script).toContain("VARIANTS");
+    for (const stem of ["canvexia-portal", "canvexia-field"]) expect(script).toContain(stem);
+    // The gradient band is what keeps them one family; it is never recoloured.
+    expect(script).toContain("The gradient band is NOT recoloured");
+  });
+
+  it("points iOS at the right tile, since iOS ignores the manifest", () => {
+    expect(codeAt("src/app/(platform)/partner/layout.tsx")).toContain(
+      'apple: "/brand/canvexia-portal-180.png"',
+    );
+    expect(codeAt("src/app/(platform)/partner/attendance/layout.tsx")).toContain(
+      "/brand/canvexia-field-180.png",
+    );
+    // HQ keeps the white one.
+    expect(codeAt("src/app/(platform)/hq/layout.tsx")).toContain('apple: "/brand/canvexia-180.png"');
+  });
+
+  it("keeps the browser TAB on the plain mark", () => {
+    // A tab is 16px of white chrome. A purple tile there is a smudge.
+    for (const p of [
+      "src/app/(platform)/partner/layout.tsx",
+      "src/app/(platform)/hq/layout.tsx",
+    ]) {
+      expect(codeAt(p), p).toContain('icon: [{ url: "/brand/canvexia-mark.svg"');
+    }
   });
 });

@@ -29,9 +29,14 @@ export const metadata: Metadata = {
     // `icons` at all suppresses the sibling file for this segment — which is
     // how the tab kept showing the root's Servd favicon.ico while the
     // apple-touch-icon was already CANVEXIA's.
+    // The TAB icon stays the plain mark: a browser tab is 16px of white
+    // chrome, and a purple tile there is a coloured smudge.
     icon: [{ url: "/brand/canvexia-mark.svg", type: "image/svg+xml" }],
     shortcut: [{ url: "/brand/canvexia-mark.svg", type: "image/svg+xml" }],
-    apple: "/brand/canvexia-180.png",
+    // The HOME SCREEN icon is the purple one. iOS reads this and ignores the
+    // manifest entirely, so without this line an iPhone install of the portal
+    // would still be indistinguishable from HQ.
+    apple: "/brand/canvexia-portal-180.png",
   },
   appleWebApp: {
     capable: true,

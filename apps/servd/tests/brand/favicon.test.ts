@@ -48,8 +48,13 @@ describe("the CANVEXIA favicon", () => {
     ];
     for (const file of layouts) {
       const code = readFileSync(file, "utf8");
+      // The TAB icon is the plain mark everywhere: a browser tab is 16px of
+      // white chrome and a coloured tile there is a smudge.
       expect(code, file).toContain('icon: [{ url: "/brand/canvexia-mark.svg"');
-      expect(code, file).toContain('apple: "/brand/canvexia-180.png"');
+      // The HOME SCREEN icon is per app. iOS reads `apple` and ignores the
+      // manifest, so the portal naming the shared white 180 is exactly how an
+      // iPhone ends up with two icons nobody can tell apart.
+      expect(code, file).toMatch(/apple: (\[\{ url: )?"\/brand\/canvexia(-portal|-field)?-180\.png"/);
     }
   });
 
@@ -83,12 +88,24 @@ describe("the CANVEXIA favicon", () => {
 
 describe("the CANVEXIA raster icons", () => {
   const PUBLIC = join(__dirname, "../../public/brand");
-  const sizes = [
-    ["canvexia-180.png", 180],
-    ["canvexia-192.png", 192],
-    ["canvexia-512.png", 512],
-    ["canvexia-maskable-512.png", 512],
-  ] as const;
+  /**
+   * Three sets, one per installable app.
+   *
+   * They differ ONLY in the field behind the mark — white for HQ, CANVEXIA
+   * purple for the portal, near-black for Field — because a home screen
+   * truncates the label ("CANVEXIA H…" beside "CANVEXIA") and the tile colour
+   * is the only thing left that tells them apart.
+   */
+  const STEMS = ["canvexia", "canvexia-portal", "canvexia-field"] as const;
+  const sizes = STEMS.flatMap(
+    (stem) =>
+      [
+        [`${stem}-180.png`, 180],
+        [`${stem}-192.png`, 192],
+        [`${stem}-512.png`, 512],
+        [`${stem}-maskable-512.png`, 512],
+      ] as const,
+  );
 
   it("exists at every size the manifest and iOS ask for", () => {
     for (const [name] of sizes) {

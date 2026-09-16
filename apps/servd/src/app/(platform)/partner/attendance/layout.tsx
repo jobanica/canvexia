@@ -30,7 +30,9 @@ export const metadata: Metadata = {
   icons: {
     icon: [{ url: "/brand/canvexia-mark.svg", type: "image/svg+xml" }],
     shortcut: [{ url: "/brand/canvexia-mark.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/brand/canvexia-180.png", sizes: "180x180", type: "image/png" }],
+    // Field's own near-black tile, for the same reason the portal has a purple
+    // one: iOS reads this, not the manifest.
+    apple: [{ url: "/brand/canvexia-field-180.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
