@@ -125,27 +125,34 @@ export function isLow(balance: number, lastTopUpCredits: number): boolean {
 /**
  * The statement's pass-through line.
  *
- * RETURNS A SENTENCE, NOT A NUMBER, WHEN THE COST IS UNSET — and that is the
+ * RETURNS A SENTENCE, NOT A NUMBER, WHEN THE RATE IS UNSET — and that is the
  * point of this function. The aggregator's per-segment cost is not in this
- * repository, and a made-up figure here would produce a made-up margin on a
- * document an operator uses to decide whether this business is worth running.
- * So an unconfigured cost says so, in words, on the statement.
+ * repository, and a made-up figure here becomes a made-up margin on a document
+ * an operator uses to decide whether this business is worth running.
+ *
+ * CENTAVOS PER THOUSAND SEGMENTS, matching `passthrough_costs.unitCostCentavos`
+ * exactly. That table is where the rate already lives, and it is per-1000
+ * because one SMS costs well under a peso — an integer per-unit rate would
+ * round every message to ₱0 or ₱1. Taking the same units here means there is
+ * one rate in the system rather than two that can disagree.
  */
 export function providerCostLine(
   segments: number,
-  unitCostCentavos: number | null | undefined,
+  centavosPerThousand: number | null | undefined,
 ): { configured: boolean; text: string; centavos: number | null } {
-  if (unitCostCentavos === null || unitCostCentavos === undefined) {
+  if (!centavosPerThousand || centavosPerThousand <= 0) {
     return {
       configured: false,
       text: "Provider cost not configured — ask HQ to enter the per-segment rate.",
       centavos: null,
     };
   }
-  const total = segments * unitCostCentavos;
+  const total = Math.round((segments * centavosPerThousand) / 1000);
   return {
     configured: true,
-    text: `${segments.toLocaleString("en-PH")} segments at ${pesos(unitCostCentavos)} each`,
+    text: `${segments.toLocaleString("en-PH")} segments at ${pesos(
+      centavosPerThousand,
+    )} per 1,000`,
     centavos: total,
   };
 }

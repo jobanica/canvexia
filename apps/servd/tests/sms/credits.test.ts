@@ -118,13 +118,20 @@ describe("the statement's pass-through line", () => {
     expect(line.text).toMatch(/not configured/i);
     expect(line.text).not.toMatch(/₱\d/);
     expect(providerCostLine(1000, undefined).configured).toBe(false);
+    // Zero is "nobody has entered it", not "it is free" — which is how
+    // `passthrough_costs` already reads an unset rate.
+    expect(providerCostLine(1000, 0).configured).toBe(false);
   });
 
-  it("computes it once somebody enters the real figure", () => {
+  it("takes centavos per THOUSAND, as passthrough_costs stores them", () => {
+    // One SMS costs well under a peso; an integer per-unit rate would round
+    // every message to ₱0 or ₱1. Matching the existing column's units means
+    // there is one rate in the system rather than two that can disagree.
     const line = providerCostLine(1000, 35);
     expect(line.configured).toBe(true);
-    expect(line.centavos).toBe(35000);
-    expect(line.text).toContain("₱0.35");
+    expect(line.centavos).toBe(35); // 1000 segments at ₱0.35 per 1,000 = ₱0.35
+    expect(providerCostLine(10_000, 35).centavos).toBe(350);
+    expect(line.text).toContain("per 1,000");
   });
 });
 

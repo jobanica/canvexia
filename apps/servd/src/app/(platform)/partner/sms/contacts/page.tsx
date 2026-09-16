@@ -46,6 +46,7 @@ export default async function SmsContactsPage({
         status={status}
         senderName={sender.senderName}
         senderIsOwn={sender.own}
+        isAdmin={partner.user.role === "admin"}
       />
     </PortalShell>
   );

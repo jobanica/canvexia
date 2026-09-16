@@ -60,16 +60,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS "sms_topups_providerRef_key"
 CREATE INDEX IF NOT EXISTS "sms_topups_partnerId_idx" ON "sms_topups" ("partnerId");
 
 -- ----------------------------------------------------------------------------
--- 3. What a segment costs US.
+-- 3. What a segment costs US — deliberately NOT a new column.
 --
--- NULL, AND IT STAYS NULL UNTIL SOMEBODY ENTERS THE REAL FIGURE. The brief asks
--- for the aggregator's per-segment cost so the partner statement's pass-through
--- line is correct. That number is not in this repository and I will not invent
--- one: a fabricated cost produces a fabricated margin on a document an operator
--- uses to decide whether this business is worth running.
+-- The first version of this file added `platform_settings.smsProviderCostCentavos`.
+-- That was a duplicate: `passthrough_costs` already holds a per-channel rate and
+-- a margin, the HQ billing screen already edits it, and its reader already
+-- reports NULL rather than zero when nobody has entered a rate — which is the
+-- exact property this number needs. Two columns would be two things to keep in
+-- step, and the one that drifts is the one on the statement.
 --
--- Until it is set, the statement says "provider cost not configured" rather than
--- showing a number. See `providerCostLine` in packages/core/src/sms/credits.ts.
--- ----------------------------------------------------------------------------
-ALTER TABLE "platform_settings"
-  ADD COLUMN IF NOT EXISTS "smsProviderCostCentavos" INTEGER;
+-- So the SMS rate is a row in `passthrough_costs` with channel 'sms', and
+-- `providerCostLine()` in packages/core takes centavos per THOUSAND segments to
+-- match it. Nothing here creates that row: the rate is not in this repository
+-- and will not be invented. Until somebody enters it, the statement says
+-- "provider cost not configured".

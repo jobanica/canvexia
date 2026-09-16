@@ -5,6 +5,7 @@ import { getSmsProvider } from "@/server/sms";
 import { partnerSender } from "./sms-send";
 import { partnerSmsLimits } from "./sms-campaigns";
 import { debit } from "./sms-wallet";
+import { recordSmsUsage } from "./sms-usage";
 import { managerSeats, queueNotification } from "./notify";
 
 /**
@@ -333,6 +334,8 @@ export async function sendReply(input: {
   if (!result.ok) {
     return { ok: false, message: result.error ?? "That didn't send." };
   }
+
+  await recordSmsUsage(input.partnerId, segments, now);
 
   try {
     await systemDb(async (tx) => {

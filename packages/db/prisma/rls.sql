@@ -556,7 +556,11 @@ begin
                            -- Partner-scoped; WHICH seat may reply to which
                            -- thread is `sms.reply_own` vs `sms.send`, decided
                            -- in the app where "assigned to me" is knowable.
-                           'sms_thread_messages']
+                           'sms_thread_messages',
+                           -- A8.5. What has already fired, and who asked to be
+                           -- forgotten. The tombstone holds a HASH, so even a
+                           -- reader of this table learns no numbers.
+                           'sms_automation_log', 'sms_tombstones']
   loop
     if to_regclass(format('public.%I', t)) is null then
       continue;  -- table not migrated yet; db:rls must not fail on a fresh clone

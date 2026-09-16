@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { MERGE_FIELDS, countSegments, minutesToLabel, withOptOut } from "@servd/core";
 import {
@@ -271,7 +272,12 @@ export function Composer({
           {campaigns.map((c) => (
             <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <span className="min-w-0">
-                <span className="block text-sm font-semibold">{c.name}</span>
+                <Link
+                  href={`/partner/sms/campaigns/${c.id}`}
+                  className="block text-sm font-semibold hover:underline"
+                >
+                  {c.name}
+                </Link>
                 <span className="block truncate text-xs text-brand-ink/50">{c.body}</span>
                 <span className="mt-0.5 block text-xs text-brand-ink/45">
                   {statusLine(c)}

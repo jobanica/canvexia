@@ -78,4 +78,15 @@ continuously, Part 3 first. The six open questions resolved as follows:
       - inbound filed for every partner that knows the number, and notified
       - a reply is transactional: no cap, no opt-out line, window bends for
         somebody who texted within 24h, still costs credits
-- [ ] A8.5 automations + analytics + export/forget
+- [x] A8.5 automations + analytics + export/forget
+      - three automations, all OFF until the partner writes the copy; one
+        send path that re-checks consent, cap and window for every recipient
+      - per-campaign analytics; `delivered` reported as NOT REPORTED rather
+        than faked, because no delivery receipt is wired
+      - CSV export carries the consent columns AND the evidence sentence
+      - "forget" writes a tombstone hash first, then deletes; blocks every
+        capture point, not just imports; gate `verify-sms-forget.sql`
+      - the duplicate provider-cost column I added in A8.2 was REMOVED: the
+        rate belongs in `passthrough_costs`, which already reads NULL for an
+        unset rate. Every send now writes `passthrough_usage`, which had a
+        reader and no writer since the HQ billing screen shipped.

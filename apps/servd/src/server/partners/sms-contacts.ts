@@ -8,6 +8,7 @@ import {
 } from "@servd/core";
 import { partnerDb, systemDb } from "@/server/tenancy/scoped-db";
 import { writePartnerAudit } from "@/server/audit/log";
+import { isForgotten } from "./sms-forget";
 
 /**
  * The partner's SMS contact book, and the consent on each row.
@@ -121,7 +122,8 @@ export interface CaptureInput {
 
 export type CaptureResult =
   | { ok: true; id: string; status: ConsentStatus }
-  | { ok: false; reason: "bad_number" | "failed" };
+  /** `forgotten`: they asked to be deleted, and that is not undone by re-adding. */
+  | { ok: false; reason: "bad_number" | "failed" | "forgotten" };
 
 /**
  * Record a contact and what they said.
@@ -140,6 +142,13 @@ export type CaptureResult =
 export async function captureConsent(input: CaptureInput): Promise<CaptureResult> {
   const mobile = normalizeMobile(input.mobile);
   if (!mobile) return { ok: false, reason: "bad_number" };
+
+  // Somebody who asked to be forgotten stays forgotten. Checked HERE rather
+  // than only at import, because every capture point runs through this
+  // function — an import is not the only way a number comes back.
+  if (await isForgotten(input.partnerId, mobile)) {
+    return { ok: false, reason: "forgotten" };
+  }
 
   const now = new Date();
   const evidence =

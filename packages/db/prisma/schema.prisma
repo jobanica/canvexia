@@ -151,13 +151,6 @@ model PlatformSetting {
   updatedAt         DateTime @updatedAt
 
   @@map("platform_settings")
-  /// What ONE SMS segment costs us at the aggregator, in centavos.
-  ///
-  /// NULL until somebody enters the real figure, and it stays null: the number
-  /// is not in this repository, and a fabricated cost produces a fabricated
-  /// margin on a document an operator uses to decide whether this business is
-  /// worth running. The statement says "provider cost not configured" instead.
-  smsProviderCostCentavos Int?
 }
 
 /// Feedback / recommendations from restaurant owners ABOUT Servd itself,
@@ -1381,6 +1374,19 @@ model Partner {
   smsTopUps        SmsTopUp[]
   smsSegments      SmsSegment[]
   smsThread        SmsThreadMessage[]
+  smsAutomations   SmsAutomationLog[]
+  smsTombstones    SmsTombstone[]
+
+  // --- A8.5: three automations, all OFF by default -------------------------
+  // An automation that starts sending the day it ships is one nobody chose,
+  // and the first anybody would know is a contact asking why they got a text.
+  // The day counts are 0 = off, so turning one on means saying when.
+  smsAutoWelcome     Boolean @default(false)
+  smsAutoWelcomeText String?
+  smsAutoVisitDays   Int     @default(0)
+  smsAutoVisitText   String?
+  smsAutoTrialDays   Int     @default(0)
+  smsAutoTrialText   String?
 
   // --- A8.3: the two limits that keep this from being a nuisance -----------
   /// Minutes past midnight, MANILA. Stored as a number because the comparison
@@ -2792,6 +2798,47 @@ model CustomerContact {
   @@unique([restaurantId, phone])
   @@index([restaurantId])
   @@map("customer_contacts")
+}
+
+/// One firing of one automation, so it fires ONCE.
+///
+/// Without the unique key a daily job re-sends the same follow-up every day
+/// for as long as the condition holds — which for "visited 7 days ago and
+/// never converted" is forever.
+model SmsAutomationLog {
+  id           String @id @default(uuid())
+  partnerId    String
+  /// welcome | visit_follow_up | trial_ending
+  kind         String
+  /// The thing it fired ABOUT: a contact, a visit, a merchant.
+  subjectId    String
+  smsContactId String?
+  createdAt    DateTime @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, kind, subjectId])
+  @@map("sms_automation_log")
+}
+
+/// Somebody who asked to be forgotten.
+///
+/// A SHA-256 OF THE NUMBER, never the number. Keeping the number would mean a
+/// table of exactly the people who asked to be forgotten, which is the opposite
+/// of forgetting them. The hash is enough to refuse a re-import, which is what
+/// it is for.
+model SmsTombstone {
+  id         String @id @default(uuid())
+  partnerId  String
+  mobileHash String
+  reason     String?
+  createdBy  String?
+  createdAt  DateTime @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, mobileHash])
+  @@map("sms_tombstones")
 }
 
 /// One message in a two-way conversation with a contact.

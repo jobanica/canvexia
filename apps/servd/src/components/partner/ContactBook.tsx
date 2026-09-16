@@ -9,6 +9,7 @@ import {
   optOutContactAction,
   type ContactState,
 } from "@/server/partners/sms-contacts-actions";
+import { forgetContactAction, type SmsSettingsState } from "@/server/partners/sms-settings-actions";
 import type { ContactRow } from "@/server/partners/sms-contacts";
 
 /**
@@ -26,6 +27,7 @@ export function ContactBook({
   status,
   senderName,
   senderIsOwn,
+  isAdmin,
 }: {
   contacts: ContactRow[];
   counts: { opted_in: number; opted_out: number; unknown: number };
@@ -33,6 +35,8 @@ export function ContactBook({
   status: ConsentStatus | "all";
   senderName: string;
   senderIsOwn: boolean;
+  /** Deleting somebody is admin-only and cannot be undone. */
+  isAdmin: boolean;
 }) {
   const [addState, add, adding] = useActionState<ContactState, FormData>(addContactAction, null);
   const [importState, runImport, importing] = useActionState<ContactState, FormData>(
@@ -40,6 +44,10 @@ export function ContactBook({
     null,
   );
   const [outState, optOut] = useActionState<ContactState, FormData>(optOutContactAction, null);
+  const [forgetState, forget] = useActionState<SmsSettingsState, FormData>(
+    forgetContactAction,
+    null,
+  );
   const field =
     "min-h-[44px] w-full rounded-lg border border-brand-ink/15 bg-white px-3 text-sm outline-none focus:border-brand-ink";
 
@@ -78,6 +86,26 @@ export function ContactBook({
           ? "."
           : " — your own sender name isn't approved by the network yet, so CANVEXIA's is used."}
       </p>
+
+      <div className="flex flex-wrap items-center gap-3 text-xs">
+        {/* The export carries the consent columns, including the evidence — a
+            list of numbers with no record of what each person agreed to is the
+            file that gets imported somewhere else and texted without consent. */}
+        <Link
+          href="/api/partner/sms-contacts.csv"
+          className="rounded-full border border-brand-ink/15 bg-white px-3.5 py-1.5 font-semibold text-brand-ink/65 hover:bg-brand-surface"
+        >
+          Export with consent records
+        </Link>
+        {isAdmin && (
+          <Link
+            href="/partner/sms/settings"
+            className="rounded-full border border-brand-ink/15 bg-white px-3.5 py-1.5 font-semibold text-brand-ink/65 hover:bg-brand-surface"
+          >
+            SMS settings →
+          </Link>
+        )}
+      </div>
 
       <form method="get" className="flex gap-2">
         <input
@@ -144,6 +172,41 @@ export function ContactBook({
                         </button>
                       </form>
                     )}
+                    {isAdmin && (
+                      /*
+                        "Forget me" — a deletion request, which is different
+                        from an opt-out and is NOT undoable. Behind a <details>
+                        so it cannot be clicked by accident, and the number has
+                        to be typed: a confirmation you can click through is not
+                        a confirmation.
+                      */
+                      <details className="mt-1 text-left">
+                        <summary className="cursor-pointer list-none text-right text-xs text-brand-ink/40 hover:text-guava">
+                          Delete
+                        </summary>
+                        <form action={forget} className="mt-2 space-y-2 rounded-lg border border-guava/25 bg-guava/[0.03] p-2">
+                          <input type="hidden" name="contactId" value={c.id} />
+                          <p className="text-xs leading-relaxed text-brand-ink/60">
+                            Deletes everything we hold about them and blocks the number from
+                            being imported again. This cannot be undone. Type{" "}
+                            <strong className="font-semibold">{c.mobile}</strong> to confirm.
+                          </p>
+                          <input
+                            name="confirmMobile"
+                            placeholder={c.mobile}
+                            className="min-h-[36px] w-full rounded border border-brand-ink/15 px-2 text-xs"
+                          />
+                          <input
+                            name="reason"
+                            placeholder="Reason (optional)"
+                            className="min-h-[36px] w-full rounded border border-brand-ink/15 px-2 text-xs"
+                          />
+                          <button className="text-xs font-semibold text-guava hover:underline">
+                            Delete permanently
+                          </button>
+                        </form>
+                      </details>
+                    )}
                   </td>
                 </tr>
               );
@@ -165,6 +228,12 @@ export function ContactBook({
           {outState.error}
         </p>
       )}
+      {forgetState?.error && (
+        <p role="alert" className="text-sm text-guava">
+          {forgetState.error}
+        </p>
+      )}
+      {forgetState?.ok && <p className="text-sm text-brand-ink/70">{forgetState.message}</p>}
 
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
         <form action={add} className="rounded-tile border border-brand-ink/10 bg-white p-5">

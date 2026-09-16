@@ -14,6 +14,7 @@ import { getSmsProvider } from "@/server/sms";
 import { partnerSender } from "./sms-send";
 import { debit, refund, claimLowBalanceNotice, getWallet } from "./sms-wallet";
 import { resolveAudience, type AudienceFilters } from "./sms-audience";
+import { recordSmsUsage } from "./sms-usage";
 import { managerSeats, queueNotification } from "./notify";
 
 /**
@@ -422,6 +423,10 @@ async function drainOne(
 
     if (result.ok) {
       tally.sent += 1;
+      // The pass-through rollup HQ's statement reads. Only successful sends:
+      // the aggregator does not bill us for a message it refused, and a refund
+      // has already given the partner their credit back.
+      await recordSmsUsage(partnerId, segments, now);
     } else {
       tally.failed += 1;
       // The brief's rule: a message the network refused is refunded. A partner
