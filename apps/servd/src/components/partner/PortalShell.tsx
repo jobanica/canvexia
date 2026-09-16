@@ -7,6 +7,7 @@ import {
   IconBell,
   IconFunnel,
   IconGear,
+  IconChat,
   IconClock,
   IconGlobe,
   IconMapPin,
@@ -110,6 +111,18 @@ export function PortalShell({
       label: "Attendance",
       icon: <IconClock />,
       need: "attendance.view_all",
+    });
+  }
+
+  // SMS sits above the team block: it is day-to-day work for whoever holds
+  // `sms.send`, not an administrative setting. Hidden entirely without the
+  // permission, like everything else here.
+  if (partner.permissions.has("sms.send")) {
+    items.push({
+      href: "/partner/sms/contacts",
+      label: "SMS",
+      icon: <IconChat />,
+      need: "sms.send",
     });
   }
 

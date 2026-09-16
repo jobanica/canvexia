@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { submitLeadAction, type LeadState } from "@/server/partners/prospect-actions";
+import { leadConsentWording } from "@/lib/partners/prospect-input";
 
 const initial: LeadState = { status: "idle" };
 
@@ -109,6 +110,26 @@ export function LeadForm({
           />
         </label>
       </div>
+
+      {/*
+        UNCHECKED BY DEFAULT, and not bundled with the submit button or with
+        any terms text. Consent that comes along with something else is not
+        consent, and a pre-ticked box is the thing regulators actually name.
+        The sentence here is the one stored as evidence — see
+        `leadConsentWording`, which is why it lives in the schema file rather
+        than being typed twice.
+      */}
+      <label className="mt-5 flex items-start gap-3 rounded-lg border border-brand-ink/10 bg-brand-surface/60 p-3">
+        <input
+          type="checkbox"
+          name="smsConsent"
+          value="on"
+          className="mt-0.5 h-5 w-5 shrink-0 rounded border-brand-ink/25"
+        />
+        <span className="text-sm leading-relaxed text-brand-ink/70">
+          {leadConsentWording(partnerName)}
+        </span>
+      </label>
 
       {state.status === "error" && (
         <p role="alert" className="mt-4 rounded-lg bg-guava/10 px-3 py-2 text-sm text-guava">

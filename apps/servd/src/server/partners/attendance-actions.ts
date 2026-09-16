@@ -9,6 +9,7 @@ import { checkVisit, distanceMeters, isUsable, type Point } from "@/lib/partners
 import { manilaDayKey, subjectLocation } from "@/server/partners/attendance";
 import { managerSeats, queueNotification } from "@/server/partners/notify";
 import { kioskRequired, SCAN_MESSAGE, verifyScan } from "@/server/partners/kiosk";
+import { captureConsent } from "@/server/partners/sms-contacts";
 
 export type FieldState = { ok?: boolean; error?: string; queued?: boolean } | null;
 
@@ -363,6 +364,32 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
     // view, and telling it otherwise would make the queue retry forever.
     revalidatePath("/partner/attendance");
     return { ok: true };
+  }
+
+  /**
+   * The consent answer, recorded as a contact.
+   *
+   * AFTER the visit is written and never in its transaction: a consent capture
+   * that failed must not lose the visit, which is the record of somebody's
+   * work. `smsConsent` is a required field on the form — "no" is a real answer
+   * and is written down as an opt-out, which is what stops the same person
+   * being asked every fortnight and stops anybody texting them meanwhile.
+   */
+  const smsConsent = String(formData.get("smsConsent") ?? "");
+  if (smsConsent === "yes" || smsConsent === "no") {
+    await captureConsent({
+      partnerId: who.partnerId,
+      mobile: String(formData.get("smsMobile") ?? ""),
+      consented: smsConsent === "yes",
+      source: "visit",
+      origin: "visit",
+      businessName: name,
+      prospectId: subjectType === "prospect" ? subjectId : null,
+      productId: subjectType === "merchant" ? productId : null,
+      merchantId: subjectType === "merchant" ? subjectId : null,
+      staffName: who.partner.user.name ?? who.email,
+      staffEmail: who.email,
+    });
   }
 
   // Best effort and AFTER the write. A manager's notice is not worth failing a

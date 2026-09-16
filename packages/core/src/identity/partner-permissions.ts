@@ -82,7 +82,22 @@ const BRIDGE_KEYS = [
   "settings.write",
 ] as const;
 
-export const PARTNER_PERMISSIONS = [...BRIEF_KEYS, ...BRIDGE_KEYS] as const;
+/**
+ * A8's two, named by the SMS brief itself.
+ *
+ * `sms.send` is the campaign key: one message reaches every opted-in contact a
+ * partner has, costs real money per segment, and is the action a mistake cannot
+ * be taken back from. `sms.reply_own` is the 1:1 key — answering somebody who
+ * texted back, which is support work and is limited to contacts assigned to
+ * that seat.
+ *
+ * They are separate because the brief separates them, and it is right to: a
+ * salesperson answering their own contact is not the same act as broadcasting
+ * to the whole book.
+ */
+const SMS_KEYS = ["sms.send", "sms.reply_own"] as const;
+
+export const PARTNER_PERMISSIONS = [...BRIEF_KEYS, ...BRIDGE_KEYS, ...SMS_KEYS] as const;
 
 export type PartnerPermission = (typeof PARTNER_PERMISSIONS)[number];
 
@@ -90,7 +105,13 @@ export function isPartnerPermission(value: string): value is PartnerPermission {
   return (PARTNER_PERMISSIONS as readonly string[]).includes(value);
 }
 
-/** Grouped for the toggle grid, so 29 rows read as six sections. */
+/**
+ * Grouped for the toggle grid, so 31 rows read as seven sections.
+ *
+ * A KEY IN NO GROUP RENDERS NOWHERE, which means it can only ever hold its
+ * default — invisible and un-editable. A7's own test asserts every key is in
+ * exactly one group for that reason.
+ */
 export const PERMISSION_GROUPS: { label: string; keys: PartnerPermission[] }[] = [
   { label: "Overview", keys: ["overview.view", "overview.revenue_amounts"] },
   {
@@ -114,6 +135,7 @@ export const PERMISSION_GROUPS: { label: string; keys: PartnerPermission[] }[] =
     keys: ["revenue.view", "pricing.edit", "brand.edit", "domains.write", "settings.payout", "settings.write"],
   },
   { label: "Team", keys: ["team.manage", "team.permissions"] },
+  { label: "SMS", keys: ["sms.send", "sms.reply_own"] },
   {
     label: "People and field work",
     keys: [
@@ -159,6 +181,8 @@ export const PERMISSION_LABELS: Record<PartnerPermission, string> = {
   "commissions.view_own": "See their own commission",
   "commissions.manage": "Set commission rules and mark paid",
   "support.tickets": "Work support tickets",
+  "sms.send": "Send SMS campaigns",
+  "sms.reply_own": "Reply to their own contacts by SMS",
 };
 
 /**
@@ -210,6 +234,11 @@ const DEFAULTS: Record<PartnerUserRole, readonly PartnerPermission[]> = {
     "attendance.view_all",
     "commissions.view_own",
     "support.tickets",
+    // NOT `sms.send`. The brief says an ops manager "can send campaigns if
+    // granted" it — granted, not held by default. One campaign reaches every
+    // contact the partner has and spends their credits, so the partner decides
+    // who may do that rather than the role deciding for them.
+    "sms.reply_own",
   ],
 
   // Works the pipeline and opens accounts, sees only what is assigned to them.
@@ -223,6 +252,9 @@ const DEFAULTS: Record<PartnerUserRole, readonly PartnerPermission[]> = {
     "hr.view_own",
     "attendance.checkin",
     "commissions.view_own",
+    // "sales/support get sms.reply_own by default" — answering somebody who
+    // texted you back is the job, not a privilege.
+    "sms.reply_own",
   ],
 
   // Answers for merchants that already exist. Can get inside one; cannot
@@ -237,6 +269,7 @@ const DEFAULTS: Record<PartnerUserRole, readonly PartnerPermission[]> = {
     "attendance.checkin",
     "commissions.view_own",
     "support.tickets",
+    "sms.reply_own",
   ],
 };
 

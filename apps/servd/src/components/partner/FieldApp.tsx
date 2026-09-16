@@ -324,6 +324,17 @@ function VisitForm({
   const [subjectKey, setSubjectKey] = useState("");
   const [outcome, setOutcome] = useState("met_owner");
   const [notes, setNotes] = useState("");
+  /**
+   * The consent question. REQUIRED, with no default.
+   *
+   * `null` is not "no" — it is "the salesperson has not answered yet", and the
+   * button stays disabled until they do. The brief calls this a mandatory
+   * capture point rather than optional UI, and a default of either value would
+   * make it a box people tap past: defaulting to yes records consent nobody
+   * gave, defaulting to no throws away consent people did give.
+   */
+  const [consent, setConsent] = useState<boolean | null>(null);
+  const [mobile, setMobile] = useState("");
 
   const field =
     "min-h-[48px] w-full rounded-lg border border-brand-ink/15 bg-white px-3 text-sm";
@@ -370,8 +381,51 @@ function VisitForm({
           className="w-full rounded-lg border border-brand-ink/15 px-3 py-2 text-sm"
         />
 
+        {/* --- The consent question ------------------------------------
+            Asked at the visit, while the person is standing there, because
+            that is the only moment anybody can actually ask them. The answer
+            and who logged it become the evidence on the contact. */}
+        <div className="rounded-lg border border-brand-ink/10 bg-brand-surface/60 p-3">
+          <p className="text-sm font-semibold">May we text them about our services?</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setConsent(true)}
+              className={`min-h-[44px] rounded-lg border px-3 text-sm font-semibold ${
+                consent === true
+                  ? "border-brand-primary bg-brand-primary/10 text-brand-primary"
+                  : "border-brand-ink/15 text-brand-ink/60"
+              }`}
+            >
+              Yes, they agreed
+            </button>
+            <button
+              onClick={() => setConsent(false)}
+              className={`min-h-[44px] rounded-lg border px-3 text-sm font-semibold ${
+                consent === false
+                  ? "border-guava bg-guava/10 text-guava"
+                  : "border-brand-ink/15 text-brand-ink/60"
+              }`}
+            >
+              No
+            </button>
+          </div>
+          {consent === true && (
+            <input
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+              inputMode="tel"
+              placeholder="Their mobile — 0917 123 4567"
+              className={`${field} mt-2`}
+            />
+          )}
+          <p className="mt-2 text-[0.68rem] leading-relaxed text-brand-ink/45">
+            Your name and the time are recorded as the evidence for this. Only say yes if
+            they actually said yes.
+          </p>
+        </div>
+
         <button
-          disabled={!subjectKey || busy}
+          disabled={!subjectKey || busy || consent === null || (consent === true && !mobile.trim())}
           onClick={async () => {
             const [type, productId, id] = subjectKey.split(":");
             await onSubmit({
@@ -380,10 +434,14 @@ function VisitForm({
               subjectId: id,
               outcome,
               notes,
+              smsConsent: consent === true ? "yes" : "no",
+              smsMobile: consent === true ? mobile.trim() : "",
             });
             setSubjectKey("");
             setNotes("");
             setOutcome("met_owner");
+            setConsent(null);
+            setMobile("");
           }}
           className="min-h-[48px] w-full rounded-full px-5 text-sm font-semibold btn-brand text-white disabled:opacity-40"
         >

@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { getSmsProvider } from "@/server/sms";
 import { classifyReply, normalizeMobile } from "@servd/core";
+import { markOptOutConfirmed, optOutEverywhere } from "@/server/partners/sms-contacts";
+import { sendOptOutConfirmation } from "@/server/partners/sms-send";
 
 /**
  * Inbound SMS webhook for double-opt-in confirmation (YES) and opt-out (STOP).
@@ -14,6 +16,12 @@ import { classifyReply, normalizeMobile } from "@servd/core";
  * Inbound mapping to a specific restaurant depends on the provider/sender setup;
  * here we match by phone across the platform, which is correct for the YES/STOP
  * semantics (confirm the pending intent, or opt out everywhere).
+ *
+ * AS OF A8.1 THERE ARE TWO CONTACT BOOKS — a restaurant's diners and a
+ * partner's business owners — and a STOP applies to BOTH. The person texting
+ * has no idea the platform has two tables, and "I told you to stop" is not a
+ * sentence anybody should have to say twice. `tests/sms/stop-is-platform-wide`
+ * is the assertion that keeps this true.
  */
 export async function POST(req: NextRequest) {
   const provider = getSmsProvider();
@@ -42,6 +50,20 @@ export async function POST(req: NextRequest) {
         data: { marketingConsent: "opted_out", optOutAt: now },
       }),
     );
+
+    // The partner side, and the ONE confirmation the brief allows. Rows that
+    // already had a confirmation sent get none: somebody who texts STOP three
+    // times must not receive three texts back, which would be the one thing
+    // more annoying than the message they were trying to stop.
+    const affected = await optOutEverywhere(phone, now);
+    const unconfirmed = affected.filter((a) => !a.confirmed);
+    if (unconfirmed.length > 0) {
+      await sendOptOutConfirmation(unconfirmed[0].partnerId, phone);
+      await markOptOutConfirmed(
+        unconfirmed.map((a) => a.id),
+        now,
+      );
+    }
   } else if (intent === "confirm") {
     await systemDb((tx) =>
       tx.customerContact.updateMany({

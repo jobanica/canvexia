@@ -538,7 +538,11 @@ do $$
 declare t text;
 begin
   foreach t in array array['partner_users', 'partner_invites', 'prospects',
-                           'notification_prefs', 'partner_plan_prices']
+                           'notification_prefs', 'partner_plan_prices',
+                           -- A8.1. Partner-scoped like the rest: every seat in
+                           -- the partner may READ the contact book; who may
+                           -- send to it is `sms.send`, decided in the app.
+                           'sms_contacts']
   loop
     if to_regclass(format('public.%I', t)) is null then
       continue;  -- table not migrated yet; db:rls must not fail on a fresh clone

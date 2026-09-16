@@ -103,10 +103,14 @@ export async function submitLeadAction(
     address: formData.get("address") ?? "",
     productId: formData.get("productId") ?? "",
     message: formData.get("message") ?? "",
+    // Absent when the box is unticked — that is how HTML posts a checkbox, and
+    // the schema's default is false, so a missing field can never read as
+    // consent.
+    smsConsent: formData.get("smsConsent") ?? false,
   });
   if (!parsed.success) return { status: "error", message: firstMessage(parsed.error) };
 
-  const result = await submitLead(partner.id, parsed.data);
+  const result = await submitLead(partner.id, parsed.data, partner.name);
   if (!result.ok) return { status: "error", message: result.message ?? "Please try again." };
 
   revalidatePath("/partner/pipeline");

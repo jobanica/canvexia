@@ -98,6 +98,48 @@ export function NewMerchant({ products }: { products: ProductChoice[] }) {
           </label>
         </div>
 
+        {/*
+          Capture point three: the owner's SMS consent, on the one screen where
+          somebody is already sitting with them.
+
+          SKIPPABLE, AND SKIPPING MEANS "not asked". Both fields empty writes
+          no consent record at all — an operator setting an account up at a
+          counter often has not asked, and inventing an answer either way would
+          be a lie in the one column that has to be defensible later.
+        */}
+        <div className="mt-3 rounded-lg border border-brand-ink/10 bg-brand-surface/60 p-3">
+          <p className="text-xs font-semibold text-brand-ink/70">
+            Owner&rsquo;s mobile <span className="font-normal text-brand-ink/45">(optional)</span>
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <input
+              name="ownerName"
+              maxLength={120}
+              placeholder="Owner's name"
+              className="w-full rounded-lg border border-brand-ink/15 px-2 py-1.5 text-sm"
+            />
+            <input
+              name="ownerMobile"
+              inputMode="tel"
+              maxLength={40}
+              placeholder="0917 123 4567"
+              className="w-full rounded-lg border border-brand-ink/15 px-2 py-1.5 text-sm"
+            />
+          </div>
+          <label className="mt-2 flex items-start gap-2">
+            <input
+              type="checkbox"
+              name="ownerSmsConsent"
+              value="on"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-brand-ink/25"
+            />
+            <span className="text-xs leading-relaxed text-brand-ink/60">
+              They agreed we can text them about our services. Leave this alone if you
+              haven&rsquo;t asked — we&rsquo;ll record that nobody has.
+            </span>
+          </label>
+        </div>
+
         <button
           type="submit"
           disabled={pending}

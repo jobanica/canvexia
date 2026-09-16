@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { PRODUCTS, isProductId } from "@servd/core";
 import { requireWritablePartner } from "@/server/partners/auth";
 import { provisionMerchantForPartner } from "@/server/products";
+import { captureConsent } from "@/server/partners/sms-contacts";
 
 export type ProvisionState =
   | { status: "idle" }
@@ -57,6 +58,36 @@ export async function provisionMerchantAction(
   });
 
   if (!outcome.ok) return { status: "error", message: outcome.message };
+
+  /**
+   * The owner's SMS consent, asked on this one screen.
+   *
+   * SKIPPABLE, AND SKIPPING MEANS `unknown` — the brief's word. The box is
+   * unticked, the field is empty, and neither produces a consent record: an
+   * operator setting up an account at a counter often has not asked, and
+   * inventing an answer either way would be a lie in the one column that has
+   * to be defensible.
+   *
+   * After provisioning and never inside it: a consent capture that failed must
+   * not cost somebody their merchant account.
+   */
+  const ownerMobile = String(formData.get("ownerMobile") ?? "").trim();
+  const ownerConsent = String(formData.get("ownerSmsConsent") ?? "") === "on";
+  if (ownerMobile && ownerConsent) {
+    await captureConsent({
+      partnerId: partner.id,
+      mobile: ownerMobile,
+      consented: true,
+      source: "merchant_owner",
+      origin: "merchant_owner",
+      name: String(formData.get("ownerName") ?? "").trim() || null,
+      businessName: name,
+      productId,
+      merchantId: outcome.result.merchantId,
+      staffName: partner.user.name ?? partner.email,
+      staffEmail: partner.email,
+    });
+  }
 
   revalidatePath("/partner");
   return {

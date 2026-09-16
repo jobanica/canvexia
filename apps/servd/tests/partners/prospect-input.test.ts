@@ -125,8 +125,37 @@ describe("LeadInput — the public form", () => {
     if (!r.success) return;
     const keys = Object.keys(r.data).sort();
     expect(keys).toEqual(
-      ["address", "businessName", "message", "mobile", "ownerName", "productId"].sort(),
+      [
+        "address",
+        "businessName",
+        "message",
+        "mobile",
+        "ownerName",
+        "productId",
+        // A8.1's consent box. A field the PUBLIC may set about themselves, which
+        // is why it belongs here and `stage` never will.
+        "smsConsent",
+      ].sort(),
     );
+  });
+
+  it("treats an absent consent box as unticked", () => {
+    // This is how HTML posts an unticked checkbox: the field simply is not
+    // there. A schema that left it undefined — or worse, truthy — would turn
+    // silence into consent.
+    const r = LeadInput.safeParse(leadForm);
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.data.smsConsent).toBe(false);
+    expect(LeadInput.safeParse({ ...leadForm, smsConsent: "on" })).toMatchObject({
+      success: true,
+      data: { smsConsent: true },
+    });
+    // Nothing else counts as a tick.
+    for (const junk of ["yes", "1", "off", 1]) {
+      const parsed = LeadInput.safeParse({ ...leadForm, smsConsent: junk });
+      if (parsed.success) expect(parsed.data.smsConsent, String(junk)).toBe(false);
+    }
   });
 
   it("caps the public message far shorter than a partner's notes", () => {

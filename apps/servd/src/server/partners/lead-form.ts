@@ -3,8 +3,9 @@ import { createHash } from "node:crypto";
 import { headers } from "next/headers";
 import { hitRateLimitIn, RATE_WINDOW_MS } from "@servd/db";
 import { systemDb } from "@/server/tenancy/scoped-db";
-import type { LeadInputValues } from "@/lib/partners/prospect-input";
+import { leadConsentWording, type LeadInputValues } from "@/lib/partners/prospect-input";
 import { writePartnerAudit } from "@/server/audit/log";
+import { captureConsent } from "@/server/partners/sms-contacts";
 
 /**
  * The public lead form's write.
@@ -40,6 +41,8 @@ async function clientKey(): Promise<string> {
 export async function submitLead(
   partnerId: string,
   input: LeadInputValues,
+  /** For the consent evidence: the brand whose form they filled in. */
+  partnerName = "this operator",
 ): Promise<{ ok: boolean; message?: string }> {
   try {
     const key = await clientKey();
@@ -90,10 +93,34 @@ export async function submitLead(
         after: { businessName: row.businessName, source: "lead_form", assignedToId },
       });
     });
-    return { ok: true };
   } catch {
     return { ok: false, message: "Something went wrong on our side. Please try again." };
   }
+
+  /**
+   * The consent box, recorded AFTER the lead is safely in.
+   *
+   * An UNTICKED box writes nothing at all — not an opt-out. The person did not
+   * refuse; they were asked for their number so somebody could ring them back,
+   * and saying nothing about texts is not the same as saying no. Writing an
+   * opt-out here would also silently overwrite a yes they gave at a visit last
+   * month, which is the sort of thing nobody would ever find.
+   */
+  if (input.smsConsent) {
+    await captureConsent({
+      partnerId,
+      mobile: input.mobile,
+      consented: true,
+      source: "lead_form",
+      origin: "lead_form",
+      name: input.ownerName,
+      businessName: input.businessName,
+      // The sentence they were actually shown, stored verbatim.
+      detail: leadConsentWording(partnerName),
+    });
+  }
+
+  return { ok: true };
 }
 
 /**

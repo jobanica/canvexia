@@ -148,7 +148,30 @@ export const LeadInput = z.object({
   productId: ProductId,
   /** One short line, not the partner form's 2000-character notes field. */
   message: Optional(500),
+  /**
+   * The SMS consent box. UNCHECKED BY DEFAULT and separate from submitting.
+   *
+   * A checkbox that arrives absent is an unticked box — that is how HTML posts
+   * one — so the default is false and there is no way for a missing field to
+   * read as consent. It is deliberately NOT bundled with the submit button or
+   * with any terms text: consent bundled with something else is not consent.
+   */
+  smsConsent: z
+    .union([z.literal("on"), z.literal("true"), z.boolean()])
+    .optional()
+    .transform((v) => v === true || v === "on" || v === "true"),
 });
+
+/**
+ * The exact wording shown beside that box, stored as the evidence.
+ *
+ * In this file rather than in the component because it is DATA: what somebody
+ * agreed to is the sentence they were shown, and re-deriving it later from
+ * whatever the component says today would rewrite history.
+ */
+export function leadConsentWording(partnerName: string): string {
+  return `Yes, ${partnerName} may text me about their services. A few messages a month at most, and I can reply STOP any time.`;
+}
 
 export type LeadInputValues = z.infer<typeof LeadInput>;
 

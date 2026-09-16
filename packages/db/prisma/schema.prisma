@@ -1369,6 +1369,19 @@ model Partner {
   attendanceKiosks AttendanceKiosk[]
   smsCampaigns     SmsCampaign[]
   smsCreditLedger  SmsCreditLedger[]
+  smsContacts      SmsContact[]
+
+  // --- A8: sending identity -------------------------------------------------
+  // `restaurants.smsSenderName` exists and is the wrong table for this: a
+  // merchant's sender, with no status. Registration with the aggregator is
+  // manual, so this carries one and sends fall back to CANVEXIA's default
+  // sender until HQ marks it approved.
+  /// none | pending | approved | rejected
+  smsSenderName   String?
+  smsSenderStatus String  @default("none")
+  /// Configurable, NOT removable. Per partner so an operator can write it in
+  /// the language their contacts read.
+  smsOptOutText   String?
 }
 
 // ----------------------------------------------------------------------------
@@ -2758,6 +2771,56 @@ model CustomerContact {
   @@unique([restaurantId, phone])
   @@index([restaurantId])
   @@map("customer_contacts")
+}
+
+/// A business owner a partner met while prospecting, and what they agreed to.
+///
+/// SEPARATE FROM `CustomerContact`, which is a restaurant's diners. Different
+/// axis, different consent trail, different person collecting it.
+///
+/// CONSENT IS FOUR FIELDS, NOT A BOOLEAN: the status, when it changed, where it
+/// came from, and the EVIDENCE — the sentence somebody could be shown if they
+/// complain. A `true` proves nothing and cannot be defended.
+model SmsContact {
+  id           String  @id @default(uuid())
+  partnerId    String
+  /// E.164, normalised by core's `normalizeMobile` on the way in.
+  mobile       String
+  name         String?
+  businessName String?
+  /// visit | lead_form | merchant_owner | import | manual
+  source       String  @default("manual")
+
+  prospectId String?
+  /// A merchant id is unique only WITHIN a product (D29), so the product is
+  /// stored beside it.
+  productId  String?
+  merchantId String?
+
+  tags String[] @default([])
+
+  /// opted_in | opted_out | unknown. `unknown` is not a soft yes: only
+  /// `opted_in` may be sent to, and nothing moves back to it without a NEW
+  /// consent event.
+  consentStatus     String    @default("unknown")
+  consentAt         DateTime?
+  consentSource     String?
+  consentEvidence   String?
+  optedOutAt        DateTime?
+  /// Set when the single opt-out confirmation has gone out, so it goes once.
+  optOutConfirmedAt DateTime?
+
+  lastSentAt DateTime?
+  createdBy  String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, mobile])
+  @@index([partnerId, consentStatus])
+  @@index([mobile])
+  @@map("sms_contacts")
 }
 
 /// EXACTLY ONE AXIS: a campaign belongs to a restaurant OR to a partner

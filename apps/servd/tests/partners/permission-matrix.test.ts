@@ -24,9 +24,9 @@ import {
  */
 
 describe("the key set", () => {
-  it("carries the brief's 25 keys plus the four a shipped screen needs", () => {
-    expect(PARTNER_PERMISSIONS).toHaveLength(29);
-    // The four that are NOT in the brief's table. They exist because mapping
+  it("carries the brief's 25 keys, the four a shipped screen needs, and A8's two", () => {
+    expect(PARTNER_PERMISSIONS).toHaveLength(31);
+    // The four that are NOT in the A7 brief's table. They exist because mapping
     // the old 14 capabilities onto the brief's 25 leaves these with nowhere to
     // go, and dropping them would remove working features.
     for (const bridge of [
@@ -37,6 +37,22 @@ describe("the key set", () => {
     ] as const) {
       expect(isPartnerPermission(bridge), bridge).toBe(true);
     }
+    // A8's two, named by the SMS brief itself.
+    for (const sms of ["sms.send", "sms.reply_own"] as const) {
+      expect(isPartnerPermission(sms), sms).toBe(true);
+    }
+  });
+
+  it("gives an ops manager the reply key but NOT the campaign key", () => {
+    // "ops_manager can send campaigns if granted a new permission sms.send" —
+    // granted, not held. One campaign reaches every contact the partner has and
+    // spends their credits.
+    expect(permissionDefault("ops_manager", "sms.send")).toBe(false);
+    expect(permissionDefault("ops_manager", "sms.reply_own")).toBe(true);
+    expect(permissionDefault("sales", "sms.send")).toBe(false);
+    expect(permissionDefault("sales", "sms.reply_own")).toBe(true);
+    expect(permissionDefault("support", "sms.reply_own")).toBe(true);
+    expect(permissionDefault("admin", "sms.send")).toBe(true);
   });
 
   it("labels and groups every key exactly once", () => {

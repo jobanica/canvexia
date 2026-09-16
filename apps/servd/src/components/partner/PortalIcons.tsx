@@ -118,3 +118,10 @@ export const IconClock = (p: P) => (
     <path d="M12 7v5.2l3.2 2" />
   </Svg>
 );
+
+/** A speech bubble, for SMS. */
+export const IconChat = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 5.5h16v10H9l-5 4v-4H4z" />
+  </Svg>
+);

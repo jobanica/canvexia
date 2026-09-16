@@ -51,7 +51,13 @@ continuously, Part 3 first. The six open questions resolved as follows:
       - `partnerId` + nullable `restaurantId` + a one-axis CHECK on campaigns
         and the ledger; `sms_messages` keeps no axis of its own
       - gate: `verify-sms-two-axes.sql` (and the kiosk gate re-run, see below)
-- [ ] A8.1 contacts + consent + opt-out
+- [x] A8.1 contacts + consent + opt-out
+      - `sms_contacts` (consent = status + when + source + EVIDENCE)
+      - four capture points: visit (required question), lead form (unticked
+        box), merchant onboarding (skippable = unknown), CSV (attested)
+      - `tigil`/`alis`/`opt out`/`tama na` added to the STOP set
+      - `sms.send` + `sms.reply_own`; the grid is 31 keys in seven groups
+      - 18 new consent tests
 - [ ] A8.2 wallet + Xendit + ledger
 - [ ] A8.3 campaigns
 - [ ] A8.4 inbox + replies
