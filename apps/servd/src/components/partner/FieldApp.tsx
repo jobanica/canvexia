@@ -367,6 +367,27 @@ function VisitForm({
   const field =
     "min-h-[48px] w-full rounded-lg border border-brand-ink/15 bg-white px-3 text-sm";
 
+  /**
+   * WHAT IS STILL MISSING, in the order the form asks for it.
+   *
+   * THE BUG THIS EXISTS FOR: five separate conditions disable the button below,
+   * and the screen used to name none of them. Somebody took the photo the form
+   * had just told them was required, watched the button stay grey, and had no
+   * way on earth to find out that the unanswered consent question was the thing
+   * holding it — the consent block looks like the rest of the form and nothing
+   * marks it as required.
+   *
+   * A disabled button that will not say why is a dead end. It is worse on this
+   * screen than most, because the person hitting it is standing in front of the
+   * shopkeeper they just photographed, and the only way out was to guess.
+   */
+  const missing = [
+    !subjectKey && "who you visited",
+    !photo && "a photo",
+    consent === null && "the answer about texting them",
+    consent === true && !mobile.trim() && "their mobile number",
+  ].filter((m): m is string => typeof m === "string");
+
   return (
     <section className="rounded-tile border border-brand-ink/10 bg-white p-5">
       <p className="text-sm font-semibold">Log a visit</p>
@@ -414,7 +435,9 @@ function VisitForm({
             phone rather than a file picker. It still falls back to the picker
             on a desktop, which is what a manager testing this will use. */}
         <div className="rounded-lg border border-brand-ink/10 bg-brand-surface/60 p-3">
-          <p className="text-sm font-semibold">Photo of the visit</p>
+          <p className="text-sm font-semibold">
+            Photo of the visit <span className="text-guava">*</span>
+          </p>
           <p className="mt-0.5 text-[0.68rem] leading-relaxed text-brand-ink/50">
             The shop and the person you spoke to. Ask them first — this is the record
             that you were there.
@@ -455,8 +478,14 @@ function VisitForm({
                     // in the offline queue.
                     const shrunk = await shrinkPhoto(file);
                     setPhoto(shrunk.dataUrl);
-                  } catch {
-                    setPhotoNote("We couldn't read that photo. Try again.");
+                  } catch (err) {
+                    // The message, not a generic one: "try again" is useless
+                    // advice for a HEIC that will fail the same way every time.
+                    setPhotoNote(
+                      err instanceof Error && err.message
+                        ? err.message
+                        : "We couldn't read that photo. Try again.",
+                    );
                   }
                   // Cleared so picking the SAME file twice still fires onChange.
                   e.target.value = "";
@@ -472,7 +501,11 @@ function VisitForm({
             that is the only moment anybody can actually ask them. The answer
             and who logged it become the evidence on the contact. */}
         <div className="rounded-lg border border-brand-ink/10 bg-brand-surface/60 p-3">
-          <p className="text-sm font-semibold">May we text them about our services?</p>
+          {/* Marked required, because it is — and because looking exactly like
+              the optional Notes box above is how it went unanswered. */}
+          <p className="text-sm font-semibold">
+            May we text them about our services? <span className="text-guava">*</span>
+          </p>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button
               onClick={() => setConsent(true)}
@@ -510,10 +543,18 @@ function VisitForm({
           </p>
         </div>
 
+        {/* Above the button, not below it: on a phone the button is often the
+            last thing on screen, and a reason printed underneath is a reason
+            nobody scrolls to. */}
+        {missing.length > 0 && (
+          <p id="visit-missing" className="text-xs leading-snug text-brand-ink/55">
+            Still needed: <span className="font-semibold text-brand-ink/75">{missing.join(", ")}</span>.
+          </p>
+        )}
+
         <button
-          disabled={
-            !subjectKey || busy || !photo || consent === null || (consent === true && !mobile.trim())
-          }
+          disabled={missing.length > 0 || busy}
+          aria-describedby={missing.length > 0 ? "visit-missing" : undefined}
           onClick={async () => {
             const [type, productId, id] = subjectKey.split(":");
             await onSubmit({
@@ -535,7 +576,7 @@ function VisitForm({
           }}
           className="min-h-[48px] w-full rounded-full px-5 text-sm font-semibold btn-brand text-white disabled:opacity-40"
         >
-          Log the visit
+          {busy ? "Saving\u2026" : "Log the visit"}
         </button>
         <p className="text-[0.68rem] text-brand-ink/40">
           &ldquo;Signed&rdquo; moves them to Signed in the pipeline;

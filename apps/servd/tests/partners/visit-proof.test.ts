@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { codeAt } from "../support/source";
 import { OUTCOME_LABELS, VISIT_OUTCOMES, isVisitOutcome } from "@/lib/partners/outcomes";
 import { QUEUE_PHOTO_LIMIT } from "@/lib/partners/visit-queue";
 
@@ -15,11 +16,21 @@ import { QUEUE_PHOTO_LIMIT } from "@/lib/partners/visit-queue";
  * into a phone.
  */
 
-const SRC = join(__dirname, "../../src");
-const codeOf = (p: string) =>
-  readFileSync(join(SRC, p), "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+/**
+ * Comments stripped, so an assertion about the code cannot be satisfied by a
+ * comment that merely mentions the thing.
+ *
+ * This used to be a local pair of regexes. A slash-star inside a string opened
+ * a comment as far as they were concerned, and FieldApp.tsx has one in the
+ * camera input's MIME filter — so everything from there to the next close
+ * marker, the photo error handler included, was deleted before any assertion
+ * saw it. Those assertions ran against an empty string and could not fail.
+ * See tests/support/source.test.ts.
+ */
+const codeOf = (p: string) => codeAt(join("src", p));
+
+/** Raw source, for the assertions that are about user-visible copy. */
+const SRC = join(process.cwd(), "src");
 
 describe("logging a visit", () => {
   const action = codeOf("server/partners/attendance-actions.ts");
@@ -57,7 +68,12 @@ describe("the field app", () => {
   it("will not submit a visit without a photo", () => {
     // The server refuses it anyway; the button is what stops somebody filling
     // the form in and losing it.
-    expect(app).toContain("!subjectKey || busy || !photo");
+    //
+    // Asserted through the `missing` list rather than an inline boolean,
+    // because the list is now also what the screen PRINTS — see "the submit
+    // button explains itself" below. One source for both is the point.
+    expect(app).toContain('!photo && "a photo"');
+    expect(app).toContain("disabled={missing.length > 0 || busy}");
   });
 
   it("opens the camera rather than a file browser on a phone", () => {
@@ -124,5 +140,93 @@ describe("the outcome labels", () => {
     }
     expect(isVisitOutcome("signed")).toBe(true);
     expect(isVisitOutcome("whatever")).toBe(false);
+  });
+});
+
+
+/**
+ * A9 follow-up: the button that would not say why.
+ *
+ * REPORTED FROM THE FIELD — "i tried to log a visit, but i cannot click the log
+ * the visit, even though i already upload a sample photo."
+ *
+ * Five separate conditions disabled that button and the screen named none of
+ * them. The photo was fine; the unanswered consent question was the blocker,
+ * and the consent block looked exactly like the optional Notes box above it. A
+ * disabled control that refuses to explain itself is a dead end, and this one
+ * was reached by somebody who had done everything the form asked.
+ */
+describe("the submit button explains itself", () => {
+  const form = codeOf("components/partner/FieldApp.tsx");
+
+  it("derives the disabled state from a named list, not an inline boolean", () => {
+    // The list is what gets rendered. Deriving `disabled` from anything else is
+    // how the two drift apart and the message starts lying.
+    expect(form).toContain("const missing = [");
+    expect(form).toContain("disabled={missing.length > 0 || busy}");
+  });
+
+  it("names every one of the four things that can be missing", () => {
+    const start = form.indexOf("const missing = [");
+    // To the end of the array literal, NOT to the next `return (` — the first
+    // one of those in the file belongs to FieldApp, hundreds of lines earlier,
+    // which made this slice empty and every assertion below vacuous.
+    const list = form.slice(start, form.indexOf("];", start));
+    expect(list.length).toBeGreaterThan(0);
+    for (const [cond, phrase] of [
+      ["!subjectKey", "who you visited"],
+      ["!photo", "a photo"],
+      ["consent === null", "the answer about texting them"],
+      ["!mobile.trim()", "their mobile number"],
+    ] as const) {
+      expect(list, cond).toContain(cond);
+      expect(list, phrase).toContain(phrase);
+    }
+  });
+
+  it("shows the reason on screen, above the button", () => {
+    // Below it is where nobody scrolls: on a phone the button is often the last
+    // thing on screen.
+    const note = form.indexOf('id="visit-missing"');
+    expect(note).toBeGreaterThan(-1);
+    expect(note).toBeLessThan(form.indexOf("disabled={missing.length > 0"));
+    expect(form).toContain("Still needed:");
+  });
+
+  it("points a screen reader at that reason", () => {
+    expect(form).toContain('aria-describedby={missing.length > 0 ? "visit-missing" : undefined}');
+  });
+
+  it("marks the two required blocks that look optional", () => {
+    // Notes really is optional and sits right above them, which is most of why
+    // the consent question got skipped.
+    const required = form.split("*</span>").length - 1;
+    expect(required, "photo and consent should both be marked").toBeGreaterThanOrEqual(2);
+  });
+
+  it("says it is saving rather than going quiet mid-submit", () => {
+    expect(form).toContain('busy ? "Saving');
+  });
+});
+
+describe("a photo the browser cannot decode", () => {
+  const photo = codeOf("lib/partners/photo.ts");
+  const form = codeOf("components/partner/FieldApp.tsx");
+
+  it("names HEIC instead of advising a retry that fails identically", () => {
+    // HEIC is the default on every current iPhone. The camera path converts it,
+    // but a manager testing on a laptop from an AirDropped photo hands Chrome a
+    // raw .heic, which it cannot decode at all. "Try again" is a loop.
+    expect(photo).toContain("isUndecodableHeic");
+    expect(photo).toContain("HEIC");
+    expect(photo).toMatch(/\.hei\[cf\]\$|hei\[cf\]/);
+  });
+
+  it("surfaces the real message rather than swallowing it", () => {
+    expect(form).toContain("err instanceof Error && err.message");
+  });
+
+  it("still refuses a file that is not an image at all", () => {
+    expect(photo).toContain('throw new Error("That file isn\'t a photo.")');
   });
 });

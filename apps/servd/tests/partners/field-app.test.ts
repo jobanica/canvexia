@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { lastSevenDays, manilaDayKey, manilaDayRange } from "@/server/partners/attendance";
 import { partnerManifest } from "@/lib/partners/manifest";
+import { codeAt } from "../support/source";
 
 /**
  * A7.4: the Manila day, and the four promises the field app makes.
@@ -61,10 +62,8 @@ describe("the Manila day", () => {
 });
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
-const code = (p: string) =>
-  read(p)
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+/** See tests/support/source.ts — the local regex version silently ate code. */
+const code = (p: string) => codeAt(p);
 
 describe("privacy: location is read on an action, never in the background", () => {
   const app = code("src/components/partner/FieldApp.tsx");

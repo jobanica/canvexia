@@ -34,10 +34,37 @@ export interface ShrunkPhoto {
   bytes: number;
 }
 
-export async function shrinkPhoto(file: File): Promise<ShrunkPhoto> {
-  if (!isImage(file)) throw new Error("That file isn't a photo.");
+/**
+ * True for a format an iPhone writes but a desktop browser cannot decode.
+ *
+ * HEIC is the DEFAULT on every current iPhone. Photos sent to a phone or picked
+ * by the camera are converted on the way out, so the field path is unaffected —
+ * but a manager testing this on a laptop, from a photo they AirDropped or
+ * emailed to themselves, hands the browser a raw .heic. Chrome and Firefox
+ * decode none of it. Naming it is the difference between "try again" (which
+ * fails identically, forever) and knowing to export a JPEG.
+ */
+function isUndecodableHeic(file: File): boolean {
+  return /heic|heif/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
+}
 
-  const bitmap = await loadBitmap(file);
+export async function shrinkPhoto(file: File): Promise<ShrunkPhoto> {
+  if (!isImage(file) && !isUndecodableHeic(file)) {
+    throw new Error("That file isn't a photo.");
+  }
+
+  let bitmap: ImageBitmap | HTMLImageElement;
+  try {
+    bitmap = await loadBitmap(file);
+  } catch (err) {
+    // Safari decodes HEIC and will not land here; Chrome and Firefox will.
+    if (isUndecodableHeic(file)) {
+      throw new Error(
+        "This browser can't open iPhone HEIC photos. Take the photo in the app, or save it as JPEG first.",
+      );
+    }
+    throw err;
+  }
   const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
   const w = Math.max(1, Math.round(bitmap.width * scale));
   const h = Math.max(1, Math.round(bitmap.height * scale));
