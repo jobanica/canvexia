@@ -51,16 +51,34 @@ describe("a field sales seat can open the account it just sold", () => {
     expect(can("sales" as PartnerUserRole, "merchants.create")).toBe(true);
   });
 
-  it("is shown the form on the overview it actually lands on", () => {
-    // THE BUG. This lived only after the fork, on the operator-wide overview a
-    // sales seat never reaches.
-    expect(salesBranch).toContain("<NewMerchant products={products} />");
+  it("is offered a way to it from the overview it actually lands on", () => {
+    // THE BUG: the form lived only after the fork, on the operator-wide
+    // overview a sales seat never reaches, and /partner/merchants sent them
+    // back to /partner — the page without it. Both halves pointed at each
+    // other.
+    expect(salesBranch).toContain('href="/partner/merchants"');
+    expect(salesBranch).toContain("Open a merchant account");
   });
 
-  it("gates that form on the capability, not on the role", () => {
-    // So an operator who takes merchants.create off a seat loses the form with
+  it("gates that on the capability, not on the role", () => {
+    // So an operator who takes merchants.create off a seat loses the link with
     // it, rather than the two disagreeing.
     expect(salesBranch).toContain('partnerCan(partner, "merchants.create")');
+  });
+
+  it("finds the form itself on the merchants page, and only there", () => {
+    // One home. Two copies is two things to keep in step, and the copy on the
+    // overview is what made this reachable by exactly one kind of seat.
+    expect(codeAt("src/app/(platform)/partner/merchants/page.tsx")).toContain("<NewMerchant");
+    expect(overview, "the overview should link, not embed").not.toContain("<NewMerchant");
+  });
+
+  it("opens that form on arrival only when there is no list to read", () => {
+    // A salesperson with no merchants should not hunt for a button; an operator
+    // with two hundred should not scroll a six-field form every visit.
+    expect(codeAt("src/app/(platform)/partner/merchants/page.tsx")).toContain(
+      "defaultOpen={all.length === 0}",
+    );
   });
 
   it("agrees with the server about which capability is needed", () => {
@@ -75,13 +93,20 @@ describe("a field sales seat can open the account it just sold", () => {
 describe("the merchants list stops sending people to a form they cannot see", () => {
   const page = codeAt("src/app/(platform)/partner/merchants/page.tsx");
 
-  it("only offers 'Create your first' to a seat that can", () => {
+  it("only renders the form for a seat that can", () => {
     expect(page).toContain('partnerCan(partner, "merchants.create")');
-    const cta = page.indexOf("Create your first");
-    expect(cta).toBeGreaterThan(-1);
-    expect(page.lastIndexOf("canCreate ?", cta), "the CTA is not behind the check").toBeGreaterThan(
-      -1,
-    );
+    const form = page.indexOf("<NewMerchant");
+    expect(form).toBeGreaterThan(-1);
+    expect(page.lastIndexOf("canCreate &&", form), "the form is not behind the check")
+      .toBeGreaterThan(-1);
+  });
+
+  it("no longer sends anybody to the dashboard to find it", () => {
+    // The old empty state read "Open your first account from the dashboard"
+    // and linked to /partner, which for a sales seat is the page without the
+    // form. The loop is gone: the form is on this page.
+    expect(page).not.toContain("from the dashboard");
+    expect(page).not.toContain("Create your first");
   });
 
   it("says something true to a seat that cannot", () => {

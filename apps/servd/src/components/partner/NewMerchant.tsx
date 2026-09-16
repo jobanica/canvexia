@@ -20,17 +20,63 @@ export interface ProductChoice {
  * The product list is passed in from the registry rather than written here, so
  * a vertical appears in this form by registering an adapter (D36). Nothing in
  * this component knows what any of them are.
+ *
+ * IT LIVES ON /partner/merchants, and only there. It used to sit on the
+ * overview, which meant a salesperson could not reach it at all — their
+ * overview is a different page — and an operator met a six-field form every
+ * time they opened the dashboard to read a number. Merchants is where somebody
+ * goes when merchants are what they are thinking about.
  */
-export function NewMerchant({ products }: { products: ProductChoice[] }) {
+export function NewMerchant({
+  products,
+  /**
+   * Open on arrival when there is nothing else on the page to look at.
+   *
+   * Collapsed otherwise: this is a tall form on a page whose job is the list,
+   * and an operator with two hundred merchants scrolls past it every visit.
+   */
+  defaultOpen = false,
+}: {
+  products: ProductChoice[];
+  defaultOpen?: boolean;
+}) {
   const [state, action, pending] = useActionState(provisionMerchantAction, IDLE);
   const [productId, setProductId] = useState(products[0]?.id ?? "");
+  const [open, setOpen] = useState(defaultOpen);
 
   if (products.length === 0) return null;
   const chosen = products.find((p) => p.id === productId);
 
+  // Stays open once something has been said back, so a success or an error is
+  // not collapsed out of sight by a re-render.
+  const showing = open || state.status !== "idle";
+
+  if (!showing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-4 w-full rounded-tile border border-dashed border-brand-ink/20 bg-white px-5 py-4 text-sm font-semibold text-brand-ink/70 hover:border-brand-ink/35 hover:text-brand-ink"
+      >
+        + Open a merchant account
+      </button>
+    );
+  }
+
   return (
     <div className="mt-4 rounded-tile border border-brand-ink/10 bg-white p-5">
-      <p className="mb-1 text-sm font-semibold">Open a merchant account</p>
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <p className="text-sm font-semibold">Open a merchant account</p>
+        {!defaultOpen && (
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="text-xs font-semibold text-brand-ink/45 hover:text-brand-ink/75"
+          >
+            Close
+          </button>
+        )}
+      </div>
       <p className="mb-3 text-xs text-brand-ink/50">
         The account is created inactive. The merchant signs in, records whatever
         their product requires, and you switch it on — nothing dispenses or

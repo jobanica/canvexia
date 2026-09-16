@@ -12,12 +12,9 @@ import { getPartnerTrainingUrl } from "@/server/partners/portal";
 import { getHqBookingUrl } from "@/server/hq/applications";
 import { listPartnerDemos } from "@/server/partners/demo-queries";
 import { listPartnerPharmacies } from "@/server/partners/pharmacies";
-import { provisionableProducts } from "@/server/products";
-import { PRODUCTS } from "@servd/core";
 import { signOutPartner } from "@/server/partners/login-action";
 import { PartnerDemos } from "@/components/partner/PartnerDemos";
 import { PartnerPharmacies } from "@/components/partner/PartnerPharmacies";
-import { NewMerchant } from "@/components/partner/NewMerchant";
 import { TrainingVideo } from "@/components/partner/TrainingVideo";
 import { CanvexiaLockup } from "@/components/partner/CanvexiaBrand";
 import {
@@ -73,15 +70,6 @@ export default async function PartnerPortalPage() {
    * have a personal overview; it takes the partner-wide one, which is what it
    * has always had.
    */
-  // From the registry, not a list written here: a vertical appears in the form
-  // by registering an adapter (D36). Hoisted above the fork because BOTH
-  // overviews need it now — see the note on the sales branch below.
-  const products = provisionableProducts().map((id) => ({
-    id,
-    name: PRODUCTS[id].name,
-    description: PRODUCTS[id].description,
-  }));
-
   if (partner.user.id && !partnerAllows(partner, "merchants.view_all")) {
     const day = await getMyDay(partner.id, partner.user.id);
     return (
@@ -101,20 +89,30 @@ export default async function PartnerPortalPage() {
         </div>
 
         {/*
-          OPENING THE ACCOUNT, on the overview a salesperson actually lands on.
+          THE WAY TO OPEN AN ACCOUNT, which is a link because the form lives on
+          /partner/merchants now.
 
-          This form lived ONLY on the operator-wide overview below — the one
-          this branch exists to replace — so a sales seat could never reach it.
-          Which made `merchants.create` a permission sales has held since A7 and
-          could not use: they logged the visit, marked it Signed, and then had
-          nowhere to open the account they had just sold. `/partner/merchants`
-          was no escape either; its empty state sent them back to `/partner`,
-          which for them is this page.
+          It used to live on the operator-wide overview and ONLY there, so a
+          sales seat could never reach it — their overview is this branch.
+          `merchants.create` was a capability sales had held since A7 and could
+          not use: log the visit, mark it Signed, and then have nowhere to open
+          the account just sold.
+
+          One home for the form rather than a copy per overview: two copies is
+          two things to keep in step, and this is the page somebody is on when
+          merchants are what they are thinking about.
 
           Gated on the capability rather than the role, so an operator who takes
-          `merchants.create` off a seat loses the form too.
+          `merchants.create` off a seat loses the link with it.
         */}
-        {partnerCan(partner, "merchants.create") && <NewMerchant products={products} />}
+        {partnerCan(partner, "merchants.create") && (
+          <Link
+            href="/partner/merchants"
+            className="mt-4 flex w-full items-center justify-center rounded-tile border border-dashed border-brand-ink/20 bg-white px-5 py-4 text-sm font-semibold text-brand-ink/70 hover:border-brand-ink/35 hover:text-brand-ink"
+          >
+            + Open a merchant account
+          </Link>
+        )}
       </PortalShell>
     );
   }
@@ -264,7 +262,16 @@ export default async function PartnerPortalPage() {
         )}
       </div>
 
-      <NewMerchant products={products} />
+      {/* The form moved to /partner/merchants — one home, reachable by every
+          seat that holds the capability. See the note on the sales branch. */}
+      {partnerCan(partner, "merchants.create") && (
+        <Link
+          href="/partner/merchants"
+          className="mt-4 flex w-full items-center justify-center rounded-tile border border-dashed border-brand-ink/20 bg-white px-5 py-4 text-sm font-semibold text-brand-ink/70 hover:border-brand-ink/35 hover:text-brand-ink"
+        >
+          + Open a merchant account
+        </Link>
+      )}
 
       <PartnerPharmacies pharmacies={pharmacies} />
 
