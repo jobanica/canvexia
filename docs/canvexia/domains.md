@@ -60,23 +60,45 @@ recreated by hand at the new one. Miss the DKIM record and Resend stops signing
 hire says they never got an email. Adding an A record and two CNAMEs to the
 existing zone touches none of it.
 
-### After DNS resolves
+### Done — the domain is live (16 Sep 2026)
 
-Two environment variables still point at `*.vercel.app` and must move, or invite
-links will keep sending people to the old host:
+| Host | Serves |
+|---|---|
+| `https://canvexia.com` | the public site |
+| `https://www.canvexia.com` | 308 → the apex |
+| `https://partner.canvexia.com` | the portal (`/` → `/partner/login`) |
 
-| Project | Variable | New value |
-|---|---|---|
-| `canvexia` | `NEXT_PUBLIC_APP_URL` | `https://partner.canvexia.com` |
-| `canvexia-www` | `NEXT_PUBLIC_PORTAL_URL` | `https://partner.canvexia.com/partner/login` |
+### TWO base URLs, because one deployment serves two products
 
-Both need a redeploy to take effect: `NEXT_PUBLIC_*` is inlined at build time.
+`apps/servd` answers on both the merchant platform and the partner portal. It
+used to have one `NEXT_PUBLIC_APP_URL`, which was fine while everything lived on
+one `*.vercel.app` host and wrong the moment the portal got its own domain:
+pointing that variable at `partner.canvexia.com` fixed invitation links and
+simultaneously moved every restaurant owner's `/claim` and `/login` link onto
+CANVEXIA's partner domain, where they 404 and where they are the wrong brand.
+
+| Variable | Project | Value | Builds |
+|---|---|---|---|
+| `NEXT_PUBLIC_APP_URL` | `canvexia` | the platform host | `/claim`, `/login`, storefront links |
+| `NEXT_PUBLIC_PARTNER_URL` | `canvexia` | `https://partner.canvexia.com` | `/invite`, the partner reset, the kiosk QR |
+| `NEXT_PUBLIC_PORTAL_URL` | `canvexia-www` | `https://partner.canvexia.com/partner/login` | the site's "Partner login" button |
+
+`partnerUrl()` in `lib/urls.ts` falls back to `NEXT_PUBLIC_APP_URL`, so previews
+and any deployment that has not set it behave exactly as before.
+
+`NEXT_PUBLIC_APP_URL` still points at a `*.vercel.app` host because **servdph.net
+is not registered**. When it is, that variable moves and nothing else does.
+
+### The rewrite trap this uncovered
+
+On a partner host the middleware prefixes `/partner` onto every path it does not
+recognise. `PASS_THROUGH` in `src/middleware.ts` is the exemption list, and the
+rule for it is **anything an email links to** — those links are built from an env
+var, they land on a rewriting host, and nothing inside the app ever shows you
+they are broken. `/invite/` and `/reset-password` were found 404ing in
+production; `/unsubscribe/` was found by looking for the rest.
 
 ---
-
-`servdph.com` is a **different business on a different database** and is not part
-of this project. If it is ever pointed here it resolves as an ordinary custom
-domain — looked up as a restaurant, and not found.
 
 ---
 
