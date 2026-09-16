@@ -9,6 +9,7 @@ import {
 } from "@/server/build/activation";
 import type { BillingWebhookEvent } from "@/server/billing/provider";
 import type { SettlementScope } from "@/server/billing/settlement-scope";
+import { creditSmsTopUpByProviderRef } from "@/server/partners/sms-topup";
 
 /**
  * Turn one verified gateway event into whatever it was paying for.
@@ -55,6 +56,11 @@ export async function settlePaidEvent(
   // One-time add-on — grant it and stop, so it never activates or extends a
   // subscription.
   if (await markAddonPaidByProviderRef(event.providerRef, scope)) return;
+
+  // A partner buying SMS credits from CANVEXIA. Refuses any scope but the
+  // platform's, because this is the one payment in the system that flows
+  // TOWARDS us rather than towards an operator.
+  if (await creditSmsTopUpByProviderRef(event.providerRef, scope)) return;
 
   await activateByProviderRef(event.providerRef, scope, {
     paymentMethodId: event.paymentMethodId,

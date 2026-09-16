@@ -151,6 +151,13 @@ model PlatformSetting {
   updatedAt         DateTime @updatedAt
 
   @@map("platform_settings")
+  /// What ONE SMS segment costs us at the aggregator, in centavos.
+  ///
+  /// NULL until somebody enters the real figure, and it stays null: the number
+  /// is not in this repository, and a fabricated cost produces a fabricated
+  /// margin on a document an operator uses to decide whether this business is
+  /// worth running. The statement says "provider cost not configured" instead.
+  smsProviderCostCentavos Int?
 }
 
 /// Feedback / recommendations from restaurant owners ABOUT Servd itself,
@@ -1370,6 +1377,8 @@ model Partner {
   smsCampaigns     SmsCampaign[]
   smsCreditLedger  SmsCreditLedger[]
   smsContacts      SmsContact[]
+  smsWallet        SmsWallet?
+  smsTopUps        SmsTopUp[]
 
   // --- A8: sending identity -------------------------------------------------
   // `restaurants.smsSenderName` exists and is the wrong table for this: a
@@ -2771,6 +2780,52 @@ model CustomerContact {
   @@unique([restaurantId, phone])
   @@index([restaurantId])
   @@map("customer_contacts")
+}
+
+/// Prepaid SMS credits for a partner operator. One credit is one SEGMENT.
+///
+/// The balance lives ON the row rather than being summed from the ledger: a
+/// send has to answer "can I afford this?" in one indexed read, and a sum over
+/// a growing ledger gets slower exactly as a partner sends more. The ledger
+/// stays the audit trail, and verify-sms-wallets.sql proves the two agree.
+model SmsWallet {
+  partnerId      String @id
+  balanceCredits Int    @default(0)
+  /// Set when the low-balance warning has gone out; cleared by a top-up, so it
+  /// arrives once per drain rather than on every send.
+  lowNotifiedAt  DateTime?
+  /// What "10% remaining" is 10% OF. 10% of the balance would be a threshold
+  /// that moves as the balance moves and could never be crossed.
+  lastTopUpCredits Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@map("sms_wallets")
+}
+
+/// One attempted credit purchase. `providerRef` is unique because a webhook
+/// that arrives twice — which they do — must credit the wallet once.
+model SmsTopUp {
+  id             String  @id @default(uuid())
+  partnerId      String
+  credits        Int
+  amountCentavos Int
+  /// pending | paid | failed
+  status         String  @default("pending")
+  providerRef    String?
+  createdBy      String?
+
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerRef])
+  @@index([partnerId])
+  @@map("sms_topups")
 }
 
 /// A business owner a partner met while prospecting, and what they agreed to.

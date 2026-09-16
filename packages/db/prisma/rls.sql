@@ -542,7 +542,12 @@ begin
                            -- A8.1. Partner-scoped like the rest: every seat in
                            -- the partner may READ the contact book; who may
                            -- send to it is `sms.send`, decided in the app.
-                           'sms_contacts']
+                           'sms_contacts',
+                           -- A8.2. The wallet and its purchases. Money, so the
+                           -- partner arm is read-and-write-your-own and the
+                           -- CREDITING is done under systemDb from a webhook —
+                           -- no session is involved in a payment landing.
+                           'sms_wallets', 'sms_topups']
   loop
     if to_regclass(format('public.%I', t)) is null then
       continue;  -- table not migrated yet; db:rls must not fail on a fresh clone

@@ -58,7 +58,14 @@ continuously, Part 3 first. The six open questions resolved as follows:
       - `tigil`/`alis`/`opt out`/`tama na` added to the STOP set
       - `sms.send` + `sms.reply_own`; the grid is 31 keys in seven groups
       - 18 new consent tests
-- [ ] A8.2 wallet + Xendit + ledger
+- [x] A8.2 wallet + Xendit + ledger
+      - `sms_wallets` + `sms_topups`; one credit = one SEGMENT
+      - segment counting in core (GSM-7 vs UCS-2; one emoji quadruples a bill)
+      - packs 500/2,000/10,000 at ₱0.50; admin-only; platform scope only
+      - low balance = 10% of the LAST TOP-UP, floor 50
+      - provider cost stays UNSET and the statement says so
+      - gate: `verify-sms-wallets.sql` (wallet vs ledger, negative refused,
+        one settlement per provider ref, cross-partner reads blocked)
 - [ ] A8.3 campaigns
 - [ ] A8.4 inbox + replies
 - [ ] A8.5 automations + analytics + export/forget
