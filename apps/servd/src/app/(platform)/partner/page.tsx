@@ -73,6 +73,15 @@ export default async function PartnerPortalPage() {
    * have a personal overview; it takes the partner-wide one, which is what it
    * has always had.
    */
+  // From the registry, not a list written here: a vertical appears in the form
+  // by registering an adapter (D36). Hoisted above the fork because BOTH
+  // overviews need it now — see the note on the sales branch below.
+  const products = provisionableProducts().map((id) => ({
+    id,
+    name: PRODUCTS[id].name,
+    description: PRODUCTS[id].description,
+  }));
+
   if (partner.user.id && !partnerAllows(partner, "merchants.view_all")) {
     const day = await getMyDay(partner.id, partner.user.id);
     return (
@@ -90,6 +99,22 @@ export default async function PartnerPortalPage() {
             canSeePipeline={partnerAllows(partner, "pipeline.view_own")}
           />
         </div>
+
+        {/*
+          OPENING THE ACCOUNT, on the overview a salesperson actually lands on.
+
+          This form lived ONLY on the operator-wide overview below — the one
+          this branch exists to replace — so a sales seat could never reach it.
+          Which made `merchants.create` a permission sales has held since A7 and
+          could not use: they logged the visit, marked it Signed, and then had
+          nowhere to open the account they had just sold. `/partner/merchants`
+          was no escape either; its empty state sent them back to `/partner`,
+          which for them is this page.
+
+          Gated on the capability rather than the role, so an operator who takes
+          `merchants.create` off a seat loses the form too.
+        */}
+        {partnerCan(partner, "merchants.create") && <NewMerchant products={products} />}
       </PortalShell>
     );
   }
@@ -118,13 +143,6 @@ export default async function PartnerPortalPage() {
   const overview = showAmounts ? rawOverview : maskAmounts(rawOverview);
   const territory = profile?.territory ?? null;
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  // From the registry, not a list written here: a vertical appears in the form
-  // by registering an adapter (D36).
-  const products = provisionableProducts().map((id) => ({
-    id,
-    name: PRODUCTS[id].name,
-    description: PRODUCTS[id].description,
-  }));
 
   return (
     <PortalShell

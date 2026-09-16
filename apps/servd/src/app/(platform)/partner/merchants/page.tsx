@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requirePartnerPageWith } from "@/server/partners/auth";
+import { partnerCan, requirePartnerPageWith } from "@/server/partners/auth";
 import { listPartnerMerchants, isPaying } from "@/server/partners/merchants";
 import { PortalShell } from "@/components/partner/PortalShell";
 import { MerchantTable } from "@/components/partner/MerchantTable";
@@ -17,6 +17,10 @@ export default async function PartnerMerchantsPage({
   searchParams: Promise<{ q?: string; product?: string; status?: string }>;
 }) {
   const partner = await requirePartnerPageWith("merchants.read");
+  // Support holds merchants.read and NOT merchants.create — it answers for
+  // accounts that already exist. Telling that seat to go and open one is
+  // pointing them at a form they will not be shown.
+  const canCreate = partnerCan(partner, "merchants.create");
   const { q, product, status } = await searchParams;
 
   const all = await listPartnerMerchants(partner.id);
@@ -45,15 +49,24 @@ export default async function PartnerMerchantsPage({
         {all.length === 0 ? (
           <div className="mt-6 rounded-tile border border-dashed border-brand-ink/15 bg-white p-10 text-center">
             <p className="font-heading text-lg font-bold">No merchants yet</p>
-            <p className="mt-1 text-sm text-brand-ink/55">
-              Open your first account from the dashboard.
-            </p>
-            <Link
-              href="/partner"
-              className="mt-5 inline-flex rounded-full bg-brand-ink px-5 py-2.5 text-sm font-semibold text-white"
-            >
-              Create your first
-            </Link>
+            {canCreate ? (
+              <>
+                <p className="mt-1 text-sm text-brand-ink/55">
+                  Open your first account from the dashboard.
+                </p>
+                <Link
+                  href="/partner"
+                  className="mt-5 inline-flex rounded-full bg-brand-ink px-5 py-2.5 text-sm font-semibold text-white"
+                >
+                  Create your first
+                </Link>
+              </>
+            ) : (
+              <p className="mt-1 text-sm text-brand-ink/55">
+                Nothing has been opened yet. Your account answers for merchants
+                rather than opening them.
+              </p>
+            )}
           </div>
         ) : (
           <MerchantTable rows={rows} query={q ?? ""} product={product ?? ""} status={status ?? ""} />
