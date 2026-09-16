@@ -1367,6 +1367,8 @@ model Partner {
   @@index([territoryId])
   @@map("partners")
   attendanceKiosks AttendanceKiosk[]
+  smsCampaigns     SmsCampaign[]
+  smsCreditLedger  SmsCreditLedger[]
 }
 
 // ----------------------------------------------------------------------------
@@ -2758,48 +2760,66 @@ model CustomerContact {
   @@map("customer_contacts")
 }
 
+/// EXACTLY ONE AXIS: a campaign belongs to a restaurant OR to a partner
+/// operator, never both and never neither. A database CHECK enforces it — see
+/// add-sms-two-axes.sql — because "neither" is a row nothing can read again and
+/// "both" is a row two tenants can.
 model SmsCampaign {
   id             String    @id @default(uuid())
-  restaurantId   String
+  restaurantId   String?
+  partnerId      String?
   body           String
   scheduledAt    DateTime?
   sentAt         DateTime?
   recipientCount Int       @default(0)
   createdAt      DateTime  @default(now())
 
-  restaurant Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant Restaurant?  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  partner    Partner?     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
   messages   SmsMessage[]
 
   @@index([restaurantId])
+  @@index([partnerId])
   @@map("sms_campaigns")
 }
 
+/// NO axis column of its own, deliberately: a message hangs off its campaign
+/// the way an order item hangs off an order, and a copied axis is a second
+/// place for the two to disagree. `contactId` is nullable because the partner
+/// axis has no `customer_contacts` row to point at; `toPhone` is the recipient
+/// either way, backfilled for every message that existed before A8.0.
 model SmsMessage {
   id          String   @id @default(uuid())
   campaignId  String
-  contactId   String
+  contactId   String?
+  toPhone     String?
   status      String // queued | sent | delivered | failed
   providerRef String?
   createdAt   DateTime @default(now())
 
-  campaign SmsCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  contact  CustomerContact @relation(fields: [contactId], references: [id])
+  campaign SmsCampaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact  CustomerContact? @relation(fields: [contactId], references: [id])
 
   @@index([campaignId])
   @@map("sms_messages")
 }
 
+/// One axis per row, as SmsCampaign. The partner's own balance lives in A8.2's
+/// `sms_wallets`; this table is the movement log for both axes.
 model SmsCreditLedger {
   id           String   @id @default(uuid())
-  restaurantId String
+  restaurantId String?
+  partnerId    String?
   change       Int // +credits purchased, -credits used
   reason       String
   balanceAfter Int
   createdAt    DateTime @default(now())
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  partner    Partner?    @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId])
+  @@index([partnerId])
   @@map("sms_credit_ledger")
 }
 

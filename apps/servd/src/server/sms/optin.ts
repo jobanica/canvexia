@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 import { systemDb } from "@/server/tenancy/scoped-db";
-import { normalizePhPhone } from "@/lib/sms/phone";
-import { marketingConsentText, confirmationSmsBody } from "@/lib/sms/consent";
+import { normalizeMobile, marketingConsentText, confirmationSmsBody } from "@servd/core";
 import { getSmsProvider } from "@/server/sms";
 
 const schema = z.object({
@@ -36,7 +35,10 @@ export async function submitSmsOptIn(input: {
     return { ok: false, error: "Please tick the box to opt in." };
   }
 
-  const phone = normalizePhPhone(parsed.data.phone);
+  // `normalizeMobile`, the one in core. This file used to call a second
+  // implementation of the same thing that lived under lib/sms — two
+  // normalisers mean the same person can end up as two contacts.
+  const phone = normalizeMobile(parsed.data.phone);
   if (!phone) return { ok: false, error: "Enter a valid PH mobile number." };
 
   const restaurant = await systemDb((tx) =>

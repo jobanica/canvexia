@@ -98,6 +98,11 @@ export async function sendCampaign(input: {
         data: {
           campaignId: campaign.id,
           contactId: c.id,
+          // The number, written down beside the contact id. A8.0 made
+          // `contactId` nullable for the partner axis, which has no
+          // customer_contacts row — and a message row that cannot say who it
+          // went to is not a record of anything.
+          toPhone: c.phone,
           status: res.ok ? "sent" : "failed",
           providerRef: res.providerRef ?? null,
         },

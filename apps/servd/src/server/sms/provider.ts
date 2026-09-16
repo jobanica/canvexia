@@ -1,27 +1,10 @@
 /**
- * SMS PROVIDER ABSTRACTION
+ * The provider interface now lives in `@servd/core` — it is types, and two
+ * axes speak it as of A8.
  *
- * The PLATFORM holds one provider account (e.g. Semaphore); usage is metered per
- * restaurant via the credit ledger. Business logic talks to this interface so we
- * can swap Semaphore ↔ PhilSMS ↔ Twilio without touching the campaign/opt-in
- * flow.
+ * Re-exported here rather than deleted because half a dozen files import it by
+ * this path, and a rename touching all of them in the same commit as the
+ * two-axis lift would make one change nobody can review. New code should import
+ * from `@servd/core`.
  */
-
-export interface SendResult {
-  ok: boolean;
-  providerRef?: string;
-  error?: string;
-}
-
-export interface InboundMessage {
-  from: string; // sender's phone
-  text: string; // message body
-}
-
-export interface SmsProvider {
-  /** Send one message from a registered sender name. */
-  send(senderName: string, to: string, body: string): Promise<SendResult>;
-
-  /** Parse a provider-specific inbound webhook payload into {from, text}. */
-  parseInbound(payload: unknown): InboundMessage | null;
-}
+export type { SendResult, InboundMessage, SmsProvider } from "@servd/core";

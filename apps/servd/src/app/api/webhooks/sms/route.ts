@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { getSmsProvider } from "@/server/sms";
-import { normalizePhPhone } from "@/lib/sms/phone";
-import { classifyReply } from "@/lib/sms/keywords";
+import { classifyReply, normalizeMobile } from "@servd/core";
 
 /**
  * Inbound SMS webhook for double-opt-in confirmation (YES) and opt-out (STOP).
@@ -30,7 +29,7 @@ export async function POST(req: NextRequest) {
   const inbound = provider.parseInbound(payload);
   if (!inbound) return new Response("ignored", { status: 200 });
 
-  const phone = normalizePhPhone(inbound.from);
+  const phone = normalizeMobile(inbound.from);
   if (!phone) return new Response("ignored", { status: 200 });
 
   const intent = classifyReply(inbound.text);

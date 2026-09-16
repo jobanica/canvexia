@@ -380,7 +380,11 @@ create policy tenant_isolation on payments
     where o.id = payments."orderId"
       and o."restaurantId" = app.current_restaurant_id()));
 
--- sms_messages -> sms_campaigns
+-- sms_messages -> sms_campaigns, on EITHER axis.
+--
+-- The child has no axis column of its own on purpose (see the model note), so
+-- this semi-join is the only thing that decides who may read a message — and it
+-- can never disagree with the campaign, which is the point.
 alter table sms_messages enable row level security;
 alter table sms_messages force row level security;
 drop policy if exists tenant_isolation on sms_messages;
@@ -388,11 +392,50 @@ create policy tenant_isolation on sms_messages
   using (app.is_super_admin() or exists (
     select 1 from sms_campaigns c
     where c.id = sms_messages."campaignId"
-      and c."restaurantId" = app.current_restaurant_id()))
+      and (c."restaurantId" = app.current_restaurant_id()
+           or c."partnerId" = app.current_partner_id())))
   with check (app.is_super_admin() or exists (
     select 1 from sms_campaigns c
     where c.id = sms_messages."campaignId"
-      and c."restaurantId" = app.current_restaurant_id()));
+      and (c."restaurantId" = app.current_restaurant_id()
+           or c."partnerId" = app.current_partner_id())));
+
+-- sms_campaigns and sms_credit_ledger carry both axes as of A8.0.
+--
+-- The generic tenant policy compares "restaurantId" to the restaurant GUC and
+-- nothing else, so a partner's own campaign — whose restaurantId is NULL —
+-- would be unreachable by anybody but a super-admin. Replaced here, AFTER the
+-- generic loop has created its version, exactly as audit_logs is.
+--
+-- `app.current_partner_id()` returns NULL outside a partner context, and
+-- `NULL = NULL` is NULL rather than true, so a merchant session gains nothing
+-- from this arm.
+do $$
+declare t text;
+begin
+  foreach t in array array['sms_campaigns', 'sms_credit_ledger']
+  loop
+    if to_regclass(format('public.%I', t)) is null then continue; end if;
+    execute format('alter table %I enable row level security;', t);
+    execute format('alter table %I force row level security;', t);
+    execute format('drop policy if exists tenant_isolation on %I;', t);
+    execute format($f$
+      create policy tenant_isolation on %1$I
+        using (
+          app.is_super_admin()
+          or "restaurantId" = app.current_restaurant_id()
+          or "partnerId" = app.current_partner_id()
+        )
+        with check (
+          app.is_super_admin()
+          or "restaurantId" = app.current_restaurant_id()
+          or "partnerId" = app.current_partner_id()
+        );
+    $f$, t);
+    execute format('revoke all on %I from anon;', t);
+    execute format('revoke all on %I from authenticated;', t);
+  end loop;
+end $$;
 
 -- ----------------------------------------------------------------------------
 -- Platform-level tables.

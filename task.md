@@ -44,7 +44,13 @@ continuously, Part 3 first. The six open questions resolved as follows:
 - [x] `kioskRequired` per seat, manager method column, CSV column
 - [x] 18 tests + a database gate: `app_user` cannot read a planted kiosk row
 ## PART 1 — A8 SMS
-- [ ] A8.0 lift to two axes (the risky one, alone)
+- [x] A8.0 lift to two axes (the risky one, alone)
+      - STOP assertion written FIRST, before anything moved
+      - pure helpers → `packages/core/src/sms`; the duplicate PH normaliser
+        collapsed onto core's `normalizeMobile`
+      - `partnerId` + nullable `restaurantId` + a one-axis CHECK on campaigns
+        and the ledger; `sms_messages` keeps no axis of its own
+      - gate: `verify-sms-two-axes.sql` (and the kiosk gate re-run, see below)
 - [ ] A8.1 contacts + consent + opt-out
 - [ ] A8.2 wallet + Xendit + ledger
 - [ ] A8.3 campaigns
