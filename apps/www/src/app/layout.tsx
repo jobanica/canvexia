@@ -34,6 +34,12 @@ export const metadata: Metadata = {
   // /favicon.ico — which this app does not have — and showed a blank page icon
   // on CANVEXIA's own front door.
   icons: {
+    // DECLARED IN FULL, not left to the `icon.svg` file convention. Declaring
+    // `icons` at all suppresses the sibling file for this segment — which is
+    // how the tab kept showing the root's Servd favicon.ico while the
+    // apple-touch-icon was already CANVEXIA's.
+    icon: [{ url: "/brand/canvexia-mark.svg", type: "image/svg+xml" }],
+    shortcut: [{ url: "/brand/canvexia-mark.svg", type: "image/svg+xml" }],
     apple: "/brand/canvexia-180.png",
   },
   title: {

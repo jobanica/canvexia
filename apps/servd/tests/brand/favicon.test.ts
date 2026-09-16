@@ -15,22 +15,40 @@ import { BAND, MARK_COLORS } from "@servd/ui";
  * keeps that true.
  */
 
-const APP = join(__dirname, "../../src/app");
-const WWW = join(__dirname, "../../../www/src/app");
-
+/**
+ * ONE FILE PER APP, served from `public/brand`, not Next's per-segment
+ * `icon.svg` convention. Declaring `icons` in a segment's metadata — which the
+ * apple-touch-icon needs — suppresses that convention, so the tab kept showing
+ * the root's Servd favicon while the iOS icon was already right.
+ */
 const SVGS = [
-  join(APP, "(platform)/hq/icon.svg"),
-  join(APP, "(platform)/partner/icon.svg"),
-  join(WWW, "icon.svg"),
+  join(__dirname, "../../public/brand/canvexia-mark.svg"),
+  join(__dirname, "../../../www/public/brand/canvexia-mark.svg"),
 ];
 
 describe("the CANVEXIA favicon", () => {
-  it("exists on every CANVEXIA surface", () => {
-    // /hq and /partner both sit under a Servd root layout, and canvexia.com had
-    // no icon at all — the browser fell back to a /favicon.ico that app does
-    // not have.
+  it("exists in both apps that wear the CANVEXIA brand", () => {
+    // /hq and /partner sit under a Servd root layout; canvexia.com is a
+    // separate deployment and had no icon at all, falling back to a
+    // /favicon.ico that app does not have.
     for (const file of SVGS) {
       expect(existsSync(file), file).toBe(true);
+    }
+  });
+
+  it("is actually pointed at by every CANVEXIA layout", () => {
+    // A file nothing references is the same as no file. Each of these declares
+    // the icon EXPLICITLY, because declaring `icons` at all is what suppresses
+    // Next's file convention.
+    const layouts = [
+      join(__dirname, "../../src/app/(platform)/hq/layout.tsx"),
+      join(__dirname, "../../src/app/(platform)/partner/layout.tsx"),
+      join(__dirname, "../../../www/src/app/layout.tsx"),
+    ];
+    for (const file of layouts) {
+      const code = readFileSync(file, "utf8");
+      expect(code, file).toContain('icon: [{ url: "/brand/canvexia-mark.svg"');
+      expect(code, file).toContain('apple: "/brand/canvexia-180.png"');
     }
   });
 
