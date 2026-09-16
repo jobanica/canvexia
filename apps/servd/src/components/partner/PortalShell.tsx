@@ -124,6 +124,15 @@ export function PortalShell({
       icon: <IconChat />,
       need: "sms.send",
     });
+  } else if (partner.permissions.has("sms.reply_own")) {
+    // A salesperson gets the INBOX and not the composer: answering somebody who
+    // texted them back is the job; broadcasting to the whole book is not.
+    items.push({
+      href: "/partner/sms/inbox",
+      label: "SMS",
+      icon: <IconChat />,
+      need: "sms.reply_own",
+    });
   }
 
   const lower: Item[] = [

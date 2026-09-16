@@ -4,6 +4,7 @@ import { getSmsProvider } from "@/server/sms";
 import { classifyReply, normalizeMobile } from "@servd/core";
 import { markOptOutConfirmed, optOutEverywhere } from "@/server/partners/sms-contacts";
 import { sendOptOutConfirmation } from "@/server/partners/sms-send";
+import { recordInbound } from "@/server/partners/sms-inbox";
 
 /**
  * Inbound SMS webhook for double-opt-in confirmation (YES) and opt-out (STOP).
@@ -71,6 +72,11 @@ export async function POST(req: NextRequest) {
         data: { marketingConsent: "confirmed", confirmedAt: now },
       }),
     );
+  } else {
+    // A real message. It goes in the inbox and notifies whoever the contact is
+    // assigned to — A8.4. Dropping it, which is what this route used to do,
+    // means a business owner asking a question gets silence.
+    await recordInbound(phone, inbound.text, now);
   }
 
   return new Response("ok", { status: 200 });

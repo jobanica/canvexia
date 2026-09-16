@@ -1380,6 +1380,7 @@ model Partner {
   smsWallet        SmsWallet?
   smsTopUps        SmsTopUp[]
   smsSegments      SmsSegment[]
+  smsThread        SmsThreadMessage[]
 
   // --- A8.3: the two limits that keep this from being a nuisance -----------
   /// Minutes past midnight, MANILA. Stored as a number because the comparison
@@ -2791,6 +2792,39 @@ model CustomerContact {
   @@unique([restaurantId, phone])
   @@index([restaurantId])
   @@map("customer_contacts")
+}
+
+/// One message in a two-way conversation with a contact.
+///
+/// BOTH DIRECTIONS IN ONE TABLE, because a conversation is a conversation. Two
+/// tables joined by phone number would mean merging two lists in application
+/// code to draw a thread, and getting the ordering subtly wrong the first time
+/// somebody replies inside the same second.
+///
+/// Campaign sends stay in `SmsMessage`: a broadcast with a cost and a status
+/// per recipient is not a conversation.
+model SmsThreadMessage {
+  id        String @id @default(uuid())
+  partnerId String
+  /// Null when the number is not in the contact book. The message is kept
+  /// anyway — a reply nobody can see is a customer nobody answers.
+  smsContactId String?
+  phone     String
+  /// in | out
+  direction String
+  body      String
+  /// Which seat sent an outbound reply. Null for inbound.
+  sentByUserId String?
+  providerRef  String?
+  segments     Int      @default(1)
+  readAt       DateTime?
+  createdAt    DateTime @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, createdAt])
+  @@index([smsContactId, createdAt])
+  @@map("sms_thread_messages")
 }
 
 /// A saved audience: a search over the contact book, not a list of people.

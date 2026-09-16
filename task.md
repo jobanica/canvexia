@@ -73,5 +73,9 @@ continuously, Part 3 first. The six open questions resolved as follows:
       - send window (09:00–20:00 Manila) + frequency cap (2 per 7 days)
       - drained by `/api/cron/sms-queue` every 10 min; claim, pay, send, refund
       - gate: `verify-sms-campaigns.sql`
-- [ ] A8.4 inbox + replies
+- [x] A8.4 inbox + replies
+      - `sms_thread_messages` — both directions in one table
+      - inbound filed for every partner that knows the number, and notified
+      - a reply is transactional: no cap, no opt-out line, window bends for
+        somebody who texted within 24h, still costs credits
 - [ ] A8.5 automations + analytics + export/forget

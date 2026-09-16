@@ -551,7 +551,12 @@ begin
                            -- A8.3. Saved audiences are a search over the
                            -- partner's own contacts, so they are scoped the
                            -- same way the contacts are.
-                           'sms_segments']
+                           'sms_segments',
+                           -- A8.4. Inbound replies and the answers to them.
+                           -- Partner-scoped; WHICH seat may reply to which
+                           -- thread is `sms.reply_own` vs `sms.send`, decided
+                           -- in the app where "assigned to me" is knowable.
+                           'sms_thread_messages']
   loop
     if to_regclass(format('public.%I', t)) is null then
       continue;  -- table not migrated yet; db:rls must not fail on a fresh clone
