@@ -79,6 +79,8 @@ export interface VisitRow {
   outcome: string;
   notes: string | null;
   occurredAt: Date;
+  /** Storage path, never a URL. Signed per viewer — see signFieldPhoto. */
+  photoPath: string | null;
   /** Recomputed for display; the stored distance is what was true at the time. */
   flag: VisitFlag;
 }
@@ -111,6 +113,7 @@ export async function visitsForDay(
           outcome: true,
           notes: true,
           occurredAt: true,
+          photoPath: true,
         },
       }),
     );

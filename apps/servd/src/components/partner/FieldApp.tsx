@@ -5,17 +5,19 @@ import { useRouter } from "next/navigation";
 import { useOnline } from "@/lib/offline/useOnline";
 import { drain, enqueue, newClientRef, queued } from "@/lib/partners/visit-queue";
 import { parseScan } from "@/lib/partners/kiosk-scan";
+import { shrinkPhoto } from "@/lib/partners/photo";
+import { OUTCOME_LABELS, VISIT_OUTCOMES } from "@/lib/partners/outcomes";
 import { QrScanner } from "@/components/partner/QrScanner";
 import type { SessionRow, VisitRow } from "@/server/partners/attendance";
 
 type Subject = { id: string; name: string; type: "prospect" | "merchant"; productId: string };
 
-const OUTCOMES: { value: string; label: string }[] = [
-  { value: "met_owner", label: "Met the owner" },
-  { value: "not_available", label: "Not available" },
-  { value: "follow_up", label: "Follow-up set" },
-  { value: "signed", label: "Signed" },
-];
+// The labels live in lib/partners/outcomes so the manager's screen can read
+// them too — this list used to be the only place they existed.
+const OUTCOMES: { value: string; label: string }[] = VISIT_OUTCOMES.map((value) => ({
+  value,
+  label: OUTCOME_LABELS[value],
+}));
 
 /**
  * The field app: check in, log a visit, check out.
@@ -335,6 +337,17 @@ function VisitForm({
    */
   const [consent, setConsent] = useState<boolean | null>(null);
   const [mobile, setMobile] = useState("");
+  /**
+   * The proof the visit happened. REQUIRED.
+   *
+   * Operators have no addresses on file — a salesperson walking into a
+   * carinderia they have never seen is how it gets discovered — so on a first
+   * visit there is nothing for GPS to be checked against. The photo is what
+   * stands in its place, which is why the button below stays disabled without
+   * one.
+   */
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoNote, setPhotoNote] = useState<string | null>(null);
 
   const field =
     "min-h-[48px] w-full rounded-lg border border-brand-ink/15 bg-white px-3 text-sm";
@@ -381,6 +394,64 @@ function VisitForm({
           className="w-full rounded-lg border border-brand-ink/15 px-3 py-2 text-sm"
         />
 
+        {/* --- The photo ------------------------------------------------
+            `capture="environment"` opens the back camera straight away on a
+            phone rather than a file picker. It still falls back to the picker
+            on a desktop, which is what a manager testing this will use. */}
+        <div className="rounded-lg border border-brand-ink/10 bg-brand-surface/60 p-3">
+          <p className="text-sm font-semibold">Photo of the visit</p>
+          <p className="mt-0.5 text-[0.68rem] leading-relaxed text-brand-ink/50">
+            The shop and the person you spoke to. Ask them first — this is the record
+            that you were there.
+          </p>
+
+          {photo ? (
+            <div className="mt-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo}
+                alt="The photo you just took"
+                className="h-40 w-full rounded-lg object-cover"
+              />
+              <button
+                onClick={() => {
+                  setPhoto(null);
+                  setPhotoNote(null);
+                }}
+                className="mt-2 text-xs font-semibold text-brand-ink/55 underline"
+              >
+                Take another
+              </button>
+            </div>
+          ) : (
+            <label className="mt-2 flex min-h-[48px] cursor-pointer items-center justify-center rounded-lg border border-dashed border-brand-ink/25 bg-white text-sm font-semibold text-brand-ink/70">
+              Take a photo
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setPhotoNote(null);
+                  try {
+                    // Shrunk in the phone, so the visit and its photo both fit
+                    // in the offline queue.
+                    const shrunk = await shrinkPhoto(file);
+                    setPhoto(shrunk.dataUrl);
+                  } catch {
+                    setPhotoNote("We couldn't read that photo. Try again.");
+                  }
+                  // Cleared so picking the SAME file twice still fires onChange.
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          )}
+          {photoNote && <p className="mt-1 text-xs text-guava">{photoNote}</p>}
+        </div>
+
         {/* --- The consent question ------------------------------------
             Asked at the visit, while the person is standing there, because
             that is the only moment anybody can actually ask them. The answer
@@ -425,7 +496,9 @@ function VisitForm({
         </div>
 
         <button
-          disabled={!subjectKey || busy || consent === null || (consent === true && !mobile.trim())}
+          disabled={
+            !subjectKey || busy || !photo || consent === null || (consent === true && !mobile.trim())
+          }
           onClick={async () => {
             const [type, productId, id] = subjectKey.split(":");
             await onSubmit({
@@ -436,12 +509,14 @@ function VisitForm({
               notes,
               smsConsent: consent === true ? "yes" : "no",
               smsMobile: consent === true ? mobile.trim() : "",
+              photo: photo ?? "",
             });
             setSubjectKey("");
             setNotes("");
             setOutcome("met_owner");
             setConsent(null);
             setMobile("");
+            setPhoto(null);
           }}
           className="min-h-[48px] w-full rounded-full px-5 text-sm font-semibold btn-brand text-white disabled:opacity-40"
         >

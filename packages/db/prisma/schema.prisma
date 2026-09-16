@@ -1556,6 +1556,18 @@ model Prospect {
   /// spellings of one number is four rows that look like four businesses.
   mobile       String?
   address      String?
+  /// Where the business actually is, learned from the FIRST visit.
+  ///
+  /// Nothing in this repository geocodes an address string, and operators do
+  /// not have addresses on file anyway — a salesperson walking into a
+  /// carinderia they have never seen is how it gets discovered. So the first
+  /// visit records where it happened and every later visit is checked against
+  /// that. `locatedByVisit` keeps it traceable: a wrong pin can be followed
+  /// back to the visit that set it.
+  latitude       Float?
+  longitude      Float?
+  locatedAt      DateTime?
+  locatedByVisit String?
   /// Which product is being pitched. A registry id ("servd", "pharmacy"), not a
   /// foreign key — products are code, not a table.
   productId    String

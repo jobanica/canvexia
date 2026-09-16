@@ -121,10 +121,29 @@ describe("the offline queue", () => {
     expect(queue).toContain("break;");
   });
 
-  it("does not queue photos", () => {
-    // A few megabytes of base64 per item fills a phone's quota in an afternoon,
-    // and the queue then silently stops accepting the thing it exists for.
-    expect(queue).not.toContain("photo");
+  it("DOES queue photos now — the reason not to has gone", () => {
+    // This test used to assert the opposite, and the old reason was sound: a
+    // camera hands you 3–8 MB, and a few of those per item fills a phone's
+    // quota in an afternoon.
+    //
+    // What changed is that the photo became the ONLY proof a visit happened —
+    // operators have no addresses on file, so a first visit cannot be checked
+    // by location — and `shrinkPhoto` now resizes it to 1024px at quality 0.7
+    // inside the phone, which is about 100 KB. Ten queued visits cost roughly a
+    // megabyte.
+    //
+    // Keeping the old rule would have meant one of two worse things: dropping
+    // the photo when offline, which is a hole anybody can use by claiming they
+    // had no signal, or refusing the visit outright, which loses the record of
+    // work somebody actually did.
+    expect(queue).toContain("fields.photo");
+  });
+
+  it("drops an oversized photo rather than the whole visit", () => {
+    // The backstop, for a photo that somehow escaped shrinking. The visit
+    // matters more than the picture.
+    expect(queue).toContain("QUEUE_PHOTO_LIMIT");
+    expect(queue).toContain("delete fields.photo");
   });
 
   it("uses its own store, not the kitchen's outbox", () => {

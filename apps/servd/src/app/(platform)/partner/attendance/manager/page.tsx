@@ -14,6 +14,8 @@ import { PortalShell } from "@/components/partner/PortalShell";
 // imports Leaflet INSIDE an effect, so the library never loads on the server
 // whatever the boundary does.
 import { StaffMap, type MapPin } from "@/components/partner/StaffMap";
+import { signFieldPhoto } from "@/server/storage/field-photos";
+import { VisitLog } from "@/components/partner/VisitLog";
 
 export const metadata = { title: "Attendance · CANVEXIA" };
 
@@ -68,6 +70,21 @@ export default async function AttendanceManagerPage({
   ]);
 
   const nameOf = new Map(seats.map((s) => [s.id, s.name ?? s.email]));
+
+  /**
+   * The photos, signed for THIS viewer.
+   *
+   * Signed here rather than in the component because the bucket is private and
+   * the URL is short-lived — ten minutes, long enough to read the page. The
+   * path never reaches the browser; only a link that expires.
+   */
+  const visitPhotos = new Map(
+    await Promise.all(
+      visits.map(
+        async (v) => [v.id, await signFieldPhoto(partner.id, v.photoPath)] as const,
+      ),
+    ),
+  );
 
   const pins: MapPin[] = [
     ...sessions
@@ -136,6 +153,26 @@ export default async function AttendanceManagerPage({
         </div>
 
         <StaffMap pins={pins} />
+
+        {/*
+          THE VISIT LOG, with its photos.
+          Operators have no addresses on file, so the map can only show where a
+          phone said it was. The photo is what actually evidences the visit, and
+          it belongs where somebody is already looking at the day.
+        */}
+        <VisitLog
+          visits={visits.map((v) => ({
+            id: v.id,
+            who: nameOf.get(v.partnerUserId) ?? "Someone",
+            subjectName: v.subjectName,
+            outcome: v.outcome,
+            notes: v.notes,
+            occurredAt: v.occurredAt,
+            flag: v.flag,
+            distanceMeters: v.distanceMeters,
+            photoUrl: visitPhotos.get(v.id) ?? null,
+          }))}
+        />
 
         <div className="overflow-x-auto rounded-tile border border-brand-ink/10 bg-white">
           <table className="w-full min-w-[720px] border-collapse text-sm">

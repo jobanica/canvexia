@@ -6,6 +6,7 @@ import { systemDb } from "@/server/tenancy/scoped-db";
 import { writeSeatAudit } from "@/server/audit/log";
 import { uploadFieldPhoto } from "@/server/storage/field-photos";
 import { checkVisit, distanceMeters, isUsable, type Point } from "@/lib/partners/geo";
+import { VISIT_OUTCOMES, type VisitOutcome } from "@/lib/partners/outcomes";
 import { manilaDayKey, subjectLocation } from "@/server/partners/attendance";
 import { managerSeats, queueNotification } from "@/server/partners/notify";
 import { kioskRequired, SCAN_MESSAGE, verifyScan } from "@/server/partners/kiosk";
@@ -13,8 +14,9 @@ import { captureConsent } from "@/server/partners/sms-contacts";
 
 export type FieldState = { ok?: boolean; error?: string; queued?: boolean } | null;
 
-const OUTCOMES = ["met_owner", "not_available", "follow_up", "signed"] as const;
-type Outcome = (typeof OUTCOMES)[number];
+// One list, shared with the field app and the manager's screen.
+const OUTCOMES = VISIT_OUTCOMES;
+type Outcome = VisitOutcome;
 
 /** A coordinate off the form, or null. Never (0, 0) and never a partial pair. */
 function pointFrom(formData: FormData): { point: Point | null; accuracy: number | null } {
@@ -279,19 +281,36 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
 
   const check = checkVisit(point, subjectPoint, accuracy);
 
+  /**
+   * THE PHOTO IS THE PROOF, so it is required.
+   *
+   * Operators have no addresses on file — a salesperson walking into a
+   * carinderia nobody has heard of is how the business gets discovered — so on
+   * a first visit there is nothing for the GPS check to compare against and
+   * `checkVisit` honestly reports `no_address`. Without a photo a visit is just
+   * a claim typed into a phone.
+   *
+   * REFUSED, NOT SHRUGGED OFF. This used to swallow an upload failure and keep
+   * the visit; that made sense when the photo was decoration. Now a visit
+   * without one is the thing we are trying to prevent, so a failed upload is an
+   * error the person can act on — and the field app keeps the visit in hand
+   * rather than losing it.
+   */
   const photo = String(formData.get("photo") ?? "");
-  let photoPath: string | null = null;
-  if (photo.startsWith("data:image/")) {
-    try {
-      photoPath = await uploadFieldPhoto(who.partnerId, who.userId, photo);
-    } catch {
-      /* the visit still stands */
-    }
+  if (!photo.startsWith("data:image/")) {
+    return { error: "Take a photo of the visit — that is what records you were there." };
+  }
+
+  let photoPath: string;
+  try {
+    photoPath = await uploadFieldPhoto(who.partnerId, who.userId, photo);
+  } catch {
+    return { error: "That photo didn't upload. Try again where you have signal." };
   }
 
   try {
     await systemDb(async (tx) => {
-      await tx.staffVisit.create({
+      const visit = await tx.staffVisit.create({
         data: {
           partnerId: who.partnerId,
           partnerUserId: who.userId!,
@@ -322,6 +341,31 @@ export async function logVisitAction(_prev: FieldState, formData: FormData): Pro
         },
         select: { id: true },
       });
+
+      /**
+       * THE FIRST VISIT RECORDS WHERE THE BUSINESS IS.
+       *
+       * Nothing here geocodes an address string, so a prospect has never had
+       * coordinates and every prospect visit has been unverifiable — not just
+       * the first. Writing the first visit's position fixes every LATER visit:
+       * from then on "were they where they were last time?" is a question with
+       * an answer.
+       *
+       * ONLY WHEN IT IS NOT ALREADY SET. A second visit must not move the pin,
+       * or somebody who logs from the wrong place quietly redefines where the
+       * business is and makes their own mistake look correct.
+       */
+      if (subjectType === "prospect" && point) {
+        await tx.prospect.updateMany({
+          where: { id: subjectId, partnerId: who.partnerId, latitude: null },
+          data: {
+            latitude: point.lat,
+            longitude: point.lng,
+            locatedAt: new Date(),
+            locatedByVisit: visit.id,
+          },
+        });
+      }
 
       // The outcome moves the prospect, when it says so. "Signed" is the one
       // that must not be left to somebody remembering to also update the

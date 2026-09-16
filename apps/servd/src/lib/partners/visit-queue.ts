@@ -28,7 +28,7 @@ export interface QueuedItem {
   /** Also the server's idempotency key. Minted before the item is ever sent. */
   clientRef: string;
   kind: QueuedKind;
-  /** The form fields, already flattened. Photos are NOT queued — see below. */
+  /** The form fields, already flattened. Includes the shrunk photo — see below. */
   fields: Record<string, string>;
   createdAt: number;
   attempts: number;
@@ -78,8 +78,18 @@ export function newClientRef(): string {
 
 export async function enqueue(item: Omit<QueuedItem, "createdAt" | "attempts">): Promise<void> {
   if (!hasIDB()) return;
+
+  // The backstop described above: a photo that is somehow still huge costs the
+  // picture, never the visit.
+  const fields = { ...item.fields };
+  if ((fields.photo?.length ?? 0) > QUEUE_PHOTO_LIMIT) {
+    delete fields.photo;
+  }
+
   try {
-    await run("readwrite", (s) => s.put({ ...item, createdAt: Date.now(), attempts: 0 }));
+    await run("readwrite", (s) =>
+      s.put({ ...item, fields, createdAt: Date.now(), attempts: 0 }),
+    );
   } catch {
     /* a phone with storage disabled falls back to "it failed", which is honest */
   }
@@ -124,10 +134,26 @@ async function bumpAttempts(item: QueuedItem): Promise<void> {
  * before the visits of that day — and pushing past a failure would reorder
  * them. The next attempt starts from the same place.
  *
- * PHOTOS ARE NOT QUEUED. A few megabytes of base64 per item fills a phone's
- * quota in an afternoon, and the queue then silently stops accepting the thing
- * it exists for. Offline items are sent without one and the screen says so.
+ * PHOTOS *ARE* QUEUED NOW, which reverses what this file used to say.
+ *
+ * The old rule was "a few megabytes of base64 per item fills a phone's quota in
+ * an afternoon", and that was true of what a camera hands you — 3–8 MB. It
+ * stopped being true when the photo became REQUIRED and `shrinkPhoto` started
+ * resizing it to 1024px at quality 0.7 inside the phone: the same photo is
+ * about 100 KB, so ten queued visits cost roughly a megabyte.
+ *
+ * The alternative was worse in both directions. Dropping the photo offline
+ * leaves a hole anybody can use by claiming they had no signal; refusing the
+ * visit offline loses the record of work somebody actually did. Neither is
+ * acceptable when the photo is the only proof a first visit happened.
+ *
+ * `QUEUE_PHOTO_LIMIT` is the backstop: an item whose photo is somehow still
+ * huge is queued WITHOUT it rather than not queued at all, because the visit
+ * matters more than the picture.
  */
+
+/** ~400 KB. Four times what shrinkPhoto produces, so it only catches a fault. */
+export const QUEUE_PHOTO_LIMIT = 400_000;
 export async function drain(): Promise<{ sent: number; left: number }> {
   const items = await queued();
   let sent = 0;
