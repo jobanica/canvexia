@@ -15,3 +15,4 @@ export * from "./sms/keywords";
 export * from "./sms/consent";
 export * from "./sms/provider";
 export * from "./sms/credits";
+export * from "./sms/campaign";

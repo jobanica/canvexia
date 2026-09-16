@@ -119,7 +119,7 @@ export function PortalShell({
   // permission, like everything else here.
   if (partner.permissions.has("sms.send")) {
     items.push({
-      href: "/partner/sms/contacts",
+      href: "/partner/sms",
       label: "SMS",
       icon: <IconChat />,
       need: "sms.send",

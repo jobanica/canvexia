@@ -66,6 +66,12 @@ continuously, Part 3 first. The six open questions resolved as follows:
       - provider cost stays UNSET and the statement says so
       - gate: `verify-sms-wallets.sql` (wallet vs ledger, negative refused,
         one settlement per provider ref, cross-partner reads blocked)
-- [ ] A8.3 campaigns
+- [x] A8.3 campaigns
+      - composer with a live segment counter (GSM-7 vs UCS-2) and merge fields
+      - audience = tags / source / stage / assignee / product / quiet days,
+        with `opted_in` hard-wired and NOT a filter
+      - send window (09:00–20:00 Manila) + frequency cap (2 per 7 days)
+      - drained by `/api/cron/sms-queue` every 10 min; claim, pay, send, refund
+      - gate: `verify-sms-campaigns.sql`
 - [ ] A8.4 inbox + replies
 - [ ] A8.5 automations + analytics + export/forget

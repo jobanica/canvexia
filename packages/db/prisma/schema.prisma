@@ -1379,6 +1379,17 @@ model Partner {
   smsContacts      SmsContact[]
   smsWallet        SmsWallet?
   smsTopUps        SmsTopUp[]
+  smsSegments      SmsSegment[]
+
+  // --- A8.3: the two limits that keep this from being a nuisance -----------
+  /// Minutes past midnight, MANILA. Stored as a number because the comparison
+  /// is arithmetic in one timezone; a `time` column tempts somebody into
+  /// comparing it against the server's clock, which is UTC.
+  smsWindowStartMin Int @default(540)
+  smsWindowEndMin   Int @default(1200)
+  /// At most this many marketing texts per contact per this many days.
+  smsCapCount       Int @default(2)
+  smsCapDays        Int @default(7)
 
   // --- A8: sending identity -------------------------------------------------
   // `restaurants.smsSenderName` exists and is the wrong table for this: a
@@ -2782,6 +2793,27 @@ model CustomerContact {
   @@map("customer_contacts")
 }
 
+/// A saved audience: a search over the contact book, not a list of people.
+///
+/// Stored as JSON because it is a saved SEARCH and its shape grows with the
+/// product. A column per filter would mean a migration every time somebody
+/// wants to segment on something new.
+model SmsSegment {
+  id        String @id @default(uuid())
+  partnerId String
+  name      String
+  filters   Json   @default("{}")
+  createdBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@map("sms_segments")
+}
+
 /// Prepaid SMS credits for a partner operator. One credit is one SEGMENT.
 ///
 /// The balance lives ON the row rather than being summed from the ledger: a
@@ -2887,6 +2919,22 @@ model SmsCampaign {
   restaurantId   String?
   partnerId      String?
   body           String
+  name           String?
+  /// draft | scheduled | sending | sent | cancelled | failed.
+  ///
+  /// Defaults to `sent`, not `draft`: every campaign that existed before A8.3
+  /// was sent the moment it was created, and defaulting them to draft would
+  /// resurrect finished campaigns the next time a drainer looked at the table.
+  status         String    @default("sent")
+  /// The saved filters this went to. JSON because an audience is a saved
+  /// SEARCH whose shape grows with the product.
+  audience       Json?
+  segments       Int       @default(1)
+  creditsSpent   Int       @default(0)
+  sentCount      Int       @default(0)
+  failedCount    Int       @default(0)
+  createdBy      String?
+  startedAt      DateTime?
   scheduledAt    DateTime?
   sentAt         DateTime?
   recipientCount Int       @default(0)
@@ -2910,9 +2958,21 @@ model SmsMessage {
   id          String   @id @default(uuid())
   campaignId  String
   contactId   String?
+  /// The partner axis's recipient. Two nullable columns rather than one
+  /// polymorphic id: a foreign key that sometimes means another table is a key
+  /// the database cannot check.
+  smsContactId String?
   toPhone     String?
   status      String // queued | sent | delivered | failed
   providerRef String?
+  segments    Int      @default(1)
+  sentAt      DateTime?
+  error       String?
+  attempts    Int      @default(0)
+  /// The rendered body for THIS recipient. Merge fields mean two people did
+  /// not get the same text, and "what did you actually send me" has to be
+  /// answerable.
+  body        String?
   createdAt   DateTime @default(now())
 
   campaign SmsCampaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)

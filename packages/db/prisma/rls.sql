@@ -547,7 +547,11 @@ begin
                            -- partner arm is read-and-write-your-own and the
                            -- CREDITING is done under systemDb from a webhook —
                            -- no session is involved in a payment landing.
-                           'sms_wallets', 'sms_topups']
+                           'sms_wallets', 'sms_topups',
+                           -- A8.3. Saved audiences are a search over the
+                           -- partner's own contacts, so they are scoped the
+                           -- same way the contacts are.
+                           'sms_segments']
   loop
     if to_regclass(format('public.%I', t)) is null then
       continue;  -- table not migrated yet; db:rls must not fail on a fresh clone
