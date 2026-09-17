@@ -3,11 +3,6 @@ import { requireAdminPage } from "@/server/tenancy/require-admin";
 import { tenantDb } from "@/server/tenancy/scoped-db";
 import { getCurrentSubscription } from "@/server/billing/subscription";
 import { PayNowButton } from "@/components/admin/PayNowButton";
-import { FeatureStore, type StoreRow } from "@/components/billing/FeatureStore";
-import { getPlanAccess } from "@/server/billing/feature-gate";
-import { listOwnedFeatures, addonKeyFor } from "@/server/billing/owned-features";
-import { getFeaturePrices } from "@/server/billing/feature-pricing";
-import { FEATURE_META, type Feature } from "@/lib/billing/features";
 import { formatPeso } from "@/lib/money";
 import { manilaDate } from "@/lib/time/manila";
 import { RenewPanel } from "@/components/billing/RenewPanel";
@@ -15,38 +10,37 @@ import { openRenewal, lastDecidedRenewal } from "@/server/billing/renewals";
 import { signBillingFile } from "@/server/storage/partner-billing";
 import { systemDb } from "@/server/tenancy/scoped-db";
 
-const FEATURE_LABEL: Record<string, string> = Object.fromEntries(
-  FEATURE_META.map((f) => [f.key, f.label]),
-);
+/**
+ * BILLING IS THREE QUESTIONS NOW: when does it run out, how do I renew, and
+ * what have I paid?
+ *
+ * The feature store that used to sit in the middle of this page is gone. It
+ * made sense when Servd sold features one at a time; with a single ₱999 plan
+ * that includes all of them, it had become twenty rows all reading "Included"
+ * above a header saying "Nothing bought yet" — a shelf with nothing on it,
+ * between an owner and the two things they came here to do.
+ *
+ * `getPlanAccess`, `listOwnedFeatures` and `getFeaturePrices` are untouched and
+ * still gate every feature. Nothing about what a shop can DO changes here; this
+ * page simply stops narrating it.
+ */
 
 function daysLeft(date: Date | null): number | null {
   if (!date) return null;
   return Math.max(0, Math.ceil((date.getTime() - Date.now()) / 86400000));
 }
 
-export default async function BillingPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ upgrade?: string; unlocked?: string }>;
-}) {
-  const { upgrade, unlocked } = await searchParams;
+export default async function BillingPage() {
   // allowSuspended so an owner can pay their way out of suspension here.
   const { restaurantId } = await requireAdminPage({ allowSuspended: true });
 
-  const [sub, invoices, access, owned, prices, pendingRows] = await Promise.all([
+  const [sub, invoices] = await Promise.all([
     getCurrentSubscription(restaurantId),
     tenantDb(restaurantId, (tx) =>
       tx.restaurantInvoice.findMany({ orderBy: { createdAt: "desc" }, take: 12 }),
     ),
-    getPlanAccess(restaurantId),
-    listOwnedFeatures(restaurantId),
-    getFeaturePrices(),
-    tenantDb(restaurantId, (tx) =>
-      tx.addonPurchase.findMany({ where: { status: "pending" }, select: { addon: true } }),
-    ).catch(() => [] as { addon: string }[]),
   ]);
 
-  const pendingAddons = new Set(pendingRows.map((r) => r.addon));
   const onTrial = sub?.status === "trialing" && !!sub.trialEndsAt && new Date(sub.trialEndsAt).getTime() > Date.now();
   const trialDays = onTrial ? daysLeft(sub!.trialEndsAt) : null;
 
@@ -104,54 +98,16 @@ export default async function BillingPage({
   const renewSoon = untilDays !== null && untilDays <= 14;
   const lapsed = untilDays !== null && untilDays === 0 && !!paidUntil && paidUntil.getTime() <= Date.now();
 
-  const rows: StoreRow[] = FEATURE_META
-    // A retired feature is listed only for the shops that already bought it —
-    // there's no sense showing everyone else something they can't buy and
-    // wouldn't want.
-    .filter((f) => !f.retired || owned.has(f.key as Feature))
-    .map((f) => {
-    const key = f.key as Feature;
-    const priced = prices[key];
-    return {
-      key,
-      label: f.label,
-      group: f.group,
-      pricePesos: Math.round(priced.price / 100),
-      owned: owned.has(key),
-      // A live trial temporarily unlocks everything — don't call that "included",
-      // or nothing would look buyable during the trial.
-      includedInPlan: !onTrial && access.features.has(key) && !owned.has(key),
-      sellable: priced.enabled && priced.price > 0,
-      pending: pendingAddons.has(addonKeyFor(key)),
-    };
-  });
-
-  const ownedCount = rows.filter((r) => r.owned).length;
 
   return (
     <div className="space-y-6">
       <div>
         <Link href="/admin" className="text-sm text-plum-ink/50">← Dashboard</Link>
-        <h1 className="font-heading text-2xl font-bold">Billing &amp; features</h1>
+        <h1 className="font-heading text-2xl font-bold">Billing</h1>
         <p className="text-sm text-plum-ink/50">
-          Everything except the content scheduler is included in Servd, ₱999/mo. Anything you
-          bought outright before that stays yours, for good.
+          Everything except the content scheduler is included in Servd, ₱999/mo.
         </p>
       </div>
-
-      {unlocked && FEATURE_LABEL[unlocked] && (
-        <div className="rounded-tile border border-mango/40 bg-mango/10 p-4 text-sm font-semibold text-plum-ink">
-          ✓ Payment received — <span className="font-bold">{FEATURE_LABEL[unlocked]}</span> is unlocked.
-          If it still shows as locked, use “Already paid? Check” below.
-        </div>
-      )}
-
-      {upgrade && FEATURE_LABEL[upgrade] && (
-        <div className="rounded-tile border border-mango/40 bg-mango/10 p-4 text-sm text-plum-ink">
-          🔒 <span className="font-semibold">{FEATURE_LABEL[upgrade]}</span> is locked on your
-          account. It is included in Servd — ask whoever set you up to move you onto it.
-        </div>
-      )}
 
       {trialDays !== null && (
         <div className="rounded-tile border border-brand-primary/30 bg-brand-primary/5 p-5">
@@ -223,17 +179,6 @@ export default async function BillingPage({
           <div className="mt-3"><PayNowButton /></div>
         </div>
       )}
-
-      {/* Your features */}
-      <div>
-        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-heading text-lg font-bold">Your features</h2>
-          <p className="text-sm text-plum-ink/50">
-            {ownedCount > 0 ? `${ownedCount} owned outright` : "Nothing bought yet"}
-          </p>
-        </div>
-        <FeatureStore rows={rows} />
-      </div>
 
       {/* Invoices */}
       <div>
