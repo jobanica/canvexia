@@ -112,7 +112,9 @@ export async function confirmRenewal(input: {
   decidedBy: string;
   /** What the partner says they actually collected. The 30% is a share of this. */
   amountCentavos: number;
-}): Promise<{ ok: true; paidUntil: Date } | { ok: false; message: string }> {
+}): Promise<
+  { ok: true; paidUntil: Date; invoiceId: string } | { ok: false; message: string }
+> {
   const { renewalId, partnerId, decidedBy, amountCentavos } = input;
   if (!Number.isInteger(amountCentavos) || amountCentavos < 0) {
     return { ok: false, message: "Enter what you collected." };
@@ -165,6 +167,40 @@ export async function confirmRenewal(input: {
       });
 
       /**
+       * THE MERCHANT'S INVOICE, written in the same transaction as the money.
+       *
+       * Into `restaurant_invoices` rather than a parallel table, because the
+       * merchant's billing screen already lists those as "Payment history" —
+       * so a partner-issued receipt lands where the owner already looks.
+       *
+       * `providerRef` is the same `renewal:{id}` the ledger uses and is unique,
+       * so a re-confirm cannot print a second invoice for one payment. The
+       * number is derived from the row's own id rather than a counter: a
+       * per-partner sequence would need a lock, and two confirmations racing
+       * for the same number would fail one of them and take a recorded payment
+       * down with it.
+       */
+      const invoice = await tx.restaurantInvoice.create({
+        data: {
+          restaurantId: row.merchantId,
+          amount: amountCentavos,
+          status: "paid",
+          periodStart: base,
+          periodEnd: paidUntil,
+          paidAt: now,
+          providerRef: `renewal:${renewalId}`,
+          issuedByPartnerId: partnerId,
+        },
+        select: { id: true },
+      });
+      const stamp = now.toISOString().slice(0, 10).replace(/-/g, "");
+      await tx.restaurantInvoice.update({
+        where: { id: invoice.id },
+        data: { invoiceNo: `INV-${stamp}-${invoice.id.slice(0, 6).toUpperCase()}` },
+        select: { id: true },
+      });
+
+      /**
        * CANVEXIA's 30%, through the ledger writer that already exists rather
        * than a second one beside it. It is idempotent on `providerRef`, snapshots
        * the split percentage in force today, and refuses a merchant with no
@@ -178,11 +214,11 @@ export async function confirmRenewal(input: {
         occurredAt: now,
       });
 
-      return paidUntil;
+      return { paidUntil, invoiceId: invoice.id };
     });
 
     if (!result) return { ok: false, message: "That renewal has already been dealt with." };
-    return { ok: true, paidUntil: result };
+    return { ok: true, paidUntil: result.paidUntil, invoiceId: result.invoiceId };
   } catch {
     return { ok: false, message: "Couldn't confirm that. Try again." };
   }

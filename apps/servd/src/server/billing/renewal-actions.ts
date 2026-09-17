@@ -7,6 +7,7 @@ import { systemDb } from "@/server/tenancy/scoped-db";
 import { writeSeatAudit } from "@/server/audit/log";
 import { uploadReceipt, uploadPayQr } from "@/server/storage/partner-billing";
 import { confirmRenewal, rejectRenewal, openRenewal } from "@/server/billing/renewals";
+import { queueMerchantInvoice } from "@/server/billing/merchant-invoice";
 
 export type RenewState = { ok?: string; error?: string; requested?: boolean } | null;
 
@@ -136,6 +137,10 @@ export async function confirmRenewalAction(
   } catch {
     /* the renewal is already recorded; losing the audit row must not undo it */
   }
+
+  // The merchant's own receipt, queued not sent — same claim-before-send path
+  // as every other email, so a retry cannot deliver it twice.
+  await queueMerchantInvoice(renewalId, res.invoiceId).catch(() => {});
 
   revalidatePath("/partner/renewals");
   return { ok: `Confirmed. They are paid up to ${res.paidUntil.toLocaleDateString("en-PH")}.` };

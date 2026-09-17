@@ -975,6 +975,18 @@ model RestaurantInvoice {
   periodEnd    DateTime
   providerRef  String? // gateway payment-intent id
   paidAt       DateTime?
+  /// Human reference, printed on the invoice the merchant receives.
+  ///
+  /// `INV-{yyyymmdd}-{6 of the id}` — unique BY CONSTRUCTION rather than from a
+  /// counter. A per-partner sequence would need a lock, and two confirmations in
+  /// the same second racing for number 41 would fail the one that lost, taking
+  /// a recorded payment down with it. A gap-free sequence is worth that only
+  /// where the law asks for one; this is a partner's own invoice, not a BIR
+  /// official receipt.
+  invoiceNo    String?   @unique
+  /// The partner who issued it. Null means Servd billed the restaurant itself,
+  /// which is what every row before this column meant.
+  issuedByPartnerId String?
   createdAt    DateTime  @default(now())
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)

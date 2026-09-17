@@ -243,7 +243,7 @@ export default async function BillingPage({
         ) : (
           <table className="w-full text-left text-sm">
             <thead className="text-plum-ink/50">
-              <tr><th className="py-2">Date</th><th>Amount</th><th>Status</th></tr>
+              <tr><th className="py-2">Date</th><th>Amount</th><th>Status</th><th className="text-right">Invoice</th></tr>
             </thead>
             <tbody>
               {invoices.map((inv) => (
@@ -251,6 +251,20 @@ export default async function BillingPage({
                   <td className="py-2">{manilaDate(inv.createdAt)}</td>
                   <td>{formatPeso(inv.amount)}</td>
                   <td>{inv.status}</td>
+                  <td className="text-right">
+                    {/* Only a partner-issued row has an invoice to show; the
+                        rest are Servd's own gateway records with nothing to
+                        print. Linking them all would be a dead link most of
+                        the time. */}
+                    {inv.issuedByPartnerId && (
+                      <Link
+                        href={`/admin/invoices/${inv.id}`}
+                        className="font-semibold text-brand-primary underline"
+                      >
+                        {inv.invoiceNo ?? "View"}
+                      </Link>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

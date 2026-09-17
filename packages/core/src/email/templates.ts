@@ -183,3 +183,45 @@ export function partnerStatementEmail(c: PartnerStatementCopy): {
     ],
   };
 }
+
+export interface MerchantInvoiceCopy {
+  /** The operator's own brand name — never Servd's. See the note below. */
+  issuerName: string;
+  merchantName: string;
+  invoiceNo: string;
+  amountCentavos: number;
+  paidUntil: Date;
+  invoiceUrl: string;
+}
+
+/**
+ * A partner's receipt to their own merchant, after confirming a payment.
+ *
+ * SIGNED BY THE PARTNER, NOT BY SERVD. The restaurant paid their operator and
+ * has often never heard of Servd; a confirmation from a company they did not
+ * pay is one they query, or ignore as a phishing attempt.
+ *
+ * It states the new paid-up date, because that is the thing the owner actually
+ * wanted to know when they paid.
+ */
+export function merchantInvoiceEmail(c: MerchantInvoiceCopy): {
+  subject: string;
+  paragraphs: string[];
+} {
+  const until = c.paidUntil.toLocaleDateString("en-PH", {
+    timeZone: "Asia/Manila",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  return {
+    subject: `${c.issuerName} — payment received, ${c.invoiceNo}`,
+    paragraphs: [
+      `Hello ${c.merchantName},`,
+      `${c.issuerName} has confirmed your payment of ${pesos(c.amountCentavos)}. Thank you.`,
+      `Your account is now paid up to ${until}. Nothing will be interrupted before then.`,
+      `Your invoice is here, and you can print it or save it as a PDF: ${c.invoiceUrl}`,
+    ],
+  };
+}
