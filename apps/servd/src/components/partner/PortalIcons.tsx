@@ -141,3 +141,22 @@ export const IconArrowLeft = (p: P) => (
     <path d="M11 18l-6-6 6-6" />
   </Svg>
 );
+
+/**
+ * The hamburger and its close. Drawn on the same 24 grid as the rest so the
+ * button sits at the same optical weight as the logo beside it.
+ */
+export const IconMenu = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 7h16" />
+    <path d="M4 12h16" />
+    <path d="M4 17h16" />
+  </Svg>
+);
+
+export const IconClose = (p: P) => (
+  <Svg {...p}>
+    <path d="M6 6l12 12" />
+    <path d="M18 6L6 18" />
+  </Svg>
+);

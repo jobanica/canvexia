@@ -1,64 +1,34 @@
 import Link from "next/link";
-import { type PartnerPermission } from "@servd/core";
 import type { CurrentPartner } from "@/server/partners/auth";
 import { signOutPartner } from "@/server/partners/login-action";
 import { InstallApp } from "@/components/pwa/InstallApp";
+import { NavDrawer } from "@/components/nav/NavDrawer";
 import { Mark } from "@servd/ui";
-import {
-  IconBell,
-  IconFunnel,
-  IconGear,
-  IconChat,
-  IconClock,
-  IconGlobe,
-  IconMapPin,
-  IconGrid,
-  IconPalette,
-  IconSearch,
-  IconStore,
-  IconUsers,
-  IconWallet,
-} from "./PortalIcons";
+import { IconBell, IconSearch } from "./PortalIcons";
+import { NavGroups, NavRow, partnerNav, type NavCounts } from "./portal-nav";
+
+export type { NavCounts };
 
 /**
  * The portal's chrome: a fixed sidebar and a top bar.
  *
- * Replaces the horizontal nav. Seven sections do not fit across the top of a
- * laptop without shrinking to the point where nobody reads them, and the
- * sidebar is what the dashboard layout this follows is built around.
+ * Seven sections do not fit across the top of a laptop without shrinking to the
+ * point where nobody reads them, and the sidebar is what the dashboard layout
+ * this follows is built around.
  *
- * Links are HIDDEN, not disabled, when the seat lacks the capability. A
- * greyed-out "Revenue" tells a salesperson exactly what they are missing and
- * invites a URL guess; `requirePartnerPageWith()` and the RLS policy are what
- * make the guess fail. Counts render only when a page has one to show — a badge
- * reading 0 is a badge that teaches people to ignore badges.
+ * PHONE: A HAMBURGER, NOT A BOTTOM BAR.
  *
- * MOBILE. The sidebar collapses to a bottom bar rather than a hamburger: a
- * partner uses this standing in a restaurant, one-handed, and a drawer costs a
- * tap before every navigation. The labels go, the icons stay.
+ * It was a bottom bar, on the argument that a partner uses this standing in a
+ * restaurant and a drawer costs a tap before every navigation. That argument
+ * was right about the tap and wrong about the cost, because the bar could only
+ * hold five and this nav runs to fourteen. Everything past the fifth — Brand,
+ * Domains, Commissions, Team, Settings — had no control on a phone at all. It
+ * was not hidden by a permission; it was hidden by `.slice(0, 5)`, silently,
+ * from people who held the permission.
+ *
+ * A tap to open a menu is a cost. A section you cannot reach from your phone is
+ * not a cost, it is a missing feature. So: one tap, and then all of it.
  */
-export interface NavCounts {
-  pipeline?: number;
-  merchants?: number;
-}
-
-type Item = {
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-  /**
-   * The A7 PERMISSION this link needs.
-   *
-   * Was a `Capability` from the fixed matrix. It is a permission now because a
-   * partner admin can change the answer at /team/permissions, and a nav
-   * derived from a matrix nobody can edit would show links the server then
-   * refuses — which is worse than hiding them, because it teaches people the
-   * portal is broken rather than that they lack the permission.
-   */
-  need?: PartnerPermission;
-  count?: number;
-};
-
 export function PortalShell({
   partner,
   title,
@@ -75,90 +45,7 @@ export function PortalShell({
   counts?: NavCounts;
   children: React.ReactNode;
 }) {
-  const items: Item[] = [
-    { href: "/partner", label: "Overview", icon: <IconGrid /> },
-    // Renewals sits high because somebody is waiting on it: a merchant who has
-    // paid and not been confirmed is one bad day from being suspended for it.
-    { href: "/partner/renewals", label: "Renewals", icon: <IconWallet />, need: "merchants.change_plan" },
-    // What they owe HQ, kept apart from Revenue on purpose: one is what they
-    // earned and the other is the bill, and a payable inside an earnings screen
-    // is a deadline nobody notices.
-    { href: "/partner/payables", label: "Payables", icon: <IconWallet />, need: "revenue.view" },
-    {
-      href: "/partner/pipeline",
-      label: "Pipeline",
-      icon: <IconFunnel />,
-      need: "pipeline.view_own",
-      count: counts?.pipeline,
-    },
-    {
-      href: "/partner/merchants",
-      label: "Merchants",
-      icon: <IconStore />,
-      need: "merchants.view_assigned",
-      count: counts?.merchants,
-    },
-    { href: "/partner/revenue", label: "Revenue", icon: <IconWallet />, need: "revenue.view" },
-    { href: "/partner/brand", label: "Brand", icon: <IconPalette />, need: "brand.edit" },
-    { href: "/partner/domains", label: "Domains", icon: <IconGlobe />, need: "domains.write" },
-  ];
-
-  // The field app and the manager's view of it. Two entries rather than one
-  // screen that branches, because they are different jobs: one is "check me
-  // in", the other is "where was the team". A salesperson holds only the first.
-  if (partner.permissions.has("attendance.checkin")) {
-    items.splice(1, 0, {
-      href: "/partner/attendance",
-      label: "Field",
-      icon: <IconMapPin />,
-    });
-  }
-  if (partner.permissions.has("attendance.view_all")) {
-    items.push({
-      href: "/partner/attendance/manager",
-      label: "Attendance",
-      icon: <IconClock />,
-      need: "attendance.view_all",
-    });
-  }
-
-  // SMS sits above the team block: it is day-to-day work for whoever holds
-  // `sms.send`, not an administrative setting. Hidden entirely without the
-  // permission, like everything else here.
-  if (partner.permissions.has("sms.send")) {
-    items.push({
-      href: "/partner/sms",
-      label: "SMS",
-      icon: <IconChat />,
-      need: "sms.send",
-    });
-  } else if (partner.permissions.has("sms.reply_own")) {
-    // A salesperson gets the INBOX and not the composer: answering somebody who
-    // texted them back is the job; broadcasting to the whole book is not.
-    items.push({
-      href: "/partner/sms/inbox",
-      label: "SMS",
-      icon: <IconChat />,
-      need: "sms.reply_own",
-    });
-  }
-
-  const lower: Item[] = [
-    {
-      href: "/partner/commissions",
-      label: "Commissions",
-      icon: <IconWallet />,
-      need: "commissions.view_own",
-    },
-    { href: "/partner/team", label: "Team", icon: <IconUsers />, need: "team.manage" },
-    { href: "/partner/settings", label: "Settings", icon: <IconGear />, need: "settings.write" },
-  ];
-
-  // The seat's RESOLVED permissions — defaults with this partner's overrides on
-  // top — not the fixed matrix. Same hide-don't-disable rule as before.
-  const allowed = (i: Item) => !i.need || partner.permissions.has(i.need);
-  const main = items.filter(allowed);
-  const secondary = lower.filter(allowed);
+  const { main, secondary } = partnerNav(partner, counts);
 
   // The initials the avatar falls back to. No photo is stored anywhere in this
   // system, so the circle is always initials rather than a broken image.
@@ -169,23 +56,10 @@ export function PortalShell({
     .map((s) => s[0]?.toUpperCase())
     .join("");
 
-  const row = (i: Item, active = false) => (
-    <Link
-      key={i.href}
-      href={i.href}
-      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
-        active
-          ? "bg-brand-primary/10 font-semibold text-brand-primary"
-          : "text-brand-ink/60 hover:bg-brand-ink/[0.04] hover:text-brand-ink"
-      }`}
-    >
-      <span className="shrink-0">{i.icon}</span>
-      <span className="truncate">{i.label}</span>
-      {typeof i.count === "number" && i.count > 0 && (
-        <span className="ml-auto rounded-full bg-brand-primary px-2 py-0.5 text-[0.65rem] font-bold text-white">
-          {i.count}
-        </span>
-      )}
+  const lockup = (
+    <Link href="/partner" className="flex items-center gap-2.5" aria-label="Portal home">
+      <Mark size={24} title="CANVEXIA" />
+      <span className="font-bold tracking-[0.12em] text-brand-ink">CANVEXIA</span>
     </Link>
   );
 
@@ -224,19 +98,35 @@ export function PortalShell({
           </Link>
 
           <nav aria-label="Portal" className="mt-8 flex flex-col gap-1">
-            {main.map((i) => row(i))}
+            {main.map((i) => (
+              <NavRow key={i.href} item={i} />
+            ))}
           </nav>
 
           {secondary.length > 0 && (
-            <nav aria-label="Account" className="mt-auto flex flex-col gap-1 border-t border-brand-ink/10 pt-4">
-              {secondary.map((i) => row(i))}
+            <nav
+              aria-label="Account"
+              className="mt-auto flex flex-col gap-1 border-t border-brand-ink/10 pt-4"
+            >
+              {secondary.map((i) => (
+                <NavRow key={i.href} item={i} />
+              ))}
             </nav>
           )}
         </aside>
 
         {/* Main column */}
-        <div className="min-w-0 flex-1 pb-20 lg:pb-0">
-          <header className="sticky top-0 z-20 flex items-center gap-4 border-b border-brand-ink/10 bg-white px-5 py-3.5">
+        <div className="min-w-0 flex-1">
+          <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-brand-ink/10 bg-white px-4 py-3.5 sm:px-5">
+            {/*
+              The hamburger sits FIRST, left of the logo: it is the control
+              people reach for, and on a phone the logo is decoration.
+            */}
+            <div className="lg:hidden">
+              <NavDrawer label="Portal" header={lockup}>
+                <NavGroups main={main} secondary={secondary} />
+              </NavDrawer>
+            </div>
             <Link href="/partner" className="lg:hidden" aria-label="Portal home">
               <Mark size={24} title="CANVEXIA" />
             </Link>
@@ -323,30 +213,6 @@ export function PortalShell({
           </main>
         </div>
       </div>
-
-      {/* Phone: a bottom bar, not a drawer. One tap, not two. */}
-      <nav
-        aria-label="Portal"
-        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-brand-ink/10 bg-white lg:hidden"
-      >
-        {[...main, ...secondary].slice(0, 5).map((i) => (
-          <Link
-            key={i.href}
-            href={i.href}
-            className="flex flex-1 flex-col items-center gap-1 py-2.5 text-[0.6rem] font-semibold text-brand-ink/55"
-          >
-            <span className="relative">
-              {i.icon}
-              {typeof i.count === "number" && i.count > 0 && (
-                <span className="absolute -right-2 -top-1.5 rounded-full bg-brand-primary px-1.5 text-[0.55rem] font-bold text-white">
-                  {i.count}
-                </span>
-              )}
-            </span>
-            {i.label}
-          </Link>
-        ))}
-      </nav>
     </div>
   );
 }

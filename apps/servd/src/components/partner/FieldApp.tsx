@@ -46,6 +46,7 @@ export function FieldApp({
   canAddNew,
   name,
   kioskRequired,
+  nav,
   scanned,
 }: {
   session: SessionRow | null;
@@ -58,6 +59,11 @@ export function FieldApp({
   name: string;
   /** This seat must clock in at a kiosk; the GPS-only buttons are refused. */
   kioskRequired: boolean;
+  /**
+   * The hamburger and its drawer, built on the server because the nav it holds
+   * depends on this seat's permissions and this component is a client one.
+   */
+  nav?: React.ReactNode;
   /** A code already in the URL, because the phone's camera app opened it. */
   scanned: { kioskId: string; code: string } | null;
 }) {
@@ -197,26 +203,35 @@ export function FieldApp({
       {scanning && <QrScanner onResult={acceptScan} onClose={() => setScanning(false)} />}
 
       {/*
-        THE WAY OUT.
+        THE WAY OUT, and now the way everywhere else.
 
         This screen is deliberately outside PortalShell — a sidebar, a top bar
         and a bottom nav on a 390px phone leave about half of it for the three
-        controls somebody is here to tap. But "no chrome" was taken to mean "no
-        links at all", and the result was a page with no exit: on the web the
-        browser's own back button only helps if you arrived from somewhere, and
-        in the INSTALLED app there is no browser back button, because this is
-        the start_url. Staff were stuck on it.
+        controls somebody is here to tap. But "no chrome" was first taken to
+        mean "no links at all", and the result was a page with no exit: on the
+        web the browser's own back button only helps if you arrived from
+        somewhere, and in the INSTALLED app there is no browser back button,
+        because this is the start_url. Staff were stuck on it.
 
-        One link, not a nav bar. Everything else the portal offers is a tap
-        further on from the Overview.
+        That was answered with one link back to the Overview, which fixed being
+        stuck and left every other section two taps away, through a screen
+        nobody wanted. The hamburger is the rest of the answer: the SAME drawer
+        the portal uses, with the same permissioned list, opened from a 44px
+        button that costs this screen one row.
+
+        The Portal link stays beside it. The drawer is for choosing; this is for
+        leaving, and leaving is the thing people do here in a hurry.
       */}
-      <Link
-        href="/partner"
-        className="-ml-1 inline-flex min-h-[44px] items-center gap-1.5 pr-2 text-sm font-semibold text-brand-ink/55 hover:text-brand-ink"
-      >
-        <IconArrowLeft size={18} />
-        Portal
-      </Link>
+      <div className="-ml-1 flex items-center gap-0.5">
+        {nav}
+        <Link
+          href="/partner"
+          className="inline-flex min-h-[44px] items-center gap-1.5 px-2 text-sm font-semibold text-brand-ink/55 hover:text-brand-ink"
+        >
+          <IconArrowLeft size={18} />
+          Portal
+        </Link>
+      </div>
 
       <header className="flex items-baseline justify-between gap-3">
         <div>

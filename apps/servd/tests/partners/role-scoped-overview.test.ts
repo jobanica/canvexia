@@ -91,10 +91,12 @@ describe("the screens ask for the right permission", () => {
   });
 
   it("derives the nav from resolved permissions, not the fixed matrix", () => {
-    const shell = read("components/partner/PortalShell.tsx");
-    expect(shell).toContain("partner.permissions.has(i.need)");
+    // The nav moved out of PortalShell into portal-nav so the field app could
+    // render the same list; the rule it has to keep travels with it.
+    const nav = read("components/partner/portal-nav.tsx");
+    expect(nav).toContain("partner.permissions.has(i.need)");
     // The old call would answer from a matrix a partner admin cannot edit, so
     // a link could survive a permission being turned off.
-    expect(shell).not.toContain("can(partner.user.role");
+    expect(nav).not.toContain("can(partner.user.role");
   });
 });

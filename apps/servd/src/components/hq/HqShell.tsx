@@ -5,6 +5,7 @@ import type { CurrentHqUser } from "@/server/hq/auth";
 import { Avatar } from "@/components/canvexia/Cards";
 import { signOutHq } from "@/server/hq/login-action";
 import { InstallApp } from "@/components/pwa/InstallApp";
+import { NavDrawer } from "@/components/nav/NavDrawer";
 import {
   IconFunnel,
   IconGear,
@@ -32,7 +33,12 @@ import {
  * It deliberately does NOT reuse PortalShell. That component takes a
  * `CurrentPartner`, renders a partner's own nav, and carries the impersonation
  * banner — three things that are wrong here. What the two share is the visual
- * vocabulary, which lives in components/canvexia.
+ * vocabulary, which lives in components/canvexia, and now the drawer.
+ *
+ * PHONE: A HAMBURGER, NOT A BOTTOM BAR. The bar held five and this console has
+ * ten entries; on a phone a super admin could not reach Billing, the HQ team,
+ * Email or Audit at all, and nothing on screen said so. Same fix as the portal,
+ * for the same reason.
  */
 type Item = { href: string; label: string; icon: React.ReactNode; need?: HqCapability };
 
@@ -79,6 +85,38 @@ export function HqShell({
     </Link>
   );
 
+  /*
+    Back to Servd's own back office. The two consoles are separate on purpose —
+    /hq is CANVEXIA across every product, /super-admin is one product's ops —
+    and a person who works in both should not have to remember a URL. Declared
+    once so the sidebar and the drawer cannot end up offering different lists.
+  */
+  const backOffice = (
+    <Link
+      href="/super-admin"
+      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-brand-ink/40 hover:text-brand-ink/70"
+    >
+      <span className="shrink-0">
+        <IconStore />
+      </span>
+      <span className="truncate">Servd back office</span>
+    </Link>
+  );
+
+  const lockup = (
+    <Link href="/hq" className="flex items-center gap-2.5" aria-label="HQ home">
+      <Mark size={24} title="CANVEXIA" />
+      <span className="min-w-0">
+        <span className="block font-bold leading-none tracking-[0.12em] text-brand-ink">
+          CANVEXIA
+        </span>
+        <span className="mt-0.5 block text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-brand-primary">
+          HQ
+        </span>
+      </span>
+    </Link>
+  );
+
   return (
     <div className="brand-canvexia min-h-screen bg-brand-surface text-brand-ink">
       <div className="mx-auto flex max-w-[1500px]">
@@ -105,27 +143,29 @@ export function HqShell({
               className="mt-auto flex flex-col gap-1 border-t border-brand-ink/10 pt-4"
             >
               {secondary.map(row)}
-              {/*
-                Back to Servd's own back office. The two consoles are separate
-                on purpose — /hq is CANVEXIA across every product, /super-admin
-                is one product's ops — and a person who works in both should not
-                have to remember a URL.
-              */}
-              <Link
-                href="/super-admin"
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-brand-ink/40 hover:text-brand-ink/70"
-              >
-                <span className="shrink-0">
-                  <IconStore />
-                </span>
-                <span className="truncate">Servd back office</span>
-              </Link>
+              {backOffice}
             </nav>
           )}
         </aside>
 
-        <div className="min-w-0 flex-1 pb-20 lg:pb-0">
-          <header className="sticky top-0 z-20 flex items-center gap-4 border-b border-brand-ink/10 bg-white px-5 py-3.5">
+        <div className="min-w-0 flex-1">
+          <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-brand-ink/10 bg-white px-4 py-3.5 sm:px-5">
+            {/* Hamburger first, left of the mark: it is the control people
+                reach for, and on a phone the mark is decoration. */}
+            <div className="lg:hidden">
+              <NavDrawer label="HQ" header={lockup}>
+                <nav aria-label="Sections" className="flex flex-col gap-1">
+                  {main.map(row)}
+                </nav>
+                <nav
+                  aria-label="Administration"
+                  className="mt-4 flex flex-col gap-1 border-t border-brand-ink/10 pt-4"
+                >
+                  {secondary.map(row)}
+                  {backOffice}
+                </nav>
+              </NavDrawer>
+            </div>
             <Link href="/hq" className="lg:hidden" aria-label="HQ home">
               <Mark size={24} title="CANVEXIA" />
             </Link>
@@ -173,23 +213,6 @@ export function HqShell({
         </div>
       </div>
 
-      {/* Phone: a bottom bar, same as the portal. The Overview and the
-          attention list are the two things that have to work standing up. */}
-      <nav
-        aria-label="HQ"
-        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-brand-ink/10 bg-white lg:hidden"
-      >
-        {[...main, ...secondary].slice(0, 5).map((i) => (
-          <Link
-            key={i.href}
-            href={i.href}
-            className="flex flex-1 flex-col items-center gap-1 py-2.5 text-[0.6rem] font-semibold text-brand-ink/55"
-          >
-            {i.icon}
-            {i.label}
-          </Link>
-        ))}
-      </nav>
     </div>
   );
 }

@@ -7,6 +7,10 @@ import { manilaDayKey, todaySession, visitsForDay } from "@/server/partners/atte
 import { myMerchants } from "@/server/partners/my-day";
 import { kioskRequired } from "@/server/partners/kiosk";
 import { FieldApp } from "@/components/partner/FieldApp";
+import { NavDrawer } from "@/components/nav/NavDrawer";
+import { NavGroups, partnerNav } from "@/components/partner/portal-nav";
+import { Mark } from "@servd/ui";
+import Link from "next/link";
 
 export const metadata = { title: "Field — CANVEXIA" };
 
@@ -17,6 +21,12 @@ export const metadata = { title: "Field — CANVEXIA" };
  * a top bar and a bottom nav on a 390px screen leave about half of it for the
  * three controls somebody is actually here to tap, and the shell's chrome is
  * for a person browsing rather than working.
+ *
+ * It gets the shell's DRAWER though, built here and handed down. The nav is
+ * derived from this seat's permissions, which is server knowledge, and FieldApp
+ * is a client component — so the list is rendered here and passed as a node.
+ * Same `partnerNav()` the portal calls, so a permission added to one appears in
+ * both.
  */
 export default async function PartnerAttendancePage({
   searchParams,
@@ -87,9 +97,26 @@ export default async function PartnerAttendancePage({
    */
   const canAddNew = partnerAllows(partner, "pipeline.write");
 
+  // The same nav the portal's sidebar renders, unfiltered by any slice: what
+  // this seat may open, all of it, one tap from the field screen.
+  const nav = partnerNav(partner);
+
   return (
     <div className="brand-canvexia min-h-screen bg-brand-surface text-brand-ink">
       <FieldApp
+        nav={
+          <NavDrawer
+            label="Portal"
+            header={
+              <Link href="/partner" className="flex items-center gap-2.5" aria-label="Portal home">
+                <Mark size={24} title="CANVEXIA" />
+                <span className="font-bold tracking-[0.12em] text-brand-ink">CANVEXIA</span>
+              </Link>
+            }
+          >
+            <NavGroups main={nav.main} secondary={nav.secondary} />
+          </NavDrawer>
+        }
         session={session}
         visits={visits}
         subjects={subjects}
