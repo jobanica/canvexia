@@ -75,10 +75,22 @@ describe("a suspension is explainable and reversible", () => {
 
 describe("it only claims what it can do", () => {
   it("refuses a product whose suspension it does not understand", () => {
-    // The pharmacy vertical keeps its own table; guessing from here would write
-    // to the wrong row or silently do nothing.
-    expect(action).toContain('if (productId !== "servd")');
-    expect(page).toContain('merchant.productId === "servd"');
+    // It used to refuse everything but Servd. It now handles Resceta as well —
+    // `pharmacies.status` is the same column in the same sense and the counter
+    // already honours it — and still refuses anything else, because a product
+    // this code has never heard of has no table to write to and defaulting to
+    // one would switch off the wrong business.
+    expect(action).toContain('productId !== "servd" && productId !== "pharmacy"');
+    expect(page).toContain('merchant.productId === "servd" || merchant.productId === "pharmacy"');
+  });
+
+  it("picks the table from a value it has validated, not from the form", () => {
+    // The refusal above runs first, so by the time this branch is reached
+    // `productId` is one of exactly two strings.
+    const gate = action.indexOf('productId !== "servd" && productId !== "pharmacy"');
+    const branch = action.indexOf('productId === "pharmacy"\n          ? await tx.pharmacy');
+    expect(gate).toBeGreaterThan(-1);
+    expect(branch).toBeGreaterThan(gate);
   });
 
   it("still admits what is not built", () => {

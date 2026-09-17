@@ -22,6 +22,16 @@ import { writeSeatAudit } from "@/server/audit/log";
  * ops_manager hold it by default and an operator can take it off a seat, which
  * a fixed capability could not express. Sales opens accounts and support answers
  * for them; neither switches a business off.
+ *
+ * IT DOES PHARMACIES TOO, NOW. It used to refuse anything that was not Servd,
+ * on the argument that the pharmacy vertical keeps its own table and guessing
+ * at it from here would write to the wrong row. The table is the only thing
+ * that differs: `pharmacies.status` is the same column in the same sense, and
+ * Resceta already honours it — `pos/actions.ts` refuses to ring up a sale when
+ * it is not "active", and the shell says so on every page. So the mechanism was
+ * built on the pharmacy side and only the lever was missing: a partner could
+ * ACTIVATE a pharmacy (`activatePharmacy`) and never switch one off again. A
+ * one-way door on the one control that makes non-payment answerable.
  */
 
 export type MerchantActionState = { ok?: string; error?: string } | null;
@@ -37,11 +47,10 @@ async function setStatus(
   const merchantId = String(formData.get("merchantId") ?? "");
   const productId = String(formData.get("productId") ?? "");
   if (!merchantId) return { error: "Merchant not found." };
-  // Only Servd for now. The pharmacy vertical keeps its own table and its own
-  // notion of being switched off; guessing at it from here would write to the
-  // wrong row or silently do nothing.
-  if (productId !== "servd") {
-    return { error: "This can only be done for Servd accounts yet." };
+  // Named, not inferred. A product this code has never heard of has no table to
+  // write to, and defaulting to one would switch off the wrong business.
+  if (productId !== "servd" && productId !== "pharmacy") {
+    return { error: "This can only be done for Servd and Resceta accounts." };
   }
 
   const reason = String(formData.get("reason") ?? "").trim().slice(0, 300) || null;
@@ -54,16 +63,27 @@ async function setStatus(
   try {
     const done = await systemDb(async (tx) => {
       // Ownership in the WHERE clause: a merchant belonging to another partner
-      // matches zero rows rather than being switched off.
-      const hit = await tx.restaurant.updateMany({
-        where: { id: merchantId, partnerId: who.partnerId },
-        data: { status: next },
-      });
+      // matches zero rows rather than being switched off. Both axes carry
+      // `partnerId` and `status`, so the clause is identical — only the table
+      // differs, and it is chosen from a value this function has validated
+      // rather than from the form directly.
+      const hit =
+        productId === "pharmacy"
+          ? await tx.pharmacy.updateMany({
+              where: { id: merchantId, partnerId: who.partnerId },
+              data: { status: next },
+            })
+          : await tx.restaurant.updateMany({
+              where: { id: merchantId, partnerId: who.partnerId },
+              data: { status: next },
+            });
       if (hit.count === 0) return false;
 
       await writeSeatAudit(tx, who, {
         action: next === "suspended" ? "partner.merchant_suspended" : "partner.merchant_reactivated",
-        entityType: "merchant",
+        // The axis, so an audit reader is not left guessing which table an id
+        // belongs to. Two products can hold the same uuid shape.
+        entityType: productId === "pharmacy" ? "pharmacy" : "merchant",
         entityId: merchantId,
         after: { status: next, reason },
       });

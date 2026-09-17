@@ -92,13 +92,28 @@ be their login at another pharmacy, and one branch must not remove someone's
 access to a different one. The last owner cannot be removed, and nobody can
 remove themselves.
 
+### Forgetting a password
+
+`/forgot-password` → Supabase emails a link → `/reset-password`. Both are client
+components: the recovery token arrives in the URL **fragment**, which never
+reaches a server, and the new password goes straight to Supabase rather than
+through a Server Action body.
+
+`/reset-password` checks for a session before it offers the form and waits on
+`onAuthStateChange` rather than reading synchronously on mount — the fragment
+exchange is asynchronous, and a synchronous read shows "this link has expired"
+to somebody whose link is fine.
+
+There was none of this before, and with no login handover either, a forgotten
+password meant the `staff:create` script and the service-role key.
+
 ## What is in it
 
 | | |
 |---|---|
 | Tables | 11, all `pharmacy*`, all keyed on `pharmacyId` |
 | Policies | `tenant_isolation` on all 11, created by the axis loop without naming any of them |
-| Routes | `/login`, `/` (dashboard), `/pos`, `/receipts`, `/receipts/<id>`, `/receipts/<id>/print`, `/receiving`, `/settings`, `/staff`, `/logout` |
+| Routes | `/login`, `/forgot-password`, `/reset-password`, `/` (dashboard), `/pos`, `/receipts`, `/receipts/<id>`, `/receipts/<id>/print`, `/receiving`, `/catalogue`, `/settings`, `/staff`, `/logout` |
 | Tests | 130 offline, 41 DB-backed |
 
 **Catalogue · batches · suppliers · stock movements · POS with voids, returns
@@ -106,6 +121,28 @@ and a printable BIR receipt · expiry and low-stock reporting.** Not in this pas
 transfers, stocktakes, PO receiving, z-readings, online orders. The source MVP has all of
 those and they are all real; none is load-bearing for the platform question this
 pass had to answer.
+
+### What is NOT here, and is not a domain feature
+
+Known gaps against what a Servd merchant gets, so nobody rediscovers them:
+
+- **No billing at all.** `Subscription.restaurantId` — a pharmacy has no
+  subscription row, so no plan, no expiry, no renewal, no invoice. Worse,
+  `recordSettlement` takes a `restaurantId` and reads `tx.restaurant`, so a
+  pharmacy can never produce a ledger entry: a partner selling Resceta earns
+  nothing this platform records and CANVEXIA's 30% never accrues.
+- **HQ cannot reassign, move or re-plan a pharmacy** — three `productId !==
+  "servd"` refusals in `hq/merchants-actions.ts`, each with its own message.
+- **No login handover.** `convertPartnerDemo` is Servd-only, so the first
+  account at a pharmacy still comes from the `staff:create` script. The reset
+  flow below is what stops that being the only recovery path as well.
+- No partner branding, no feedback inbox, no HQ announcements, no tutorials.
+- No PWA, no service worker, no offline queue — arguably needed more at a
+  pharmacy counter than at a restaurant till.
+
+Suspension is NO LONGER on that list: `setStatus` in
+`servd/src/server/partners/merchant-actions.ts` writes `pharmacies.status` for
+`productId === "pharmacy"`, which the counter already honours.
 
 ## The three things worth knowing before changing it
 
@@ -234,6 +271,36 @@ A pharmacist has `manageStock` but not `manageCatalogue`, so they can receive
 into products that already exist and cannot add a new one. That is not
 awkwardness for its own sake: creating a product means **pricing** it, and the
 price is what the till charges. Manager or owner. The screen says so.
+
+### `/catalogue` — and why it had to exist
+
+Receiving was for a while the ONLY way a product came into being, and it set two
+of the sixteen columns on `pharmacy_products`: `name` and `priceCentavos`.
+Nothing anywhere could update one afterwards. Three things followed:
+
+1. **`requiresPrescription` was written in zero places and read in six** — the
+   sale gate, the counter's warning, the dashboard badge, `authoriseSale`. So
+   the rule this file calls law rather than policy was enforced flawlessly
+   against a flag that was false for every product in every pharmacy and could
+   not be changed. A cashier could complete a cart containing an antibiotic,
+   and every layer above behaved exactly as designed.
+2. **`reorderPoint` defaulted to 0**, and the dashboard computes `onHand <=
+   reorderPoint`. Low stock therefore fired only once an item had run out — a
+   post-mortem, not a warning. The catalogue shows 0 as "not set" and counts how
+   many are still in that state, because every product created before this
+   screen has one.
+3. A price could never be corrected after the first delivery.
+
+Writes run in `systemDb` for the same reason as `settings.ts`: `audit_logs` sits
+on the restaurant axis and has no pharmacy policy, so an insert under the
+pharmacy scope is refused, and splitting a change to a statutory flag from its
+own audit row across two transactions is how a change ends up with no trail.
+The whole record is stored either side, not a diff — what the Rx flag USED to be
+is the question an inspection asks.
+
+Products are **archived**, never deleted. Batches, stock movements and sale
+lines all point at the row; removing it would orphan a receipt already handed to
+a customer.
 
 ## Undoing a sale
 

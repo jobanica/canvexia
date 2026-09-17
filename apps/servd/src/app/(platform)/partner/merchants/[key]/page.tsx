@@ -180,14 +180,24 @@ export default async function PartnerMerchantPage({
           operator can take it off a seat. Admin and ops_manager hold it by
           default; sales opens accounts and support answers for them.
         */}
-        {partnerAllows(partner, "merchants.suspend") && merchant.productId === "servd" && (
+        {/*
+          RESCETA TOO. This was `productId === "servd"`, which made the lever a
+          one-way door for a pharmacy: `activatePharmacy` could switch one on
+          and nothing could switch it off. Resceta already honours the flag —
+          its counter refuses to ring up a sale when the pharmacy is not active
+          — so the mechanism was built and only the control was missing.
+        */}
+        {partnerAllows(partner, "merchants.suspend") &&
+          (merchant.productId === "servd" || merchant.productId === "pharmacy") && (
           <div className="mt-8 rounded-tile border border-brand-ink/10 bg-white p-5">
             <p className="text-sm font-semibold">
               {merchant.status === "suspended" ? "This account is suspended" : "Access"}
             </p>
             <p className="mt-1 text-sm text-brand-ink/55">
               {merchant.status === "suspended"
-                ? "Their staff see a notice instead of the app and the ordering page is closed. Nothing has been deleted."
+                ? merchant.productId === "pharmacy"
+                  ? "Their counter refuses to ring up a sale and says why. Stock, batches and past receipts are untouched."
+                  : "Their staff see a notice instead of the app and the ordering page is closed. Nothing has been deleted."
                 : "Everything is switched on. Suspend it if they stop paying you — it is reversible, and nothing is lost."}
             </p>
             <MerchantSuspend

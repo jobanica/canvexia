@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { PasswordField } from "@/components/PasswordField";
 
 /**
  * Sign in.
@@ -62,17 +64,19 @@ export function LoginForm({ next }: { next: string }) {
         />
       </label>
 
-      <label className="block text-sm">
-        <span className="mb-1 block font-medium text-slate-700">Password</span>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="current-password"
-          className="w-full rounded-md border border-slate-300 px-3 py-2"
-        />
-      </label>
+      <div>
+        <PasswordField label="Password" value={password} onChange={setPassword} />
+        {/*
+          THE WAY BACK IN. There was none: no toggle, no link, and no reset
+          route — so a forgotten password meant finding whoever holds the
+          service-role key and running the staff CLI.
+        */}
+        <p className="mt-1 text-right">
+          <Link href="/forgot-password" className="text-xs font-medium text-slate-600 underline">
+            Forgot password?
+          </Link>
+        </p>
+      </div>
 
       {error && (
         <p
