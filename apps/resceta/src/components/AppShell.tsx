@@ -20,6 +20,8 @@ const NAV: { href: string; label: string; needs?: Permission }[] = [
   { href: "/receiving", label: "Receive", needs: "manageStock" },
   { href: "/catalogue", label: "Catalogue", needs: "manageCatalogue" },
   { href: "/suppliers", label: "Suppliers", needs: "manageStock" },
+  { href: "/purchase-orders", label: "Orders", needs: "manageStock" },
+  { href: "/customers", label: "Customers", needs: "sell" },
   { href: "/staff", label: "Staff", needs: "manageStaff" },
   { href: "/billing", label: "Billing", needs: "manageSettings" },
   { href: "/settings", label: "Settings", needs: "manageSettings" },

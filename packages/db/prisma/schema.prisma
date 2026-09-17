@@ -3414,6 +3414,11 @@ model Pharmacy {
   /// wants each sequence gapless on its own terms.
   nextReturnNo Int @default(dbgenerated("1"))
 
+  /// The next purchase-order number. Same mechanism as the two above: counting
+  /// rows would reissue a number after a cancellation, and two people raising
+  /// an order at once would race to the same one.
+  nextPoNo Int @default(dbgenerated("1"))
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -3437,6 +3442,23 @@ model Pharmacy {
 
   @@index([partnerId])
   @@index([assignedSalesUserId])
+  /// LOYALTY IS OFF UNTIL SOMEBODY TURNS IT ON. Zero earn rate means no
+  /// points are issued at all, which is the default and the right default:
+  /// a programme nobody configured must not quietly start accruing a
+  /// liability.
+  loyaltyPointsPerPeso    Int @default(0)
+  /// What one point is worth when redeemed, in centavos.
+  loyaltyCentavosPerPoint Int @default(0)
+
+  customers      PharmacyCustomer[]
+  loyaltyTxns    PharmacyLoyaltyTxn[]
+  prescriptions  PharmacyPrescription[]
+  purchaseOrders PharmacyPurchaseOrder[]
+  poItems        PharmacyPurchaseOrderItem[]
+  stocktakes     PharmacyStocktake[]
+  stocktakeItems PharmacyStocktakeItem[]
+  writeoffs      PharmacyWriteoff[]
+
   @@map("pharmacies")
 }
 
@@ -3513,6 +3535,9 @@ model PharmacyProduct {
   batches   PharmacyBatch[]
   movements PharmacyStockMovement[]
   saleItems PharmacySaleItem[]
+  poItems        PharmacyPurchaseOrderItem[]
+  stocktakeItems PharmacyStocktakeItem[]
+  writeoffs      PharmacyWriteoff[]
 
   @@unique([pharmacyId, sku])
   @@unique([pharmacyId, barcode])
@@ -3534,7 +3559,8 @@ model PharmacySupplier {
   createdAt     DateTime @default(now())
 
   pharmacy Pharmacy        @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
-  batches  PharmacyBatch[]
+  batches        PharmacyBatch[]
+  purchaseOrders PharmacyPurchaseOrder[]
 
   @@index([pharmacyId])
   @@map("pharmacy_suppliers")
@@ -3570,6 +3596,7 @@ model PharmacyBatch {
   supplier  PharmacySupplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   movements PharmacyStockMovement[]
   saleItems PharmacySaleItem[]
+  writeoffs PharmacyWriteoff[]
 
   @@index([pharmacyId])
   @@index([productId, expiryDate])
@@ -3642,13 +3669,28 @@ model PharmacySale {
   voidedAt        DateTime?
   createdAt       DateTime           @default(now())
 
-  pharmacy Pharmacy           @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
-  items    PharmacySaleItem[]
-  returns  PharmacyReturn[]
+  /// Both nullable and both stay that way. An anonymous over-the-counter sale
+  /// is the normal case; a system that demands a name before it will take money
+  /// is one the cashier works around.
+  customerId     String?
+  prescriptionId String?
+  /// Loyalty, snapshotted onto the sale so a later rate change cannot rewrite
+  /// what this customer was told they earned.
+  pointsEarned           Int @default(0)
+  pointsRedeemedCentavos Int @default(0)
+
+  pharmacy     Pharmacy              @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  items        PharmacySaleItem[]
+  returns      PharmacyReturn[]
+  customer     PharmacyCustomer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  prescription PharmacyPrescription? @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+  loyaltyTxns  PharmacyLoyaltyTxn[]
 
   @@unique([pharmacyId, receiptNumber])
   @@index([pharmacyId, createdAt])
   @@index([pharmacyId, status])
+  @@index([customerId])
+  @@index([prescriptionId])
   @@map("pharmacy_sales")
 }
 
@@ -4454,4 +4496,268 @@ model CommissionLine {
   @@unique([statementId, ledgerEntryId])
   @@index([statementId])
   @@map("commission_lines")
+}
+
+// ============================================================================
+// RESCETA, WAVES 2-3 — customers and loyalty, prescriptions, purchase orders,
+// stocktakes, write-offs.
+//
+// See prisma/manual/pharmacy-wave2.sql, which is what actually ran. These
+// models describe the same tables to Prisma; the SQL is the source of truth for
+// what exists in the database.
+// ============================================================================
+
+enum PharmacyPoStatus {
+  draft
+  sent
+  /// Some of it arrived. The state a short delivery leaves a PO in, and the
+  /// reason `quantityReceived` is on the line rather than derived.
+  partial
+  received
+  cancelled
+}
+
+enum PharmacyStocktakeStatus {
+  draft
+  counting
+  approved
+  cancelled
+}
+
+enum PharmacyLoyaltyKind {
+  earn
+  redeem
+  adjust
+}
+
+/// `donated` is its own reason rather than "other with a note": medicine given
+/// to a barangay health centre is a different line in the books from medicine
+/// that spoiled, and a pharmacy is asked about both separately.
+enum PharmacyWriteoffReason {
+  expired
+  damaged
+  donated
+  lost
+  recalled
+  other
+}
+
+model PharmacyCustomer {
+  id         String  @id @default(uuid())
+  pharmacyId String
+  name       String
+  phone      String?
+  email      String?
+  address    String?
+  notes      String?
+  /// A CACHE OF THE LEDGER, not the truth. The truth is the sum of
+  /// PharmacyLoyaltyTxn.points; this is what the counter reads so it does not
+  /// add up a thousand rows while somebody waits at the till. Every write to
+  /// one happens in the same transaction as the other.
+  pointsBalance Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pharmacy      Pharmacy               @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  loyaltyTxns   PharmacyLoyaltyTxn[]
+  prescriptions PharmacyPrescription[]
+  sales         PharmacySale[]
+
+  @@index([pharmacyId])
+  @@index([pharmacyId, phone])
+  @@map("pharmacy_customers")
+}
+
+/// The points ledger. Append-only, like the stock movements.
+model PharmacyLoyaltyTxn {
+  id         String              @id @default(uuid())
+  pharmacyId String
+  customerId String
+  saleId     String?
+  kind       PharmacyLoyaltyKind
+  /// SIGNED — positive earns, negative redeems. Storing the sign means the
+  /// balance is a SUM and never a CASE expression somebody gets backwards.
+  points     Int
+  note       String?
+
+  actorStaffId String?
+  createdAt    DateTime @default(now())
+
+  pharmacy Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  customer PharmacyCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  sale     PharmacySale?    @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  @@index([pharmacyId])
+  @@index([customerId, createdAt])
+  @@map("pharmacy_loyalty_transactions")
+}
+
+/// A prescription as a record, not a string.
+///
+/// `PharmacySale.prescriptionRef` is something somebody types. That is enough
+/// to print on a receipt and not enough to answer "show me every dispensing
+/// against this PRC number", which is what an inspection asks. The paper Rx
+/// stays the legal document; this is the index into it.
+model PharmacyPrescription {
+  id          String    @id @default(uuid())
+  pharmacyId  String
+  customerId  String?
+  rxNumber    String?
+  patientName String
+  patientDob  DateTime?
+  doctorName  String
+  /// The PRC licence number — the one field that makes a prescription
+  /// checkable rather than just recorded.
+  doctorPrcNo String?
+  dateIssued  DateTime
+  notes       String?
+
+  actorStaffId String?
+  createdAt    DateTime @default(now())
+
+  pharmacy Pharmacy          @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  customer PharmacyCustomer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  sales    PharmacySale[]
+
+  @@index([pharmacyId, createdAt])
+  @@index([pharmacyId, doctorPrcNo])
+  @@index([customerId])
+  @@map("pharmacy_prescriptions")
+}
+
+model PharmacyPurchaseOrder {
+  id         String  @id @default(uuid())
+  pharmacyId String
+  supplierId String?
+  /// Gapless per pharmacy, allocated inside the creating transaction — the
+  /// same rule receipts follow, for the same reason.
+  poNumber   String
+  status     PharmacyPoStatus @default(draft)
+  expectedDate DateTime?
+  notes      String?
+
+  actorStaffId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pharmacy Pharmacy                    @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  supplier PharmacySupplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  items    PharmacyPurchaseOrderItem[]
+
+  @@unique([pharmacyId, poNumber])
+  @@index([pharmacyId, createdAt])
+  @@index([supplierId])
+  @@map("pharmacy_purchase_orders")
+}
+
+model PharmacyPurchaseOrderItem {
+  id              String @id @default(uuid())
+  pharmacyId      String
+  purchaseOrderId String
+  productId       String
+
+  quantityOrdered  Int
+  /// What has actually arrived against this line. The difference between this
+  /// and `quantityOrdered` is what makes a short delivery visible.
+  quantityReceived Int @default(0)
+  unitCostCentavos Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  pharmacy      Pharmacy              @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  purchaseOrder PharmacyPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       PharmacyProduct       @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+  @@index([pharmacyId])
+  @@index([productId])
+  @@map("pharmacy_purchase_order_items")
+}
+
+/// The count that makes the system agree with the shelf.
+///
+/// A stocktake is NOT an edit to the batches. It is a document that records
+/// what was counted, gets approved by somebody, and only then writes the
+/// adjustments — because "the system said 40 and the shelf had 31" is a fact
+/// worth keeping after the number has been corrected.
+model PharmacyStocktake {
+  id         String                  @id @default(uuid())
+  pharmacyId String
+  status     PharmacyStocktakeStatus @default(draft)
+  notes      String?
+
+  actorStaffId      String?
+  approvedByStaffId String?
+  createdAt         DateTime  @default(now())
+  approvedAt        DateTime?
+
+  pharmacy Pharmacy                @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  items    PharmacyStocktakeItem[]
+
+  @@index([pharmacyId, createdAt])
+  @@map("pharmacy_stocktakes")
+}
+
+model PharmacyStocktakeItem {
+  id          String @id @default(uuid())
+  pharmacyId  String
+  stocktakeId String
+  productId   String
+
+  /// What the system believed when the sheet was opened. Snapshotted, so a
+  /// sale rung up mid-count does not change what is being reconciled against.
+  systemQty  Int @default(0)
+  /// NULL means NOT COUNTED YET, which is a different fact from "counted
+  /// zero". A default of 0 here would let an approval write every uncounted
+  /// product down to nothing.
+  countedQty Int?
+  unitCostCentavos Int @default(0)
+
+  pharmacy  Pharmacy          @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  stocktake PharmacyStocktake @relation(fields: [stocktakeId], references: [id], onDelete: Cascade)
+  product   PharmacyProduct   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([stocktakeId, productId])
+  @@index([stocktakeId])
+  @@index([pharmacyId])
+  @@map("pharmacy_stocktake_items")
+}
+
+/// Stock that left without being sold, and why.
+///
+/// The stock movement records that the quantity went; this records the reason,
+/// the cost and what it was. A pharmacy is asked for the value of expired stock
+/// at year end and for a list of donations, and neither is derivable from a
+/// movement row that only says "adjustment".
+model PharmacyWriteoff {
+  id         String  @id @default(uuid())
+  pharmacyId String
+  productId  String?
+  batchId    String?
+
+  /// Snapshotted for the same reason a sale line snapshots its name: the
+  /// product may be archived later and the write-off still has to read.
+  productName       String
+  lotNumber         String?
+  quantity          Int
+  unitCostCentavos  Int @default(0)
+  totalCostCentavos Int @default(0)
+
+  reason PharmacyWriteoffReason @default(other)
+  /// Where a donation went. The app requires it for `donated`, because a
+  /// donation with no recipient is indistinguishable from stock that walked.
+  recipient String?
+  notes     String?
+
+  actorStaffId String?
+  createdAt    DateTime @default(now())
+
+  pharmacy Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  product  PharmacyProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  batch    PharmacyBatch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([pharmacyId, createdAt])
+  @@index([pharmacyId, reason])
+  @@map("pharmacy_writeoffs")
 }
