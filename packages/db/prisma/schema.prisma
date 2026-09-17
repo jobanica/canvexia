@@ -3419,6 +3419,12 @@ model Pharmacy {
   /// an order at once would race to the same one.
   nextPoNo Int @default(dbgenerated("1"))
 
+  /// The Z-reading counter. Sequential and NEVER reset — that is the property
+  /// a registered POS is claiming when it prints one, so it lives here rather
+  /// than being derived by counting readings (which would reissue a number if
+  /// one were ever removed).
+  nextZNo Int @default(dbgenerated("1"))
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -3458,6 +3464,8 @@ model Pharmacy {
   stocktakes     PharmacyStocktake[]
   stocktakeItems PharmacyStocktakeItem[]
   writeoffs      PharmacyWriteoff[]
+  shifts         PharmacyShift[]
+  readings       PharmacyReading[]
 
   @@map("pharmacies")
 }
@@ -3679,18 +3687,24 @@ model PharmacySale {
   pointsEarned           Int @default(0)
   pointsRedeemedCentavos Int @default(0)
 
+  /// Which shift rang it. Nullable: sales taken before shifts existed, and
+  /// sales rung up with no shift open, are both valid rows.
+  shiftId String?
+
   pharmacy     Pharmacy              @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   items        PharmacySaleItem[]
   returns      PharmacyReturn[]
   customer     PharmacyCustomer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   prescription PharmacyPrescription? @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
   loyaltyTxns  PharmacyLoyaltyTxn[]
+  shift        PharmacyShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
 
   @@unique([pharmacyId, receiptNumber])
   @@index([pharmacyId, createdAt])
   @@index([pharmacyId, status])
   @@index([customerId])
   @@index([prescriptionId])
+  @@index([shiftId])
   @@map("pharmacy_sales")
 }
 
@@ -4760,4 +4774,110 @@ model PharmacyWriteoff {
   @@index([pharmacyId, createdAt])
   @@index([pharmacyId, reason])
   @@map("pharmacy_writeoffs")
+}
+
+// ============================================================================
+// RESCETA, WAVE 4 — cashier shifts and register readings.
+//
+// See prisma/manual/pharmacy-wave4.sql.
+// ============================================================================
+
+enum PharmacyShiftStatus {
+  open
+  closed
+}
+
+enum PharmacyReadingType {
+  x
+  z
+}
+
+/// One person, one till, one session.
+///
+/// A till that cannot be closed off is a till nobody can reconcile: who was on
+/// the register, what cash it started with, what it should hold now, and
+/// whether the drawer is over or short.
+model PharmacyShift {
+  id         String              @id @default(uuid())
+  pharmacyId String
+  staffId    String?
+  status     PharmacyShiftStatus @default(open)
+
+  openingCashCentavos Int  @default(0)
+  closingCashCentavos Int?
+  openedAt            DateTime  @default(now())
+  closedAt            DateTime?
+  notes               String?
+
+  /// The reconciliation, SNAPSHOTTED at close rather than recomputed. What the
+  /// drawer was counted at is a fact about that evening; a figure that changes
+  /// when a sale is voided next week is not a reconciliation.
+  salesCount            Int?
+  grossCentavos         Int?
+  discountCentavos      Int?
+  netCentavos           Int?
+  cashCollectedCentavos Int?
+  expectedCashCentavos  Int?
+  /// closing − expected. NEGATIVE MEANS SHORT — the direction anybody reading
+  /// it will assume, so it must be the direction it is.
+  overShortCentavos     Int?
+
+  pharmacy Pharmacy          @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  sales    PharmacySale[]
+  readings PharmacyReading[]
+
+  @@index([pharmacyId, openedAt])
+  @@index([pharmacyId, status])
+  @@map("pharmacy_shifts")
+}
+
+/// An X or Z reading.
+///
+/// A BIR ARTEFACT, not a report we invented: a registered POS produces a daily
+/// Z-reading with a sequential, non-resettable counter, and the VAT breakdown
+/// on it is what the monthly return is built from. An X-reading is the same
+/// summary taken mid-shift without closing anything off.
+model PharmacyReading {
+  id         String              @id @default(uuid())
+  pharmacyId String
+  type       PharmacyReadingType
+  /// NULL for an X. Sequential and never reset for a Z.
+  zCounter   Int?
+  shiftId    String?
+  staffId    String?
+
+  openedAt            DateTime
+  closedAt            DateTime @default(now())
+  openingCashCentavos Int      @default(0)
+
+  salesCount       Int @default(0)
+  voidedCount      Int @default(0)
+  grossCentavos    Int @default(0)
+  discountCentavos Int @default(0)
+  netCentavos      Int @default(0)
+
+  vatableCentavos   Int @default(0)
+  vatCentavos       Int @default(0)
+  vatExemptCentavos Int @default(0)
+  zeroRatedCentavos Int @default(0)
+
+  cashCentavos  Int @default(0)
+  cardCentavos  Int @default(0)
+  gcashCentavos Int @default(0)
+  mayaCentavos  Int @default(0)
+  otherCentavos Int @default(0)
+
+  /// The receipt range covered. What makes a Z auditable: the series has to be
+  /// continuous across every Z ever taken.
+  firstReceiptNumber String?
+  lastReceiptNumber  String?
+
+  createdAt DateTime @default(now())
+
+  pharmacy Pharmacy       @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  shift    PharmacyShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+
+  @@unique([pharmacyId, zCounter])
+  @@index([pharmacyId, closedAt])
+  @@map("pharmacy_readings")
 }

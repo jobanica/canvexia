@@ -176,6 +176,14 @@ export async function completeSale(
     });
     const receiptNumber = String(bumped.nextReceiptNo - 1).padStart(8, "0");
 
+    // Read INSIDE the same transaction as the sale, so a shift closed between
+    // the lookup and the insert cannot capture this receipt.
+    const openShift = await tx.pharmacyShift.findFirst({
+      where: { pharmacyId: req.pharmacyId, status: "open" },
+      orderBy: { openedAt: "desc" },
+      select: { id: true },
+    });
+
     const sale = await tx.pharmacySale.create({
       data: {
         pharmacyId: req.pharmacyId,
@@ -192,6 +200,15 @@ export async function completeSale(
         changeCentavos: tendered - totals.totalCentavos,
         prescriptionRef: req.prescriptionRef?.trim() || null,
         soldByStaffId: req.soldByStaffId ?? null,
+        /*
+          THE OPEN SHIFT, RESOLVED HERE AND NOT PASSED IN.
+          A till id travelling through the browser is a till id somebody can
+          change, and a sale filed against yesterday's closed shift would
+          silently fall outside the Z-reading that has already been cut. Null
+          when no shift is open, which is a valid sale — a pharmacy that has
+          not adopted shifts still sells.
+        */
+        shiftId: openShift?.id ?? null,
       },
       select: { id: true },
     });
