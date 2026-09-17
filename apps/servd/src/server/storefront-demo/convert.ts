@@ -8,6 +8,7 @@ import { normalizeUsername } from "@/lib/partners/login-username";
 import { getFreePlan, getDefaultPlan, getTopPlan, SIGNUP_TRIAL_DAYS } from "@/server/billing/subscription";
 import { revokePreviewLogin } from "./preview-login";
 import { internalLoginDomain } from "@/lib/branding/app-domain";
+import { addMonths } from "@/lib/billing/period";
 
 /**
  * Turning a demo storefront into a real account.
@@ -114,6 +115,22 @@ async function applyBilling(
     trialEndsAt.setDate(trialEndsAt.getDate() + SIGNUP_TRIAL_DAYS);
   }
 
+  /**
+   * THE DATE THE ACCOUNT IS PAID UP TO.
+   *
+   * A Standard conversion used to write `currentPeriodEnd: trialEndsAt`, which
+   * is null for anything that is not a trial — so a ₱999/mo subscription had no
+   * period end at all. `nextBillingAction` reads a null boundary as "not yet
+   * due", so it never came due, never renewed, and there was nothing to show a
+   * restaurant that wanted to renew before it lapsed.
+   */
+  const periodEnd =
+    billing === "standard" ? addMonths(new Date(), 1) : trialEndsAt;
+
+  // The partner bills the restaurant directly, so Servd must not read the date
+  // above as non-payment when it passes. See Subscription.billedExternally.
+  const billedExternally = billing === "standard";
+
   await tx.restaurant.update({
     where: { id: restaurantId },
     data: { planId: plan.id },
@@ -133,7 +150,8 @@ async function applyBilling(
     planId: plan.id,
     status: billing === "trial30" ? ("trialing" as const) : ("active" as const),
     trialEndsAt,
-    currentPeriodEnd: trialEndsAt,
+    currentPeriodEnd: periodEnd,
+    billedExternally,
   };
   if (sub) {
     await tx.subscription.update({ where: { id: sub.id }, data, select: { id: true } });

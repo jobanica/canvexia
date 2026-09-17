@@ -48,6 +48,26 @@ export default async function BillingPage({
 
   const needsPayment = sub?.status === "past_due";
 
+  /**
+   * WHEN THE ACCOUNT RUNS OUT, so it can be renewed before it does.
+   *
+   * `currentPeriodEnd` is the date the shop is paid up to. It was never shown
+   * anywhere, so the first an owner knew about a lapse was the day something
+   * stopped working — and on a partner-sold account, where the partner
+   * collects in cash, "renew in advance" is the only thing that can happen.
+   *
+   * Not shown during a trial: the trial banner below already answers "how long
+   * have I got", and two countdowns disagreeing about it is worse than one.
+   * Not shown on ₱0 Free either — that period rolls forward forever and an
+   * expiry date on it would be a deadline nobody has.
+   */
+  const paidUntil = !onTrial && (sub?.plan.priceMonthly ?? 0) > 0 ? (sub?.currentPeriodEnd ?? null) : null;
+  const untilDays = daysLeft(paidUntil);
+  // A fortnight is enough notice to move money in cash, which is how a
+  // partner-sold account is actually paid for.
+  const renewSoon = untilDays !== null && untilDays <= 14;
+  const lapsed = untilDays !== null && untilDays === 0 && !!paidUntil && paidUntil.getTime() <= Date.now();
+
   const rows: StoreRow[] = FEATURE_META
     // A retired feature is listed only for the shops that already bought it —
     // there's no sense showing everyone else something they can't buy and
@@ -106,6 +126,38 @@ export default async function BillingPage({
             <strong>Every feature is unlocked</strong> until your trial ends — except the content
             scheduler, which is its own ₱499/mo. After that it is ₱999/mo for all of it, and
             anything you already own outright stays yours whatever you decide.
+          </p>
+        </div>
+      )}
+
+      {paidUntil && (
+        <div
+          className={`rounded-tile border p-5 ${
+            lapsed
+              ? "border-guava/40 bg-guava/10"
+              : renewSoon
+                ? "border-mango/40 bg-mango/10"
+                : "border-plum-ink/10 bg-white"
+          }`}
+        >
+          <p className="font-heading text-lg font-bold text-plum-ink">
+            {lapsed
+              ? "Your plan has run out"
+              : `Your plan runs until ${manilaDate(paidUntil)}`}
+          </p>
+          <p className="mt-1 text-sm text-plum-ink/70">
+            {lapsed ? (
+              <>
+                It ran out on {manilaDate(paidUntil)}. Renew with whoever set up your account to
+                keep everything switched on.
+              </>
+            ) : (
+              <>
+                {untilDays} day{untilDays === 1 ? "" : "s"} left
+                {renewSoon ? " — renew now so nothing stops." : "."} Renew with whoever set up
+                your account; you can pay any time before that date.
+              </>
+            )}
           </p>
         </div>
       )}

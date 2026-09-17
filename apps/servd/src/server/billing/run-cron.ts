@@ -75,6 +75,28 @@ export async function runBillingCron(now: Date = new Date()): Promise<CronSummar
     );
     const amount = sub.plan.priceMonthly;
 
+    /**
+     * SOMEBODY ELSE COLLECTS THIS MONEY — skip every billing action.
+     *
+     * A partner-sold restaurant is billed by its partner, in cash, off this
+     * system. `currentPeriodEnd` on such a subscription is the date the shop is
+     * PAID UP TO, shown to the owner so they can renew before it lapses; it is
+     * not a debt to Servd.
+     *
+     * Without this guard, populating that date turned the daily run into a
+     * collections process against people who owe Servd nothing: no saved card
+     * means `await_payment`, which raises an invoice and marks the subscription
+     * past_due, and MAX_PAST_DUE_DAYS later suspends the restaurant outright.
+     * A shop that has paid its partner every month would have been switched off
+     * for it.
+     *
+     * The period is NOT rolled forward either. Auto-renewing it would make the
+     * date permanently read "paid up", which is the one thing it must never say
+     * when nobody has checked whether they paid. It lapses, the owner sees that
+     * it has, and whoever sold them the account decides what to do.
+     */
+    if (sub.billedExternally) continue;
+
     // A 14-day paid trial that ended without a saved card → revert to the Free
     // plan (lifetime free) rather than suspend. Free is always there to fall
     // back to, so an un-converted trial just becomes a free account.

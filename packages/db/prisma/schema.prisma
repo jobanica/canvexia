@@ -937,6 +937,20 @@ model Subscription {
   trialEndsAt             DateTime?
   currentPeriodEnd        DateTime?
   cancelAtPeriodEnd       Boolean            @default(false)
+  /// Somebody other than Servd collects this money — in practice the partner
+  /// who sold the account and bills the restaurant directly.
+  ///
+  /// It has to be a stored fact rather than something derived. "Owned by a
+  /// partner" cannot answer it: every merchant sits under a partner, the house
+  /// partner included, so HQ's own accounts would look externally billed too.
+  ///
+  /// WHAT IT GUARDS. `currentPeriodEnd` is the date the account is paid up to,
+  /// and the daily cron treats a paid plan reaching it with no saved card as
+  /// non-payment — it raises an invoice, marks the subscription past_due and
+  /// eventually SUSPENDS the shop. For a restaurant whose partner has been
+  /// collecting in cash the whole time, every step of that is wrong. Servd has
+  /// no idea whether they paid, so it must not act as though they did not.
+  billedExternally        Boolean            @default(false)
   // Dunning: how many consecutive charge attempts have failed.
   failedCharges           Int                @default(0)
   // Gateway refs for off-session recurring charges (platform's PayMongo account).
