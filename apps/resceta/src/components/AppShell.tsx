@@ -3,6 +3,7 @@ import { ROLE_LABEL, can, type Permission } from "@/lib/pharmacy/roles";
 import type { CurrentStaff } from "@/server/tenancy/current-user";
 import { PharmacySwitcher } from "./PharmacySwitcher";
 import { OfflineNotice } from "./OfflineNotice";
+import { NavDrawer, type NavLink } from "./NavDrawer";
 
 /**
  * The signed-in chrome: who you are, which pharmacy, and where you can go.
@@ -11,20 +12,32 @@ import { OfflineNotice } from "./OfflineNotice";
  * greyed-out link still tells a cashier the reports page exists and is worth
  * poking at; more to the point, hiding it here and checking it again on the
  * page is two layers, and the page's check is the one that matters.
+ *
+ * GROUPED, AND IN A DRAWER. Fourteen links in a row wrap onto three lines on a
+ * counter screen and scroll off the right on a phone — and the ones that fall
+ * off are the newest, which are the ones nobody has found yet. The four groups
+ * are the four jobs: serving a customer, keeping the shelf right, the people,
+ * and the business.
  */
-const NAV: { href: string; label: string; needs?: Permission }[] = [
-  { href: "/", label: "Dashboard" },
-  { href: "/alerts", label: "Alerts" },
-  { href: "/pos", label: "Counter", needs: "sell" },
-  { href: "/receipts", label: "Receipts", needs: "sell" },
-  { href: "/receiving", label: "Receive", needs: "manageStock" },
-  { href: "/catalogue", label: "Catalogue", needs: "manageCatalogue" },
-  { href: "/suppliers", label: "Suppliers", needs: "manageStock" },
-  { href: "/purchase-orders", label: "Orders", needs: "manageStock" },
-  { href: "/customers", label: "Customers", needs: "sell" },
-  { href: "/staff", label: "Staff", needs: "manageStaff" },
-  { href: "/billing", label: "Billing", needs: "manageSettings" },
-  { href: "/settings", label: "Settings", needs: "manageSettings" },
+const NAV: (NavLink & { needs?: Permission })[] = [
+  { href: "/", label: "Dashboard", group: "Today" },
+  { href: "/alerts", label: "Alerts", group: "Today" },
+  { href: "/pos", label: "Counter", group: "Today", needs: "sell" },
+  { href: "/receipts", label: "Receipts", group: "Today", needs: "sell" },
+
+  { href: "/catalogue", label: "Catalogue", group: "Stock", needs: "manageCatalogue" },
+  { href: "/receiving", label: "Receive", group: "Stock", needs: "manageStock" },
+  { href: "/purchase-orders", label: "Purchase orders", group: "Stock", needs: "manageStock" },
+  { href: "/suppliers", label: "Suppliers", group: "Stock", needs: "manageStock" },
+  { href: "/inventory", label: "Adjustments", group: "Stock", needs: "manageStock" },
+  { href: "/stocktake", label: "Stocktake", group: "Stock", needs: "manageStock" },
+
+  { href: "/customers", label: "Customers", group: "People", needs: "sell" },
+  { href: "/prescriptions", label: "Prescriptions", group: "People", needs: "sell" },
+  { href: "/staff", label: "Staff", group: "People", needs: "manageStaff" },
+
+  { href: "/billing", label: "Billing", group: "Business", needs: "manageSettings" },
+  { href: "/settings", label: "Settings", group: "Business", needs: "manageSettings" },
 ];
 
 export function AppShell({
@@ -46,8 +59,20 @@ export function AppShell({
       */}
       <OfflineNotice />
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3">
-          <span className="font-semibold tracking-tight">Resceta</span>
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-3 px-6 py-3">
+          <NavDrawer
+            links={links.map(({ href, label, group }) => ({ href, label, group }))}
+            footer={
+              <div className="text-sm">
+                <p className="font-medium">{staff.displayName ?? staff.email}</p>
+                <p className="text-xs text-slate-500">{ROLE_LABEL[staff.role]}</p>
+              </div>
+            }
+          />
+
+          <Link href="/" className="font-semibold tracking-tight">
+            Resceta
+          </Link>
 
           {staff.memberships.length > 1 ? (
             <PharmacySwitcher
@@ -58,16 +83,8 @@ export function AppShell({
             <span className="text-sm text-slate-600">{staff.pharmacyName}</span>
           )}
 
-          <nav className="flex items-center gap-4 text-sm">
-            {links.map((l) => (
-              <Link key={l.href} href={l.href} className="text-slate-600 hover:text-slate-900">
-                {l.label}
-              </Link>
-            ))}
-          </nav>
-
           <div className="ml-auto flex items-center gap-3 text-sm">
-            <span className="text-slate-500">
+            <span className="hidden text-slate-500 sm:inline">
               {staff.displayName ?? staff.email}
               <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
                 {ROLE_LABEL[staff.role]}
