@@ -183,9 +183,16 @@ function DemoRow({
         </div>
       </div>
 
-      {canBuild && !demo.converted && (
-        <div className="mt-3 border-t border-brand-ink/5 pt-3">
-          <PartnerConvertForm restaurantId={demo.id} />
+      {/*
+        `demo.converted` is a PROP here, not a reason to skip rendering. A server
+        action re-renders this list when it finishes, so `{!demo.converted &&
+        <form/>}` unmounted the component at the moment its success state held
+        the only copy of the password — `converted` had just flipped true. The
+        form renders nothing itself once converted.
+      */}
+      {canBuild && (
+        <div className="mt-3 border-t border-brand-ink/5 pt-3 empty:mt-0 empty:border-0 empty:pt-0">
+          <PartnerConvertForm restaurantId={demo.id} alreadyConverted={demo.converted} />
         </div>
       )}
 

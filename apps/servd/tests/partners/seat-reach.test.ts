@@ -165,7 +165,7 @@ describe("a sales seat can hand over the login", () => {
   const detail = codeAt("src/app/(platform)/partner/merchants/[key]/page.tsx");
 
   it("puts the convert form on the merchant itself", () => {
-    expect(detail).toContain("<PartnerConvertForm restaurantId={merchant.id} />");
+    expect(detail).toContain("<PartnerConvertForm restaurantId={merchant.id}");
   });
 
   it("gates it on the capability the server actually checks", () => {
@@ -178,10 +178,8 @@ describe("a sales seat can hand over the login", () => {
     expect(can("sales" as PartnerUserRole, "merchants.create")).toBe(true);
   });
 
-  it("offers it only where there is no login yet, and only for Servd", () => {
-    // Converting an account that already has one is refused by the action; the
-    // pharmacy vertical has no convert flow at all.
-    expect(detail).toContain("login && !login.converted && canConvert");
+  it("asks the question only for Servd", () => {
+    // The pharmacy vertical has no convert flow at all.
     expect(detail).toContain('merchant.productId === "servd" ? await demoLogin(merchant.id)');
   });
 
@@ -221,5 +219,99 @@ describe("the merchant list says which accounts nobody can sign into", () => {
     expect(fn).toContain(".catch(() =>");
     // And a failed read leaves the rows alone rather than claiming "no login".
     expect(fn).toContain("return rows;");
+  });
+});
+
+
+/**
+ * THE PASSWORD THAT WAS SHOWN FOR NO FRAMES.
+ *
+ * REPORTED — "it auto converted, and there is no password shown", on a real
+ * merchant, which was left with a credential nobody had.
+ *
+ * A server action re-renders the page's server tree when it finishes. The
+ * merchant page rendered the convert form as `{!login.converted &&
+ * <PartnerConvertForm/>}`, so the successful conversion set `converted` true,
+ * the server tree came back without the component, React unmounted it, and its
+ * `useActionState` — the only place the password ever existed — went with it.
+ *
+ * The rule: NEVER decide whether to mount a component on the state its own
+ * action changes. Pass the state in and let the component decide.
+ */
+describe("a one-shot credential survives the re-render that reveals it", () => {
+  const form = codeAt("src/components/partner/PartnerConvertForm.tsx");
+
+  it("takes `alreadyConverted` as a prop", () => {
+    expect(form).toContain("alreadyConverted");
+  });
+
+  it("shows credentials it holds BEFORE it considers that prop", () => {
+    // Order matters and is the whole fix: state in hand beats the page's
+    // opinion that the conversion is already done.
+    const shows = form.indexOf("state?.ok && state.credentials");
+    const bails = form.indexOf("if (alreadyConverted) return null");
+    expect(shows).toBeGreaterThan(-1);
+    expect(bails).toBeGreaterThan(shows);
+  });
+
+  it("is never gated on `converted` by any caller", () => {
+    // Both callers had the same shape. Either one reintroduces the bug.
+    for (const p of [
+      "src/app/(platform)/partner/merchants/[key]/page.tsx",
+      "src/components/partner/PartnerDemos.tsx",
+    ]) {
+      const caller = codeAt(p);
+      const at = caller.indexOf("<PartnerConvertForm");
+      expect(at, p).toBeGreaterThan(-1);
+      // The JSX conditional immediately before the element must not test a
+      // converted flag.
+      const preceding = caller.slice(Math.max(0, at - 260), at);
+      expect(preceding, `${p} gates the form on converted`).not.toMatch(
+        /!\s*(login\.converted|demo\.converted)/,
+      );
+    }
+  });
+});
+
+describe("a lost password can be re-issued", () => {
+  const action = codeAt("src/server/partners/demo.ts");
+  const reset = action.slice(action.indexOf("export async function resetMerchantPassword"));
+  const detail = codeAt("src/app/(platform)/partner/merchants/[key]/page.tsx");
+
+  it("exists at all, which is what makes 'shown once' safe", () => {
+    // Without it, the bug above was unrecoverable: the owner's login is a
+    // synthetic address at a domain that receives no mail, so "reset it from
+    // the sign-in page" reached nobody.
+    expect(reset.length).toBeGreaterThan(0);
+    expect(detail).toContain("<MerchantPasswordReset restaurantId={merchant.id} />");
+  });
+
+  it("checks ownership and the same capability as converting", () => {
+    expect(reset).toContain("requireWritablePartner(DEMO_CAPABILITY)");
+    expect(reset).toContain("ownDemo(restaurantId, who.partnerId)");
+  });
+
+  it("refuses an account that has no login to reset", () => {
+    expect(reset).toContain("convert it first");
+  });
+
+  it("audits the login and never the password", () => {
+    expect(reset).toContain("partner.merchant_password_reset");
+    expect(reset).toContain("after: { login:");
+    const after = reset.slice(reset.indexOf("after: { login:"));
+    expect(after.slice(0, 80)).not.toContain("password");
+  });
+
+  it("does not let a failed audit report the password as unchanged", () => {
+    // It is already changed by then. Saying otherwise sends somebody to read
+    // out a password that no longer works.
+    expect(reset.indexOf("writeSeatAudit")).toBeGreaterThan(reset.indexOf("updateUserById"));
+  });
+
+  it("hands back a password and never a session", () => {
+    // Re-issuing a credential is not impersonation, which is still not built.
+    expect(reset).toContain("return { ok: true, login:");
+    expect(reset).not.toContain("signIn");
+    expect(reset).not.toContain("setSession");
   });
 });

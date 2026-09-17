@@ -5,6 +5,7 @@ import { getPartnerMerchant, merchantAssignees, isPaying } from "@/server/partne
 import { demoLogin } from "@/server/partners/demo-queries";
 import { PortalShell } from "@/components/partner/PortalShell";
 import { PartnerConvertForm } from "@/components/partner/PartnerConvertForm";
+import { MerchantPasswordReset } from "@/components/partner/MerchantPasswordReset";
 import { peso } from "@/components/partner/Overview";
 
 /**
@@ -120,25 +121,51 @@ export default async function PartnerMerchantPage({
           the password only exists in that response. Standing in front of the
           owner is the moment to read them out.
         */}
-        {login && !login.converted && canConvert && (
+        {login && canConvert && (
           <div className="mt-8">
-            <p className="mb-2 text-sm font-semibold">Nobody can sign in to this yet</p>
-            <p className="mb-3 text-sm text-brand-ink/55">
-              Opening the account set up the shop, its page and its QR codes — not a
-              login, because at that point nobody had agreed to anything. Give it one
-              when they say yes.
-            </p>
-            <PartnerConvertForm restaurantId={merchant.id} />
+            {!login.converted && (
+              <>
+                <p className="mb-2 text-sm font-semibold">Nobody can sign in to this yet</p>
+                <p className="mb-3 text-sm text-brand-ink/55">
+                  Opening the account set up the shop, its page and its QR codes — not a
+                  login, because at that point nobody had agreed to anything. Give it one
+                  when they say yes.
+                </p>
+              </>
+            )}
+            {/*
+              RENDERED WHETHER OR NOT IT IS CONVERTED, and that is the fix for a
+              real bug rather than a stylistic choice. A server action re-renders
+              this page when it finishes, so `{!login.converted && <form/>}` tore
+              the component out at the exact moment it had the password to show —
+              `converted` had just become true. It was displayed for no frames,
+              and the account was left with a credential nobody had.
+
+              The component keeps its own state and shows the credentials even
+              once the page agrees the conversion happened; it renders nothing
+              when it is merely looking at an account somebody else converted.
+            */}
+            <PartnerConvertForm restaurantId={merchant.id} alreadyConverted={login.converted} />
           </div>
         )}
 
         {login?.converted && (
-          <p className="mt-8 rounded-tile border border-brand-ink/10 bg-white p-5 text-sm text-brand-ink/60">
-            The owner signs in as{" "}
-            <span className="font-semibold text-brand-ink">{login.username ?? "their username"}</span>.
-            Passwords are never shown again — if they have lost it, they reset it from the
-            sign-in page.
-          </p>
+          <div className="mt-8 rounded-tile border border-brand-ink/10 bg-white p-5">
+            <p className="text-sm text-brand-ink/60">
+              The owner signs in as{" "}
+              <span className="font-semibold text-brand-ink">
+                {login.username ?? "their username"}
+              </span>
+              . The password is shown once, when it is set, and never again.
+            </p>
+            {/*
+              The way back from "nobody wrote it down". Their login is a
+              synthetic address at a domain that receives no mail, so a
+              self-service reset from the sign-in page does not reach them —
+              which is what made a lost password unrecoverable.
+            */}
+            {canConvert && <MerchantPasswordReset restaurantId={merchant.id} />}
+          </div>
         )}
 
         {/*

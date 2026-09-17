@@ -9,7 +9,9 @@ import { pesosToCentavos } from "@/lib/money";
 import { requireWritablePartner } from "@/server/partners/auth";
 import { receiptJson } from "@/server/storefront-demo/provision";
 import { provisionMerchantForPartner } from "@/server/products";
-import { convertDemo } from "@/server/storefront-demo/convert";
+import { convertDemo, tempPassword } from "@/server/storefront-demo/convert";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { writeSeatAudit } from "@/server/audit/log";
 import { PARTNER_SCAN_LIMIT } from "@/lib/menu/scan-limit";
 import { demoAlreadyScanned } from "@/server/partners/demo-queries";
 import { scanAndSaveMenu } from "@/server/storefront-demo/scan-save";
@@ -387,4 +389,86 @@ export async function deletePartnerItem(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   await systemDb((tx) => tx.menuItem.deleteMany({ where: { id, restaurantId } }));
   revalidatePath(demoPath(restaurantId));
+}
+
+// ------------------------------------------------------- Recovering a login
+
+export type ResetPasswordState =
+  | { ok: true; login: string; password: string }
+  | { error: string }
+  | null;
+
+/**
+ * Re-issue the owner's password, for a merchant this partner owns.
+ *
+ * WHY THIS HAD TO EXIST.
+ *
+ * Conversion shows the password exactly once, because it only ever exists in
+ * that one response — a good property, and one that had no recovery behind it.
+ * When the merchant detail page unmounted the convert form the instant the
+ * conversion succeeded, the password was shown for no frames at all and the
+ * account was left with a credential nobody had. There was no way back: the
+ * partner could not reset it, and the owner could not either, because the login
+ * is a synthetic address at a domain that receives no mail.
+ *
+ * "Shown once" is only safe when something can show it again. This is that.
+ *
+ * It is NOT a way into the merchant's data. It sets a password and returns it;
+ * it opens no session, and the audit row names who did it.
+ *
+ * Same capability as converting — `merchants.create`. Somebody who may hand out
+ * the first password may hand out the second; withholding it would only mean
+ * the account stays locked.
+ */
+export async function resetMerchantPassword(
+  _prev: ResetPasswordState,
+  formData: FormData,
+): Promise<ResetPasswordState> {
+  const who = await requireWritablePartner(DEMO_CAPABILITY);
+  if (!who) return { error: "You can't do that from this account." };
+
+  const restaurantId = String(formData.get("restaurantId") ?? "");
+  // Ownership, checked against `partnerId` — see the note on ownDemo. HQ can
+  // reassign a merchant, and the previous partner must not keep a key to it.
+  if (!restaurantId || !(await ownDemo(restaurantId, who.partnerId))) {
+    return { error: "Merchant not found." };
+  }
+
+  const owner = await systemDb((tx) =>
+    tx.staffUser.findFirst({
+      where: { restaurantId, role: "admin" },
+      orderBy: { createdAt: "asc" },
+      select: { authUserId: true, email: true, username: true },
+    }),
+  );
+  if (!owner) return { error: "This account has no login yet — convert it first." };
+
+  const password = tempPassword();
+  try {
+    const admin = createSupabaseAdminClient();
+    const { error } = await admin.auth.admin.updateUserById(owner.authUserId, { password });
+    if (error) return { error: "Couldn't reset that password. Try again." };
+  } catch {
+    return { error: "Couldn't reset that password. Try again." };
+  }
+
+  // AFTER the reset and never in its path: an audit write that failed must not
+  // report a password as unchanged when it has already changed, which would
+  // send somebody to read out a password that no longer works.
+  try {
+    await systemDb((tx) =>
+      writeSeatAudit(tx, who, {
+        action: "partner.merchant_password_reset",
+        entityType: "merchant",
+        entityId: restaurantId,
+        // The login, never the password. This table is read by people.
+        after: { login: owner.username ?? owner.email },
+      }),
+    );
+  } catch {
+    /* the password is already changed; losing the row must not undo that */
+  }
+
+  revalidatePath(`/partner/merchants/servd:${restaurantId}`);
+  return { ok: true, login: owner.username || owner.email, password };
 }

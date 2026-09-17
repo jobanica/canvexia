@@ -45,7 +45,7 @@ function syntheticEmail(username: string): string {
  * A password to read down the phone: no O/0, l/1 or similar look-alikes, and
  * random from the CSPRNG rather than Math.random.
  */
-function tempPassword(): string {
+export function tempPassword(): string {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
   const bytes = randomBytes(10);
   let out = "";
