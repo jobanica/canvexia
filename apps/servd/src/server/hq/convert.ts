@@ -28,10 +28,39 @@ import { DEFAULT_MILESTONES } from "@servd/core";
  * would be worse. The row goes into `outbound_emails` and the caller is told
  * whether email is configured, so HQ can hand the invite link over by another
  * route today.
+ *
+ * A PARTNER HQ SIGNED DIRECTLY comes through here too, via `applicant` instead
+ * of `applicationId`.
+ *
+ * REPORTED — "in the partners section in HQ, i dont have an option to create a
+ * partner." There was none. Every partner in this system had to arrive as a
+ * row in `partner_waitlist` first, which means somebody filling in the form on
+ * canvexia.com — so a partner signed over coffee, or by phone, or at a trade
+ * show, could not be entered at all. HQ's own list was read-only about the one
+ * thing HQ does.
+ *
+ * It is one function and not two because the six writes below have to stay one
+ * transaction, and a second copy of them is a second thing to keep correct.
+ * The application row is still written — step 0 — rather than skipped: it is
+ * the only record of where a partner came from, and a partner with no origin
+ * would be a hole in exactly the audit trail this file exists to protect. It
+ * is stamped `source: "hq"` so nobody later mistakes it for a real applicant.
  */
 
 export interface ConvertInput {
+  /** The application being converted. Blank when `applicant` is given. */
   applicationId: string;
+  /**
+   * A partner HQ signed directly, with no application behind them. An
+   * application row is written for them first, inside the same transaction.
+   */
+  applicant?: {
+    fullName: string;
+    email: string;
+    mobile: string;
+    city: string;
+    province?: string | null;
+  };
   /** Blank means "keep the name on the application". */
   partnerName?: string;
   territoryId?: string | null;
@@ -72,19 +101,52 @@ export async function convertApplication(input: ConvertInput): Promise<ConvertRe
 
   try {
     return await systemDb(async (tx) => {
-      const app = await tx.partnerWaitlist.findUnique({
-        where: { id: input.applicationId },
-        select: {
-          id: true,
-          fullName: true,
-          email: true,
-          mobile: true,
-          city: true,
-          province: true,
-          status: true,
-          convertedPartnerId: true,
-        },
-      });
+      // 0. The application. Read when there is one, written when HQ signed the
+      //    partner themselves — same shape either way, so everything below is
+      //    one code path.
+      const app = input.applicant
+        ? await tx.partnerWaitlist.create({
+            data: {
+              fullName: input.applicant.fullName,
+              email: input.applicant.email,
+              mobile: input.applicant.mobile,
+              city: input.applicant.city,
+              province: input.applicant.province || null,
+              // Required by the schema and meaningless for somebody who never
+              // filled in the form. Recorded as the honest minimum rather than
+              // invented: nobody asked them how many hours a week they have.
+              hoursPerWeek: "h20plus",
+              soldBefore: false,
+              // NOT "www". This row is HQ's own entry, and a screen counting
+              // where demand comes from must not count it as a lead.
+              source: "hq",
+              status: "new",
+              notes: "Signed by HQ directly. No application was submitted.",
+            },
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              mobile: true,
+              city: true,
+              province: true,
+              status: true,
+              convertedPartnerId: true,
+            },
+          })
+        : await tx.partnerWaitlist.findUnique({
+            where: { id: input.applicationId },
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              mobile: true,
+              city: true,
+              province: true,
+              status: true,
+              convertedPartnerId: true,
+            },
+          });
       if (!app) throw new Error("GONE");
       if (app.convertedPartnerId) throw new Error("ALREADY");
 
@@ -212,7 +274,7 @@ export async function convertApplication(input: ConvertInput): Promise<ConvertRe
       await writeHqAudit(tx, {
         partnerId: partner.id,
         actorEmail: input.actorEmail,
-        action: "application.converted",
+        action: input.applicant ? "partner.created" : "application.converted",
         entityType: "partner",
         entityId: partner.id,
         // The terms and the city. NEVER the invite token.

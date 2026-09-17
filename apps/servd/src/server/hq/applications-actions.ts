@@ -151,3 +151,93 @@ export async function convertApplicationAction(
       : "Partner created. No territory was assigned.",
   };
 }
+
+/**
+ * CREATE A PARTNER HQ SIGNED THEMSELVES.
+ *
+ * REPORTED — "in the partners section in HQ, i dont have an option to create a
+ * partner." Correct: the only way in was to convert an application, and an
+ * application only exists if somebody filled in the form on canvexia.com. A
+ * partner signed in person had no way into the system.
+ *
+ * `partners.write`, not `applications.write`. The thing being created is a
+ * partner; the application row written alongside it is bookkeeping. Ops holds
+ * both, so this changes nothing about who can do it today — it means the
+ * capability still names the right thing if that ever stops being true.
+ *
+ * Everything else is `convertApplication`'s, deliberately: same transaction,
+ * same territory checks, same one-shot invite, same audit row. A second way to
+ * make a partner is a second thing that can make a HALF partner.
+ */
+export async function createPartnerAction(
+  _prev: ApplicationState,
+  formData: FormData,
+): Promise<ApplicationState> {
+  let actor;
+  try {
+    actor = await requireHqAction("partners.write");
+  } catch {
+    return { status: "error", message: "You do not have permission to create partners." };
+  }
+
+  const text = (k: string) => String(formData.get(k) ?? "").trim();
+  const fullName = text("fullName");
+  const email = text("email").toLowerCase();
+  const mobile = text("mobile");
+  const city = text("city");
+
+  // Named one at a time. "Fill in the required fields" makes somebody hunt.
+  if (!fullName) return { status: "error", message: "Who is the contact? Give their full name." };
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return { status: "error", message: "That email address does not look right." };
+  }
+  if (!mobile) return { status: "error", message: "A mobile number, so somebody can reach them." };
+  if (!city) return { status: "error", message: "Which city do they cover?" };
+
+  const tier = text("tier") || "operator";
+  const share = Number(text("revenueSharePct") || "70");
+  const collectionMode = text("collectionMode") || "partner_collects";
+  const territoryId = text("territoryId") || null;
+  const startRaw = text("licenseStartedAt");
+
+  if (tier !== "operator" && tier !== "reseller") {
+    return { status: "error", message: "Pick a tier." };
+  }
+  if (collectionMode !== "partner_collects" && collectionMode !== "hq_collects") {
+    return { status: "error", message: "Pick who collects." };
+  }
+  if (!Number.isFinite(share)) {
+    return { status: "error", message: "The share has to be a number." };
+  }
+
+  const result = await convertApplication({
+    applicationId: "",
+    applicant: { fullName, email, mobile, city, province: text("province") || null },
+    partnerName: text("partnerName") || fullName,
+    territoryId,
+    tier,
+    revenueSharePct: Math.round(share),
+    collectionMode,
+    // Manila, so a licence starting "today" is today in the Philippines rather
+    // than eight hours earlier in UTC.
+    licenseStartedAt: startRaw ? new Date(`${startRaw}T00:00:00+08:00`) : null,
+    actorEmail: actor.email,
+  });
+
+  if (!result.ok) return { status: "error", message: result.error };
+
+  revalidatePath("/hq/partners");
+  revalidatePath("/hq/applications");
+  revalidatePath("/hq/territories");
+  revalidatePath("/hq");
+
+  return {
+    status: "converted",
+    partnerId: result.partnerId,
+    inviteToken: result.inviteToken,
+    emailQueued: result.emailQueued,
+    message: result.territoryAssigned
+      ? `Partner created and licensed for ${result.territoryAssigned}.`
+      : "Partner created. No territory was assigned.",
+  };
+}

@@ -12,6 +12,18 @@ const STATUS_TONE: Record<string, string> = {
   converted: "bg-brand-primary text-white",
 };
 
+/**
+ * A partner HQ signed directly writes an application row too — it is the only
+ * record of where a partner came from — stamped `source: "hq"`. It has no
+ * answers to the questions the website form asks, so this screen says so rather
+ * than printing the placeholder the schema forced.
+ */
+const SOURCE_LABEL: Record<string, string> = {
+  www: "canvexia.com",
+  messenger: "Messenger",
+  hq: "Added by HQ",
+};
+
 const HOURS_LABEL: Record<string, string> = {
   under5: "under 5 h/wk",
   h5to10: "5–10 h/wk",
@@ -117,10 +129,14 @@ export default async function HqApplicationsPage({
                         )}
                       </td>
                       <td className="px-3 py-3 text-brand-ink/60">
-                        {HOURS_LABEL[r.hoursPerWeek] ?? r.hoursPerWeek}
+                        {r.source === "hq" ? "—" : (HOURS_LABEL[r.hoursPerWeek] ?? r.hoursPerWeek)}
                       </td>
-                      <td className="px-3 py-3 text-brand-ink/60">{r.soldBefore ? "Yes" : "No"}</td>
-                      <td className="px-3 py-3 text-brand-ink/60">{r.source}</td>
+                      <td className="px-3 py-3 text-brand-ink/60">
+                        {r.source === "hq" ? "—" : r.soldBefore ? "Yes" : "No"}
+                      </td>
+                      <td className="px-3 py-3 text-brand-ink/60">
+                        {SOURCE_LABEL[r.source] ?? r.source}
+                      </td>
                       <td className="px-3 py-3 text-right tabular-nums">
                         <span className={r.ageDays > 7 && r.status === "new" ? "font-semibold text-guava" : ""}>
                           {r.ageDays}d
