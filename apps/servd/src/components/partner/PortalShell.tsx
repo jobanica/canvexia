@@ -77,6 +77,13 @@ export function PortalShell({
 }) {
   const items: Item[] = [
     { href: "/partner", label: "Overview", icon: <IconGrid /> },
+    // Renewals sits high because somebody is waiting on it: a merchant who has
+    // paid and not been confirmed is one bad day from being suspended for it.
+    { href: "/partner/renewals", label: "Renewals", icon: <IconWallet />, need: "merchants.change_plan" },
+    // What they owe HQ, kept apart from Revenue on purpose: one is what they
+    // earned and the other is the bill, and a payable inside an earnings screen
+    // is a deadline nobody notices.
+    { href: "/partner/payables", label: "Payables", icon: <IconWallet />, need: "revenue.view" },
     {
       href: "/partner/pipeline",
       label: "Pipeline",

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import type { PartnerBrandConfig } from "@servd/core";
 import { savePartnerBrand, type BrandState } from "@/server/partners/brand-actions";
+import { ColourField } from "@/components/partner/ColourField";
 
 const FIELD = "w-full rounded-lg border border-brand-ink/15 px-3 py-2 text-sm";
 const LABEL = "mb-1 block text-xs font-semibold uppercase tracking-wide text-brand-ink/50";
@@ -33,13 +34,37 @@ export function PartnerBrandForm({
           <input name="legalName" defaultValue={brand.legalName ?? ""} className={FIELD} />
           <p className="mt-1 text-xs text-brand-ink/45">For invoices and legal text.</p>
         </div>
-        <div>
-          <label className={LABEL}>Logo URL</label>
+        <div className="sm:col-span-2">
+          <label className={LABEL}>Logo</label>
+          {brand.logoUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={brand.logoUrl}
+              alt="Your logo"
+              className="mb-2 h-14 w-auto max-w-[220px] rounded border border-brand-ink/10 bg-white object-contain p-1"
+            />
+          )}
+          {/*
+            UPLOAD FIRST, URL SECOND. This used to be a URL box only, which
+            meant an operator had to find their own image hosting before they
+            could white-label anything — so the field stayed empty and the
+            white-label was theoretical.
+          */}
+          <input
+            type="file"
+            name="logoFile"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            className="block w-full text-sm"
+          />
+          <p className="mt-1 text-xs text-brand-ink/45">
+            PNG, JPEG, WebP or SVG, under 2 MB. A wide logo on a transparent background
+            works best.
+          </p>
           <input
             name="logoUrl"
             defaultValue={brand.logoUrl ?? ""}
-            placeholder="https://…"
-            className={FIELD}
+            placeholder="…or paste a URL"
+            className={`${FIELD} mt-2`}
           />
         </div>
         <div>
@@ -48,21 +73,21 @@ export function PartnerBrandForm({
         </div>
         <div>
           <label className={LABEL}>Primary colour</label>
-          <input
-            name="primaryColor"
-            defaultValue={brand.primaryColor ?? ""}
-            placeholder="#FF8A1E"
-            className={FIELD}
-          />
+          {/*
+            A swatch beside the text, both writing one field. The picker is for
+            choosing; the text box is for pasting the hex a designer sent, which
+            a colour input cannot accept.
+          */}
+          <ColourField name="primaryColor" initial={brand.primaryColor ?? ""} placeholder="#FF8A1E" />
         </div>
         <div>
           <label className={LABEL}>Accent colour</label>
-          <input
-            name="accentColor"
-            defaultValue={brand.accentColor ?? ""}
-            placeholder="#FF4D6D"
-            className={FIELD}
-          />
+          {/*
+            A swatch beside the text, both writing one field. The picker is for
+            choosing; the text box is for pasting the hex a designer sent, which
+            a colour input cannot accept.
+          */}
+          <ColourField name="accentColor" initial={brand.accentColor ?? ""} placeholder="#FF4D6D" />
         </div>
       </div>
 

@@ -189,3 +189,67 @@ export async function setPlanPrice(
     return { ok: false, message: "Could not save that price." };
   }
 }
+
+export interface PayableRow {
+  month: string;
+  amountCentavos: number;
+  merchantCount: number;
+  dueAt: Date | null;
+  status: string;
+  paidAt: Date | null;
+  note: string | null;
+  /** Past its date and not settled. Derived, never stored — see below. */
+  overdue: boolean;
+}
+
+/**
+ * What this partner owes CANVEXIA, month by month.
+ *
+ * THE DIRECTION IS THE POINT. `PartnerStatement` was written in the commission
+ * era, when Servd collected and paid partners out — `payoutStatus` still carries
+ * that name. Under `collectionMode: "partner_collects"` the money flows the
+ * other way: the partner collected from their merchants and owes HQ its share.
+ * `hqCentavos` is therefore the PAYABLE, not a payout.
+ *
+ * `overdue` is derived from the date rather than read from `payoutStatus`,
+ * because that column only ever changes when a human moves it. A statement that
+ * quietly passed its date while nobody was looking is exactly the one a partner
+ * needs to see marked late.
+ */
+export async function listPayables(partnerId: string, take = 12): Promise<PayableRow[]> {
+  try {
+    const rows = await partnerDb(partnerId, (tx) =>
+      tx.partnerStatement.findMany({
+        where: { partnerId },
+        orderBy: { month: "desc" },
+        take,
+        select: {
+          month: true,
+          hqCentavos: true,
+          merchantCount: true,
+          dueAt: true,
+          payoutStatus: true,
+          paidAt: true,
+          note: true,
+        },
+      }),
+    );
+    const now = Date.now();
+    return rows.map((r) => ({
+      month: r.month,
+      amountCentavos: r.hqCentavos,
+      merchantCount: r.merchantCount,
+      dueAt: r.dueAt,
+      status: r.payoutStatus,
+      paidAt: r.paidAt,
+      note: r.note,
+      overdue:
+        r.payoutStatus !== "paid" &&
+        r.hqCentavos > 0 &&
+        !!r.dueAt &&
+        r.dueAt.getTime() < now,
+    }));
+  } catch {
+    return [];
+  }
+}

@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { parseBrandConfig, validateBrandConfig, type PartnerBrandConfig } from "@servd/core";
 import { partnerDb } from "@/server/tenancy/scoped-db";
 import { requireWritablePartner } from "@/server/partners/auth";
+import { uploadPartnerLogo } from "@/server/storage/partner-brand";
 
 export type BrandState = { ok?: boolean; message?: string; error?: string } | null;
 
@@ -35,10 +36,33 @@ export async function savePartnerBrand(
   const field = (name: keyof PartnerBrandConfig) =>
     String(formData.get(name) ?? "").trim() || undefined;
 
+  /**
+   * THE LOGO CAN BE A FILE NOW, not just a URL somebody else is hosting.
+   *
+   * `logoUrl` was a paste-a-URL box, which quietly required every operator to
+   * find their own image hosting before they could white-label anything. In
+   * practice the field stayed empty and the white-label was theoretical.
+   *
+   * An uploaded file wins over the text box when both arrive, because the
+   * person who just chose a file meant that one. A failed upload is reported
+   * rather than swallowed — silently keeping the old logo after somebody
+   * watched a spinner is how you get a bug report about a logo that "won't
+   * change".
+   */
+  let uploadedLogo: string | undefined;
+  const logoFile = formData.get("logoFile");
+  if (logoFile instanceof File && logoFile.size > 0) {
+    try {
+      uploadedLogo = await uploadPartnerLogo(partner.id, logoFile);
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "That logo didn't upload." };
+    }
+  }
+
   const draft: PartnerBrandConfig = {
     displayName: field("displayName"),
     legalName: field("legalName"),
-    logoUrl: field("logoUrl"),
+    logoUrl: uploadedLogo ?? field("logoUrl"),
     logoDarkUrl: field("logoDarkUrl"),
     faviconUrl: field("faviconUrl"),
     primaryColor: field("primaryColor"),

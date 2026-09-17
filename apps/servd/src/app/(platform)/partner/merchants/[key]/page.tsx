@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { partnerCan, requirePartnerPageWith } from "@/server/partners/auth";
+import { partnerAllows, partnerCan, requirePartnerPageWith } from "@/server/partners/auth";
 import { getPartnerMerchant, merchantAssignees, isPaying } from "@/server/partners/merchants";
 import { demoLogin } from "@/server/partners/demo-queries";
 import { PortalShell } from "@/components/partner/PortalShell";
@@ -176,11 +176,11 @@ export default async function PartnerMerchantPage({
           non-payment — it has no idea whether the money arrived. The person who
           does know is reading this page.
 
-          `merchants.manage`: admin and ops_manager. Sales opens accounts and
-          support answers for them; neither should be able to stop a business
-          trading.
+          `merchants.suspend`: the A7 permission that names this action, so an
+          operator can take it off a seat. Admin and ops_manager hold it by
+          default; sales opens accounts and support answers for them.
         */}
-        {partnerCan(partner, "merchants.manage") && merchant.productId === "servd" && (
+        {partnerAllows(partner, "merchants.suspend") && merchant.productId === "servd" && (
           <div className="mt-8 rounded-tile border border-brand-ink/10 bg-white p-5">
             <p className="text-sm font-semibold">
               {merchant.status === "suspended" ? "This account is suspended" : "Access"}

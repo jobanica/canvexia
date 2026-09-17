@@ -10,6 +10,10 @@ import { getFeaturePrices } from "@/server/billing/feature-pricing";
 import { FEATURE_META, type Feature } from "@/lib/billing/features";
 import { formatPeso } from "@/lib/money";
 import { manilaDate } from "@/lib/time/manila";
+import { RenewPanel } from "@/components/billing/RenewPanel";
+import { openRenewal, lastDecidedRenewal } from "@/server/billing/renewals";
+import { signBillingFile } from "@/server/storage/partner-billing";
+import { systemDb } from "@/server/tenancy/scoped-db";
 
 const FEATURE_LABEL: Record<string, string> = Object.fromEntries(
   FEATURE_META.map((f) => [f.key, f.label]),
@@ -62,6 +66,38 @@ export default async function BillingPage({
    * expiry date on it would be a deadline nobody has.
    */
   const paidUntil = !onTrial && (sub?.plan.priceMonthly ?? 0) > 0 ? (sub?.currentPeriodEnd ?? null) : null;
+
+  /**
+   * RENEWING, which for a partner-sold shop means paying a person.
+   *
+   * The partner takes the money (`collectionMode: "partner_collects"`), so this
+   * shows THEIR payment code and THEIR name — not a card form, and not Servd's.
+   * Offered only on a paid plan: the ₱0 plan has nothing to renew.
+   */
+  const renewable = (sub?.plan.priceMonthly ?? 0) > 0 && !onTrial;
+  const [renewal, lastDecided, ownerId] = renewable
+    ? await Promise.all([
+        openRenewal(restaurantId),
+        lastDecidedRenewal(restaurantId),
+        systemDb((tx) =>
+          tx.restaurant
+            .findUnique({ where: { id: restaurantId }, select: { partnerId: true } })
+            .then((r) => r?.partnerId ?? null),
+        ).catch(() => null),
+      ])
+    : [null, null, null];
+  // Two steps rather than a join: `Restaurant` carries `partnerId` as a plain
+  // column and has no relation to follow — see the note on the ledger about
+  // merchant ids being product-scoped.
+  const partnerPay = ownerId
+    ? await systemDb((tx) =>
+        tx.partner.findUnique({
+          where: { id: ownerId },
+          select: { name: true, payQrPath: true, payInstructions: true },
+        }),
+      ).catch(() => null)
+    : null;
+  const qrUrl = await signBillingFile(partnerPay?.payQrPath ?? null);
   const untilDays = daysLeft(paidUntil);
   // A fortnight is enough notice to move money in cash, which is how a
   // partner-sold account is actually paid for.
@@ -160,6 +196,22 @@ export default async function BillingPage({
             )}
           </p>
         </div>
+      )}
+
+      {renewable && (
+        <RenewPanel
+          status={
+            renewal?.status === "receipt_uploaded"
+              ? "receipt_uploaded"
+              : renewal
+                ? "requested"
+                : "none"
+          }
+          qrUrl={qrUrl}
+          instructions={partnerPay?.payInstructions ?? null}
+          partnerName={partnerPay?.name ?? "your partner"}
+          rejectedNote={lastDecided?.status === "rejected" ? lastDecided.note : null}
+        />
       )}
 
       {needsPayment && (

@@ -17,8 +17,11 @@ import { writeSeatAudit } from "@/server/audit/log";
  * This is that lever, and it is deliberately manual. Nothing automatic can
  * decide this, because nothing automatic knows whether the money arrived.
  *
- * `merchants.manage` — admin and ops_manager. Sales opens accounts and support
- * answers for them; neither should be able to switch a business off.
+ * `merchants.suspend` — the A7 permission that names this exact action, rather
+ * than the legacy `merchants.manage` capability that bundles four. Admin and
+ * ops_manager hold it by default and an operator can take it off a seat, which
+ * a fixed capability could not express. Sales opens accounts and support answers
+ * for them; neither switches a business off.
  */
 
 export type MerchantActionState = { ok?: string; error?: string } | null;
@@ -28,7 +31,7 @@ async function setStatus(
   formData: FormData,
   next: "suspended" | "active",
 ): Promise<MerchantActionState> {
-  const who = await requireWritablePartner("merchants.manage");
+  const who = await requireWritablePartner("merchants.suspend");
   if (!who) return { error: "Your seat can't do that." };
 
   const merchantId = String(formData.get("merchantId") ?? "");

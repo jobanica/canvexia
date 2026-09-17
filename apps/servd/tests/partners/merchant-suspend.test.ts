@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { can, type PartnerUserRole } from "@servd/core";
+import { permissionDefault, type PartnerUserRole } from "@servd/core";
 import { codeAt } from "../support/source";
 
 /**
@@ -20,16 +20,20 @@ describe("who may switch a business off", () => {
     // Sales opens accounts; support answers for them. Neither should be able to
     // stop a restaurant trading.
     for (const role of ["admin", "ops_manager"] as PartnerUserRole[]) {
-      expect(can(role, "merchants.manage"), role).toBe(true);
+      expect(permissionDefault(role, "merchants.suspend"), role).toBe(true);
     }
     for (const role of ["sales", "support"] as PartnerUserRole[]) {
-      expect(can(role, "merchants.manage"), role).toBe(false);
+      expect(permissionDefault(role, "merchants.suspend"), role).toBe(false);
     }
   });
 
-  it("is gated on that capability in both the action and the page", () => {
-    expect(action).toContain('requireWritablePartner("merchants.manage")');
-    expect(page).toContain('partnerCan(partner, "merchants.manage")');
+  it("uses the A7 permission that NAMES this action, not the legacy bundle", () => {
+    // `merchants.manage` is one fixed capability covering plan changes, trials,
+    // suspension and invoices. `merchants.suspend` is partner-editable, so an
+    // operator can take exactly this off a seat without taking the rest.
+    expect(action).toContain('requireWritablePartner("merchants.suspend")');
+    expect(page).toContain('partnerAllows(partner, "merchants.suspend")');
+    expect(action).not.toContain("merchants.manage");
   });
 });
 

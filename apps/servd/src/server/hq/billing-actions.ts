@@ -7,6 +7,7 @@ import { systemDb } from "@/server/tenancy/scoped-db";
 import { writeHqAudit } from "@/server/audit/log";
 import { requireHqAction } from "./auth";
 import { ADJUSTMENT_KINDS } from "./billing";
+import { queueStatementInvoice } from "./statement-invoice";
 
 export type BillingState =
   | { status: "idle" }
@@ -54,11 +55,18 @@ export async function runStatementsAction(
   let existed = 0;
   const failed: string[] = [];
 
+  let invoiced = 0;
   for (const p of partners) {
     try {
       const r = await systemDb((tx) => freezeStatement(tx, p.id, month));
-      if (r.created) created += 1;
-      else existed += 1;
+      if (r.created) {
+        created += 1;
+        // THE INVOICE, queued only on a FIRST freeze. `freezeStatement` is
+        // idempotent, so a second run returns created:false and nobody is
+        // emailed the same bill twice — which is the whole reason this sits
+        // inside the branch rather than after the try.
+        if (await queueStatementInvoice(p.id, month)) invoiced += 1;
+      } else existed += 1;
     } catch {
       failed.push(p.name);
     }

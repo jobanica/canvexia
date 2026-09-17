@@ -166,6 +166,9 @@ export async function computeStatement(
  * Idempotent on (partnerId, month) — the cron can run twice, and a second run
  * must not double anything or move a status HQ has since set to paid.
  */
+/** How long a partner has to settle once the month is frozen. */
+export const SETTLEMENT_DAYS = 7;
+
 export async function freezeStatement(
   tx: Prisma.TransactionClient,
   partnerId: string,
@@ -187,6 +190,10 @@ export async function freezeStatement(
       hqCentavos: s.hqCentavos,
       merchantCount: s.merchantCount,
       frozenAt: new Date(),
+      // Seven days from the freeze, which happens after the month it covers has
+      // closed: "the month ends, then you have a week". Without a date nobody
+      // can be late, which is what "overdue" was describing before.
+      dueAt: new Date(Date.now() + SETTLEMENT_DAYS * 86_400_000),
       payoutStatus: "pending",
     },
   });

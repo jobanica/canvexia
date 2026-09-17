@@ -1276,6 +1276,20 @@ model Partner {
   /// cannot take merchant payments yet, which is a state the portal has to show
   /// rather than a state to crash on.
   gatewaySubAccountId String?
+  /// The partner's OWN payment QR — GCash, Maya, a bank's InstaPay code —
+  /// shown to a merchant who taps Renew.
+  ///
+  /// A private storage PATH, read back through a short signed URL, not a public
+  /// one: it is a picture that moves money to this operator, and a permanent
+  /// guessable URL for it is a thing to be misused.
+  ///
+  /// This is what makes `collectionMode: "partner_collects"` real. Until now
+  /// the column said the partner took the money and the product gave them no
+  /// way to be paid.
+  payQrPath           String?
+  /// Free text beside the QR — "GCash 0917 123 4567, Juan D." — because a QR
+  /// alone does not tell somebody what they are paying or who to chase.
+  payInstructions     String?
   // Payout/tax columns from the commission era. Servd pays partners nothing, so
   // new applications never fill these in; they stay only to preserve what was
   // already collected. Nothing reads them.
@@ -1623,6 +1637,55 @@ model Prospect {
 ///
 /// Read-only to the partner. A partner able to write here is a partner writing
 /// their own statement.
+/// One renewal of one merchant's subscription, from the tap to the money.
+///
+/// THE WHOLE POINT IS THAT NOBODY AUTOMATED COLLECTS THIS. A partner-sold shop
+/// pays its partner in cash or by e-wallet, off this system, so there is no
+/// webhook to believe. The evidence is a photograph of a receipt and a human
+/// who recognises the payment; this table is the trail between them.
+///
+/// It is also what finally writes to `PartnerLedgerEntry` for a partner-sold
+/// account. The split existed and nothing ever produced a row for a renewal,
+/// so CANVEXIA's 30% of a resold subscription was never recorded anywhere.
+model MerchantRenewal {
+  id             String @id @default(uuid())
+  partnerId      String
+  /// Which product's table `merchantId` indexes. Same reason as on the ledger.
+  productId      String @default(dbgenerated("'servd'"))
+  merchantId     String
+
+  /// Centavos the partner is actually collecting.
+  ///
+  /// Defaulted from the plan price and EDITABLE when the partner confirms,
+  /// because a partner may charge above the floor and the 30% is a share of
+  /// what was really charged — not of the list price.
+  amountCentavos Int
+  months         Int    @default(1)
+
+  /// requested | receipt_uploaded | confirmed | rejected
+  status         String @default(dbgenerated("'requested'"))
+  /// The merchant's proof of payment. Private storage path.
+  receiptPath    String?
+  /// Why it was rejected, shown to the merchant so they can fix it.
+  note           String?
+
+  requestedAt    DateTime  @default(now())
+  receiptAt      DateTime?
+  decidedAt      DateTime?
+  /// The seat that confirmed or rejected it.
+  decidedBy      String?
+  /// `PartnerLedgerEntry.providerRef` of the row this produced. Present only on
+  /// a confirmed renewal, and the reason a double-confirm cannot pay twice.
+  ledgerRef      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([partnerId, status])
+  @@index([merchantId, status])
+  @@map("merchant_renewals")
+}
+
 model PartnerStatement {
   id        String @id @default(uuid())
   partnerId String
@@ -1637,6 +1700,17 @@ model PartnerStatement {
   merchantCount   Int
 
   frozenAt     DateTime  @default(now())
+  /// When the partner must have settled by.
+  ///
+  /// SEVEN DAYS FROM THE FREEZE, and the freeze happens after the month it
+  /// covers has closed — so the terms read "the month ends, then you have a
+  /// week". A statement with no due date is one nobody can be late for, which
+  /// is what "overdue" was describing before this column existed.
+  ///
+  /// Nullable for the statements frozen before it existed; those have no
+  /// agreed date and inventing one retroactively would make somebody late for
+  /// a deadline they were never given.
+  dueAt        DateTime?
   /// "pending" | "paid" | "overdue". HQ moves it; the portal displays it.
   payoutStatus String    @default("pending")
   paidAt       DateTime?

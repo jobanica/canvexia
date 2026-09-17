@@ -117,3 +117,69 @@ export function partnerInviteEmail(c: PartnerInviteCopy): {
     ].filter(Boolean),
   };
 }
+
+export interface PartnerStatementCopy {
+  partnerName: string;
+  /** "2026-09" */
+  month: string;
+  /** Centavos the partner owes CANVEXIA — their statement's hq share. */
+  amountCentavos: number;
+  merchantCount: number;
+  dueAt: Date;
+  /** Where they can see the same figure broken down. */
+  statementUrl: string;
+}
+
+const MONTH_LABEL = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** "2026-09" -> "September 2026". Never a locale call: the month key is not a date. */
+function monthLabel(month: string): string {
+  const [y, m] = month.split("-");
+  const i = Number(m) - 1;
+  return MONTH_LABEL[i] ? `${MONTH_LABEL[i]} ${y}` : month;
+}
+
+function pesos(centavos: number): string {
+  return `₱${(centavos / 100).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * HQ's monthly invoice to a partner.
+ *
+ * WHAT IT IS NOT: a request for a payout. Servd pays partners nothing. The
+ * partner collected from their merchants and owes CANVEXIA its share of what
+ * they collected, which is the opposite direction to what "statement" meant in
+ * the commission era and is worth saying in the first line rather than leaving
+ * somebody to infer from a number.
+ *
+ * The DATE is absolute, for the same reason the invite's expiry is: an email
+ * that sits in a spam folder for three days makes "within 7 days" a lie.
+ */
+export function partnerStatementEmail(c: PartnerStatementCopy): {
+  subject: string;
+  paragraphs: string[];
+} {
+  const due = c.dueAt.toLocaleDateString("en-PH", {
+    timeZone: "Asia/Manila",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  return {
+    subject: `${monthLabel(c.month)} — ${pesos(c.amountCentavos)} due to CANVEXIA`,
+    paragraphs: [
+      `Hello ${c.partnerName},`,
+      `Your ${monthLabel(c.month)} statement is ready. You collected from ${c.merchantCount} ` +
+        `merchant${c.merchantCount === 1 ? "" : "s"} last month, and CANVEXIA's share of that ` +
+        `is ${pesos(c.amountCentavos)}.`,
+      `Please settle by ${due}.`,
+      `The same figure, broken down merchant by merchant, is in your portal: ${c.statementUrl}`,
+      `If a number here does not match what you collected, reply to this email before you pay ` +
+        `rather than after — a corrected statement is easy, a refund is not.`,
+    ],
+  };
+}
