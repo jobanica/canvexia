@@ -6,6 +6,7 @@ import { demoLogin } from "@/server/partners/demo-queries";
 import { PortalShell } from "@/components/partner/PortalShell";
 import { PartnerConvertForm } from "@/components/partner/PartnerConvertForm";
 import { MerchantPasswordReset } from "@/components/partner/MerchantPasswordReset";
+import { MerchantSuspend } from "@/components/partner/MerchantSuspend";
 import { peso } from "@/components/partner/Overview";
 
 /**
@@ -169,25 +170,47 @@ export default async function PartnerMerchantPage({
         )}
 
         {/*
-          A2 ships the READ side. The actions in the brief — change plan, extend
-          trial, suspend, resend invite, mark invoice paid, and above all "log in
-          as merchant" — each write to another tenant's data and each needs its
-          own audit row and confirmation. They are deliberately not stubbed here:
-          a disabled button that looks like a feature is worse than an honest
-          gap, and half an impersonation flow is a security hole with a spinner.
+          SUSPENDING IS THE PARTNER'S LEVER, and it exists because nothing
+          automatic can pull it. A partner-sold account is billed in cash off
+          this system, so Servd never duns it and never switches it off for
+          non-payment — it has no idea whether the money arrived. The person who
+          does know is reading this page.
+
+          `merchants.manage`: admin and ops_manager. Sales opens accounts and
+          support answers for them; neither should be able to stop a business
+          trading.
         */}
-        <div className="mt-8 rounded-tile border border-dashed border-brand-ink/15 bg-white p-5">
-          <p className="text-sm font-semibold">Actions are not built yet</p>
-          <p className="mt-1 text-sm text-brand-ink/55">
-            Changing a plan, extending a trial, suspending an account and signing in as a
-            merchant all write to this merchant&rsquo;s own data. They land with their audit
-            trail rather than ahead of it.
-          </p>
-          {partnerCan(partner, "merchants.impersonate") && (
-            <p className="mt-2 text-xs text-brand-ink/40">
-              Your seat will be able to sign in as a merchant once that flow exists.
+        {partnerCan(partner, "merchants.manage") && merchant.productId === "servd" && (
+          <div className="mt-8 rounded-tile border border-brand-ink/10 bg-white p-5">
+            <p className="text-sm font-semibold">
+              {merchant.status === "suspended" ? "This account is suspended" : "Access"}
             </p>
-          )}
+            <p className="mt-1 text-sm text-brand-ink/55">
+              {merchant.status === "suspended"
+                ? "Their staff see a notice instead of the app and the ordering page is closed. Nothing has been deleted."
+                : "Everything is switched on. Suspend it if they stop paying you — it is reversible, and nothing is lost."}
+            </p>
+            <MerchantSuspend
+              merchantId={merchant.id}
+              productId={merchant.productId}
+              suspended={merchant.status === "suspended"}
+            />
+          </div>
+        )}
+
+        {/*
+          Still honestly absent: changing a plan, extending a trial, marking an
+          invoice paid, and signing in as a merchant. Each writes to another
+          tenant's data and each needs its own audit row and confirmation — a
+          disabled button that looks like a feature is worse than an honest gap,
+          and half an impersonation flow is a security hole with a spinner.
+        */}
+        <div className="mt-4 rounded-tile border border-dashed border-brand-ink/15 bg-white p-5">
+          <p className="text-sm font-semibold">Not built yet</p>
+          <p className="mt-1 text-sm text-brand-ink/55">
+            Changing a plan, extending a trial, marking an invoice paid and signing in as a
+            merchant. They land with their audit trail rather than ahead of it.
+          </p>
         </div>
     </PortalShell>
   );
