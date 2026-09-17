@@ -30,10 +30,21 @@ export default async function MenuPage() {
   // without a badge an owner has no way to see which ones customers can't
   // actually find.
   const posOnly = await getPosOnlyItemIds(restaurantId);
-  // AI menu import is a paid feature (Growth & Business). Gate on both the API
-  // key being configured AND the restaurant's plan including it.
-  const aiImportEnabled =
-    !!process.env.ANTHROPIC_API_KEY && (await hasFeature(restaurantId, "aiMenuImport"));
+  /**
+   * TWO SEPARATE QUESTIONS, and they used to be one `&&`.
+   *
+   * `entitled` is whether this shop's plan includes AI menu import — Standard
+   * does. `configured` is whether the server has an Anthropic key at all.
+   *
+   * Collapsed into one flag, a missing key looked exactly like a missing
+   * entitlement: the button simply was not rendered, and an owner paying ₱999
+   * for a plan that lists "AI menu import" saw a Menu screen with no trace of
+   * it and no way to find out why. Which is how this was reported — as the
+   * feature not existing.
+   */
+  const entitled = await hasFeature(restaurantId, "aiMenuImport");
+  const configured = !!process.env.ANTHROPIC_API_KEY;
+  const aiImportEnabled = entitled && configured;
   const imageGenEnabled = !!process.env.OPENAI_API_KEY;
 
   return (
@@ -47,6 +58,22 @@ export default async function MenuPage() {
         </div>
         <div className="flex items-center gap-3">
           {aiImportEnabled && <ImportMenuButton imageGenEnabled={imageGenEnabled} />}
+          {/*
+            Entitled, but the server cannot do it. Say so rather than showing
+            nothing: "temporarily unavailable" is true and is something an owner
+            can act on by asking; an absent button is not.
+
+            It names no environment variable — that is our problem to fix, not
+            theirs to read.
+          */}
+          {entitled && !configured && (
+            <span
+              className="rounded-full border border-plum-ink/15 px-4 py-2 text-sm font-semibold text-plum-ink/40"
+              title="Ask whoever set up your account to switch it back on."
+            >
+              AI import unavailable
+            </span>
+          )}
           <Link
             href="/admin/modifiers"
             className="rounded-full border border-plum-ink/15 px-4 py-2 text-sm font-semibold"

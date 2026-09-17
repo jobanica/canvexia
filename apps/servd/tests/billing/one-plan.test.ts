@@ -205,3 +205,48 @@ describe("nothing still advertises the shelf", () => {
     expect(form).toContain("₱999/mo");
   });
 });
+
+
+/**
+ * A feature the plan lists must be visibly absent, not invisibly absent.
+ *
+ * REPORTED — "there is no ai scan for the menu". There was: the button is
+ * gated on the plan AND on the server having an Anthropic key, and those two
+ * were one `&&`. With no key configured the button simply did not render, so a
+ * shop paying ₱999 for a plan that lists "AI menu import" saw a Menu screen
+ * with no trace of it and nothing to ask about.
+ */
+describe("AI menu import says when it cannot run", () => {
+  const page = codeAt("src/app/(platform)/admin/menu/page.tsx");
+
+  it("separates 'your plan lacks it' from 'the server is not configured'", () => {
+    expect(page).toContain('const entitled = await hasFeature(restaurantId, "aiMenuImport")');
+    expect(page).toContain("const configured = !!process.env.ANTHROPIC_API_KEY");
+  });
+
+  it("shows something to a shop that is entitled but cannot use it", () => {
+    expect(page).toContain("entitled && !configured");
+    expect(page).toContain("AI import unavailable");
+  });
+
+  it("does not name an environment variable at a restaurant owner", () => {
+    // Our problem to fix, not theirs to read.
+    const shown = page.slice(page.indexOf("entitled && !configured"));
+    expect(shown.slice(0, 600)).not.toContain("ANTHROPIC_API_KEY");
+  });
+});
+
+describe("nothing still tells a merchant to upgrade to a retired tier", () => {
+  it("the AI gates name the plan that exists", () => {
+    for (const p of ["src/server/menu/ai-import.ts", "src/server/menu/item-images.ts"]) {
+      const src = codeAt(p);
+      expect(src, p).not.toContain("Growth and Business plans");
+      expect(src, p).toContain("included in Servd");
+    }
+  });
+
+  it("the public FAQ quotes ₱999, not Growth or Business", () => {
+    const landing = codeAt("src/app/page.tsx");
+    expect(landing).not.toContain("upgrade to Growth or Business");
+  });
+});

@@ -54,7 +54,11 @@ export async function createMenuImportUploads(types: string[]): Promise<CreateUp
     return { ok: false, error: "AI menu import isn't configured on this server." };
   }
   if (!(await hasFeature(restaurantId, "aiMenuImport"))) {
-    return { ok: false, error: "AI menu import is available on the Growth and Business plans. Upgrade to use it." };
+    // Growth and Business are deactivated; Servd sells one plan now.
+    return {
+      ok: false,
+      error: "AI menu import is included in Servd. Ask whoever set up your account to move you onto it.",
+    };
   }
   if (!allowedImportTypes(types)) {
     return {
@@ -82,7 +86,10 @@ export async function analyzeMenuMedia(input: {
   const { restaurantId } = await requireManagerAction();
 
   if (!(await hasFeature(restaurantId, "aiMenuImport"))) {
-    return { ok: false, error: "AI menu import is available on the Growth and Business plans. Upgrade to use it." };
+    return {
+      ok: false,
+      error: "AI menu import is included in Servd. Ask whoever set up your account to move you onto it.",
+    };
   }
 
   const paths = Array.isArray(input?.paths)

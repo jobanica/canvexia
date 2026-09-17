@@ -24,7 +24,10 @@ export async function generateItemImage(itemId: string): Promise<GenImageResult>
     return { ok: false, error: "Image generation isn't configured on this server." };
   }
   if (!(await hasFeature(restaurantId, "aiMenuImport"))) {
-    return { ok: false, error: "AI image generation is available on the Growth and Business plans. Upgrade to use it." };
+    return {
+      ok: false,
+      error: "AI images are included in Servd. Ask whoever set up your account to move you onto it.",
+    };
   }
 
   const item = await tenantDb(restaurantId, (tx) =>
