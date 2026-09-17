@@ -86,8 +86,19 @@ CANVEXIA's partner domain, where they 404 and where they are the wrong brand.
 `partnerUrl()` in `lib/urls.ts` falls back to `NEXT_PUBLIC_APP_URL`, so previews
 and any deployment that has not set it behave exactly as before.
 
-`NEXT_PUBLIC_APP_URL` still points at a `*.vercel.app` host because **servdph.net
-is not registered**. When it is, that variable moves and nothing else does.
+`NEXT_PUBLIC_APP_URL` is `https://servdph.vercel.app` — still a `*.vercel.app`
+host, because **servdph.net is not registered**. It was `canvexia-two.vercel.app`,
+the project's auto-generated name, which is the address a restaurant owner reads
+off a screen and types wrong; `servdph.vercel.app` at least says whose product it
+is. (`servd.vercel.app` is taken by another Vercel team.)
+
+`parseHost` classifies every `*.vercel.app` host as `platform`, so the merchant
+product answers there and the `/partner` rewrite does not apply — which is the
+whole reason the merchant login cannot live on `partner.canvexia.com`.
+
+When servdph.net is registered: attach it to the `canvexia` project, set this
+variable to it, and redeploy. **`NEXT_PUBLIC_*` is baked in at build time**, so
+changing the variable alone changes nothing that is already deployed.
 
 ### The rewrite trap this uncovered
 
