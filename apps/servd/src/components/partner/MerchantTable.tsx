@@ -28,6 +28,27 @@ function statusChip(m: PartnerMerchant) {
   }[m.subscriptionStatus];
 }
 
+/**
+ * "Nobody can sign in to this yet."
+ *
+ * The state every partner-opened account starts in — provisioning makes the
+ * shop, its page and its trial and deliberately no login — and the one that was
+ * invisible here, so an account sat looking finished while the owner had no way
+ * in. Shown next to the billing status rather than instead of it: they are
+ * different questions, and TRIAL was answering the wrong one.
+ *
+ * `null` means we could not tell, and says nothing at all. A wrong "no login"
+ * sends somebody to a form that then refuses.
+ */
+function NoLogin({ has }: { has: boolean | null }) {
+  if (has !== false) return null;
+  return (
+    <span className="rounded-full bg-brand-ink/[0.06] px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-brand-ink/55">
+      No login
+    </span>
+  );
+}
+
 export function MerchantTable({
   rows,
   query,
@@ -91,8 +112,11 @@ export function MerchantTable({
                       {m.city ? ` · ${m.city}` : ""}
                     </span>
                   </span>
-                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${chip.cls}`}>
-                    {chip.label}
+                  <span className="flex shrink-0 flex-wrap justify-end gap-1">
+                    <NoLogin has={m.hasLogin} />
+                    <span className={`rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${chip.cls}`}>
+                      {chip.label}
+                    </span>
                   </span>
                 </div>
                 <div className="mt-3 flex gap-5 text-xs tabular-nums text-brand-ink/55">
@@ -140,8 +164,11 @@ export function MerchantTable({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${chip.cls}`}>
-                      {chip.label}
+                    <span className="flex flex-wrap items-center gap-1">
+                      <span className={`rounded-full px-2.5 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${chip.cls}`}>
+                        {chip.label}
+                      </span>
+                      <NoLogin has={m.hasLogin} />
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">{m.ordersLast30d}</td>

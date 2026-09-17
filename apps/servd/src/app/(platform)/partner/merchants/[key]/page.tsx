@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { partnerCan, requirePartnerPageWith } from "@/server/partners/auth";
 import { getPartnerMerchant, merchantAssignees, isPaying } from "@/server/partners/merchants";
+import { demoLogin } from "@/server/partners/demo-queries";
 import { PortalShell } from "@/components/partner/PortalShell";
+import { PartnerConvertForm } from "@/components/partner/PartnerConvertForm";
 import { peso } from "@/components/partner/Overview";
 
 /**
@@ -29,6 +31,25 @@ export default async function PartnerMerchantPage({
 
   const assignees = await merchantAssignees(partner.id, merchant.productId, merchant.id);
 
+  /**
+   * THE LOGIN, and the step that creates one.
+   *
+   * An account opened from the portal has NO login: provisioning makes the
+   * tenant, the storefront and the complimentary trial, and stops there,
+   * because at that point the owner has not agreed to anything. "Convert" is
+   * what mints the credential — and it lived only in the storefronts list on
+   * the operator overview, a page a sales seat never sees. So a field agent
+   * could open an account and not finish the sale: they had nowhere to get the
+   * owner a username and password.
+   *
+   * Here instead, on the merchant itself, which is where somebody looks when
+   * they are asking "how does this shop get in?".
+   */
+  const login = merchant.productId === "servd" ? await demoLogin(merchant.id) : null;
+  // `merchants.create` is the same capability convertPartnerDemo checks, so the
+  // form is shown to exactly the seats the server will accept.
+  const canConvert = partnerCan(partner, "merchants.create");
+
   const facts = [
     { label: "Product", value: merchant.productName },
     { label: "Plan", value: merchant.planName ?? "Not billed yet" },
@@ -43,6 +64,11 @@ export default async function PartnerMerchantPage({
       value: merchant.lastOrderAt ? merchant.lastOrderAt.toLocaleDateString() : "Never",
     },
     { label: "Opened", value: merchant.createdAt.toLocaleDateString() },
+    // The handle the owner signs in with. "No login yet" is a real state, not a
+    // missing value, so it says so rather than showing a dash.
+    ...(login
+      ? [{ label: "Login", value: login.converted ? (login.username ?? "Set up") : "No login yet" }]
+      : []),
     { label: "Address", value: merchant.city ?? "—" },
     // A7. "Nobody yet" rather than an em dash: an unassigned merchant is a
     // thing to fix, and a dash reads as "not applicable".
@@ -83,6 +109,37 @@ export default async function PartnerMerchantPage({
             ? `Earning you ${peso(Math.floor(((merchant.priceMonthly ?? 0) * partner.revenueSharePct) / 100))} a month at your ${partner.revenueSharePct}% share.`
             : "Not paying yet, so it is not earning either of you anything."}
         </p>
+
+        {/*
+          Handing the owner their login. The one action that is built, and the
+          one a salesperson needs on the day they close: it turns an account
+          nobody can sign into (which is how every partner-opened account
+          starts) into the owner's own.
+
+          The credentials are shown ONCE, in the form's success state, because
+          the password only exists in that response. Standing in front of the
+          owner is the moment to read them out.
+        */}
+        {login && !login.converted && canConvert && (
+          <div className="mt-8">
+            <p className="mb-2 text-sm font-semibold">Nobody can sign in to this yet</p>
+            <p className="mb-3 text-sm text-brand-ink/55">
+              Opening the account set up the shop, its page and its QR codes — not a
+              login, because at that point nobody had agreed to anything. Give it one
+              when they say yes.
+            </p>
+            <PartnerConvertForm restaurantId={merchant.id} />
+          </div>
+        )}
+
+        {login?.converted && (
+          <p className="mt-8 rounded-tile border border-brand-ink/10 bg-white p-5 text-sm text-brand-ink/60">
+            The owner signs in as{" "}
+            <span className="font-semibold text-brand-ink">{login.username ?? "their username"}</span>.
+            Passwords are never shown again — if they have lost it, they reset it from the
+            sign-in page.
+          </p>
+        )}
 
         {/*
           A2 ships the READ side. The actions in the brief — change plan, extend

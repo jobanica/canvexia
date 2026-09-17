@@ -37,14 +37,74 @@ export interface PartnerMerchant {
   ordersLast30d: number;
   lastOrderAt: Date | null;
   createdAt: Date;
+  /**
+   * Can anybody actually sign in to this account?
+   *
+   * `false` is the state a partner-opened merchant starts in and the one nobody
+   * could see: `provisionMerchant` creates the tenant, the storefront and the
+   * complimentary trial, and deliberately NO login — the owner has not agreed
+   * to anything yet. Converting it is what mints the credential.
+   *
+   * `null` means "not asked or not applicable": a pharmacy, which has no
+   * convert flow, or a database where the read failed. Null is deliberately not
+   * `false` — telling somebody an account has no login when it has one sends
+   * them to a form that then refuses.
+   */
+  hasLogin: boolean | null;
 }
 
 const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * Which of these accounts can actually be signed into.
+ *
+ * A SEPARATE READ, after the scoped transaction rather than inside it: the ids
+ * are already partner-scoped by the policy that produced them, and `staffUser`
+ * is a merchant's own table rather than a partner's.
+ *
+ * Excludes the temporary PREVIEW login, which is a sales tool issued to demo a
+ * storefront to the very prospect being pitched — counting it would report an
+ * account as signed-in-able and hide the convert form that turns it into one.
+ * Same rule as `countRealLogins` in storefront-demo/convert.ts, including its
+ * fallback: `previewExpiresAt` arrives in a manual migration, and where the
+ * column does not exist no preview login can either.
+ */
+async function withLoginState(rows: PartnerMerchant[]): Promise<PartnerMerchant[]> {
+  const ids = rows.filter((r) => r.productId === "servd").map((r) => r.id);
+  if (ids.length === 0) return rows;
+
+  let hasLoginIds: Set<string>;
+  try {
+    const staff = await systemDb((tx) =>
+      tx.staffUser
+        .findMany({
+          where: { restaurantId: { in: ids }, previewExpiresAt: null },
+          select: { restaurantId: true },
+        })
+        .catch(() =>
+          tx.staffUser.findMany({
+            where: { restaurantId: { in: ids } },
+            select: { restaurantId: true },
+          }),
+        ),
+    );
+    hasLoginIds = new Set(staff.map((s) => s.restaurantId));
+  } catch {
+    // Left as null — "we could not tell" — rather than false. The convert
+    // action re-checks and refuses an account that already has a login, so an
+    // offered form is recoverable; a wrong "no login" chip is a lie on a list.
+    return rows;
+  }
+
+  return rows.map((r) =>
+    r.productId === "servd" ? { ...r, hasLogin: hasLoginIds.has(r.id) } : r,
+  );
+}
+
 export async function listPartnerMerchants(partnerId: string): Promise<PartnerMerchant[]> {
   const since = new Date(Date.now() - THIRTY_DAYS);
 
-  return partnerDb(partnerId, async (tx) => {
+  const rows = await partnerDb(partnerId, async (tx) => {
     // The two axes are independent, so they are asked together. Awaiting the
     // pharmacy list after the restaurant list added a round trip for nothing.
     const [restaurants, pharmacies] = await Promise.all([
@@ -115,6 +175,8 @@ export async function listPartnerMerchants(partnerId: string): Promise<PartnerMe
           ordersLast30d: countBy.get(r.id) ?? 0,
           lastOrderAt: lastBy.get(r.id) ?? null,
           createdAt: r.createdAt,
+          // Filled in after this transaction — see `withLoginState`.
+          hasLogin: null,
         };
       }),
       ...pharmacies.map((p) => ({
@@ -135,11 +197,16 @@ export async function listPartnerMerchants(partnerId: string): Promise<PartnerMe
         ordersLast30d: 0,
         lastOrderAt: null,
         createdAt: p.createdAt,
+        // The pharmacy vertical has no convert flow, so the question does not
+        // apply rather than answering "no".
+        hasLogin: null,
       })),
     ];
 
     return rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   });
+
+  return withLoginState(rows);
 }
 
 /** One merchant, by the composite key the directory hands out. */

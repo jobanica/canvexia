@@ -147,3 +147,79 @@ describe("every capability the sales role holds has somewhere to be used", () =>
     }
   });
 });
+
+
+/**
+ * Finishing the sale: handing the owner a login.
+ *
+ * A partner-opened account has NO login — provisioning makes the tenant, the
+ * storefront and the complimentary trial and stops, because at that point
+ * nobody has agreed to anything. `convertPartnerDemo` is what mints the
+ * credential, and it checks `merchants.create`, which sales holds.
+ *
+ * It lived only in the storefronts list on the OPERATOR overview. Same fork,
+ * fourth time: a field agent could open the account and then had nowhere to get
+ * the owner a username and password.
+ */
+describe("a sales seat can hand over the login", () => {
+  const detail = codeAt("src/app/(platform)/partner/merchants/[key]/page.tsx");
+
+  it("puts the convert form on the merchant itself", () => {
+    expect(detail).toContain("<PartnerConvertForm restaurantId={merchant.id} />");
+  });
+
+  it("gates it on the capability the server actually checks", () => {
+    // convertPartnerDemo -> requireDemoWriter -> requireWritablePartner(
+    //   DEMO_CAPABILITY ), and DEMO_CAPABILITY is merchants.create.
+    expect(detail).toContain('partnerCan(partner, "merchants.create")');
+    expect(codeAt("src/server/partners/demo.ts")).toContain(
+      'const DEMO_CAPABILITY = "merchants.create"',
+    );
+    expect(can("sales" as PartnerUserRole, "merchants.create")).toBe(true);
+  });
+
+  it("offers it only where there is no login yet, and only for Servd", () => {
+    // Converting an account that already has one is refused by the action; the
+    // pharmacy vertical has no convert flow at all.
+    expect(detail).toContain("login && !login.converted && canConvert");
+    expect(detail).toContain('merchant.productId === "servd" ? await demoLogin(merchant.id)');
+  });
+
+  it("shows the username once there is one, rather than a dash", () => {
+    expect(detail).toContain("No login yet");
+    expect(detail).toContain("The owner signs in as");
+  });
+});
+
+describe("the merchant list says which accounts nobody can sign into", () => {
+  const table = codeAt("src/components/partner/MerchantTable.tsx");
+  const query = codeAt("src/server/partners/merchants.ts");
+
+  it("marks them, next to the billing status rather than instead of it", () => {
+    // TRIAL was answering a different question, and answering it confidently
+    // enough that the account looked finished.
+    expect(table).toContain("No login");
+    expect(table).toContain("<NoLogin has={m.hasLogin} />");
+  });
+
+  it("says nothing when it could not tell", () => {
+    // A wrong "no login" chip sends somebody to a form that then refuses.
+    expect(table).toContain("if (has !== false) return null");
+  });
+
+  it("does not count the temporary preview login as a real one", () => {
+    // That login exists to demo the storefront to the very prospect being
+    // pitched. Counting it would hide the convert form on the account it was
+    // issued to help sell.
+    expect(query).toContain("previewExpiresAt: null");
+  });
+
+  it("falls back when that column is not migrated yet", () => {
+    // Same rule as countRealLogins: where previewExpiresAt does not exist, no
+    // preview login can either, so every staff row is real.
+    const fn = query.slice(query.indexOf("async function withLoginState"));
+    expect(fn).toContain(".catch(() =>");
+    // And a failed read leaves the rows alone rather than claiming "no login".
+    expect(fn).toContain("return rows;");
+  });
+});
