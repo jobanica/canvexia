@@ -54,7 +54,18 @@ async function ledgerTableExists(tx: Prisma.TransactionClient): Promise<boolean>
 export async function recordSettlement(
   tx: Prisma.TransactionClient,
   input: {
+    /** The merchant id WITHIN `productId`. Named for history; see `productId`. */
     restaurantId: string;
+    /**
+     * WHICH PRODUCT'S TABLE `restaurantId` INDEXES.
+     *
+     * Defaulted to "servd" so every existing caller keeps working unchanged.
+     * It exists because this function used to read `tx.restaurant` and nothing
+     * else, which meant a pharmacy could never produce a ledger entry: a
+     * partner selling Resceta earned nothing this platform recorded, and
+     * CANVEXIA's 30% never accrued on a single peso of it.
+     */
+    productId?: "servd" | "pharmacy";
     providerRef: string;
     kind: LedgerKind;
     /** Centavos actually settled. */
@@ -63,18 +74,28 @@ export async function recordSettlement(
   },
 ): Promise<void> {
   const { restaurantId, providerRef, kind, grossAmount } = input;
+  const productId = input.productId ?? "servd";
   if (!providerRef || grossAmount < 0) return;
   if (!(await ledgerTableExists(tx))) return;
 
-  const restaurant = await tx.restaurant.findUnique({
-    where: { id: restaurantId },
-    select: { partnerId: true },
-  });
-  if (!restaurant?.partnerId) {
+  // Both axes carry `partnerId`, so the question is the same and only the table
+  // differs. Chosen from a union type rather than a free string: a product this
+  // function has never heard of has no table to ask.
+  const owner =
+    productId === "pharmacy"
+      ? await tx.pharmacy.findUnique({
+          where: { id: restaurantId },
+          select: { partnerId: true },
+        })
+      : await tx.restaurant.findUnique({
+          where: { id: restaurantId },
+          select: { partnerId: true },
+        });
+  if (!owner?.partnerId) {
     // A merchant owned by nobody. Should not exist after the house-partner
     // backfill, and inventing an owner here would put somebody else's revenue on
     // somebody's statement — so it is logged and skipped, loudly enough to find.
-    console.error(`Settlement ${providerRef}: restaurant ${restaurantId} has no partner.`);
+    console.error(`Settlement ${providerRef}: ${productId} ${restaurantId} has no partner.`);
     return;
   }
 
@@ -88,7 +109,7 @@ export async function recordSettlement(
   if (already) return;
 
   const partner = await tx.partner.findUnique({
-    where: { id: restaurant.partnerId },
+    where: { id: owner.partnerId },
     select: { revenueSharePct: true },
   });
   // A legacy zero-cut partner still gets a row: the payment happened, and a
@@ -98,11 +119,11 @@ export async function recordSettlement(
 
   await tx.partnerLedgerEntry.create({
     data: {
-      partnerId: restaurant.partnerId,
-      // Servd's merchants are restaurants. The ledger is product-agnostic —
-      // a merchant id means nothing without knowing which product's table it
-      // indexes — so every writer states its own product.
-      productId: "servd",
+      partnerId: owner.partnerId,
+      // The ledger is product-agnostic — a merchant id means nothing without
+      // knowing which product's table it indexes — so every writer states its
+      // own product, and this one is told rather than assuming.
+      productId,
       merchantId: restaurantId,
       kind,
       providerRef,

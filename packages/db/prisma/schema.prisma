@@ -947,7 +947,18 @@ model StaffUser {
 
 model Subscription {
   id                      String             @id @default(uuid())
-  restaurantId            String // current subscription is the latest row; app keeps one active
+  /// THE MERCHANT ID WITHIN `productId` — restaurants.id for servd,
+  /// pharmacies.id for pharmacy. The current subscription is the latest row;
+  /// the app keeps one active.
+  ///
+  /// Not a foreign key, and cannot be one: the table it points at depends on
+  /// `productId`. Same trade as PartnerLedgerEntry.merchantId, made for the
+  /// same reason. The name is kept because renaming it would touch fifty-five
+  /// call sites in code that is currently taking money.
+  restaurantId            String
+  /// Which product the merchant belongs to. Defaults to servd, which is what
+  /// every row written before Resceta had billing meant.
+  productId               String             @default(dbgenerated("'servd'"))
   planId                  String
   status                  SubscriptionStatus @default(trialing)
   trialEndsAt             DateTime?
@@ -975,16 +986,31 @@ model Subscription {
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
 
+  /// MODELLED, BUT NO LONGER ENFORCED BY THE DATABASE.
+  ///
+  /// The foreign key is dropped in billing-by-product.sql, because for a
+  /// pharmacy row `restaurantId` holds a pharmacies.id. Prisma still declares
+  /// the relation, and it is still correct FOR SERVD ROWS — a pharmacy id can
+  /// never match a restaurants.id, so the join simply finds nothing.
+  ///
+  /// THE RULE THAT MAKES THAT SAFE: no query may traverse this relation without
+  /// also filtering `productId: "servd"`, or reading a pharmacy's subscription
+  /// through it yields a null where the type promises a Restaurant. Every
+  /// caller today reaches it from a restaurant it already has.
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   plan       Plan       @relation(fields: [planId], references: [id])
 
   @@index([status, currentPeriodEnd])
+  @@index([productId, restaurantId])
   @@map("subscriptions")
 }
 
 model RestaurantInvoice {
   id           String    @id @default(uuid())
+  /// The merchant id within `productId`. See Subscription.restaurantId.
   restaurantId String
+  /// Which product the merchant belongs to.
+  productId    String    @default(dbgenerated("'servd'"))
   amount       Int // centavos
   status       String    @default("open") // open | paid | failed | void
   periodStart  DateTime
@@ -1005,9 +1031,11 @@ model RestaurantInvoice {
   issuedByPartnerId String?
   createdAt    DateTime  @default(now())
 
+  /// Modelled, not enforced — same as Subscription.restaurant above.
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId])
+  @@index([productId, restaurantId])
   @@map("restaurant_invoices")
 }
 

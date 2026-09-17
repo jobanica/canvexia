@@ -126,11 +126,6 @@ pass had to answer.
 
 Known gaps against what a Servd merchant gets, so nobody rediscovers them:
 
-- **No billing at all.** `Subscription.restaurantId` — a pharmacy has no
-  subscription row, so no plan, no expiry, no renewal, no invoice. Worse,
-  `recordSettlement` takes a `restaurantId` and reads `tx.restaurant`, so a
-  pharmacy can never produce a ledger entry: a partner selling Resceta earns
-  nothing this platform records and CANVEXIA's 30% never accrues.
 - **HQ cannot reassign, move or re-plan a pharmacy** — three `productId !==
   "servd"` refusals in `hq/merchants-actions.ts`, each with its own message.
 - **No login handover.** `convertPartnerDemo` is Servd-only, so the first
@@ -143,6 +138,49 @@ Known gaps against what a Servd merchant gets, so nobody rediscovers them:
 Suspension is NO LONGER on that list: `setStatus` in
 `servd/src/server/partners/merchant-actions.ts` writes `pharmacies.status` for
 `productId === "pharmacy"`, which the counter already honours.
+
+Neither is BILLING — see below.
+
+## Billing
+
+₱999/month, everything included. There is no feature gating in Resceta and no
+feature list on the billing screen: one plan that contains the product is not a
+shelf to browse.
+
+`subscriptions` and `restaurant_invoices` now carry `productId`, the way
+`partner_ledger_entries` and `merchant_renewals` always have. `restaurantId` on
+those two tables means **the merchant id within `productId`** — a pharmacies.id
+when the product is `pharmacy` — and the database foreign key is dropped,
+because for half the rows it is not a restaurant. That trade is stated in
+`billing-by-product.sql`; what replaces the constraint is `productId` in the
+WHERE clause of every billing query, which is why every one of them has it.
+
+Prisma still *models* `Subscription.restaurant`, and the rule that makes that
+safe is: **no query may traverse it without also filtering
+`productId: "servd"`**. A pharmacy id can never match a restaurants.id, so for
+Servd rows the relation is exactly as correct as it was.
+
+A pharmacy is born with a subscription, in the same transaction as the pharmacy
+itself, `billedExternally: true` — Resceta is sold by partners collecting in
+cash off this system, so the daily cron must never invoice, dun or suspend one:
+it has no idea whether the money arrived. `run-cron.ts` skips the flag before it
+does anything.
+
+### Renewing
+
+The same four-state flow Servd uses, because `merchant_renewals` was built
+product-agnostic: requested → receipt_uploaded → confirmed/rejected. The
+pharmacy owner taps Renew at `/billing`, pays their partner from the QR code,
+uploads the receipt; the partner recognises it on their own Renewals screen.
+**That human step is the settlement** — the money moves in cash or on an
+e-wallet and there is no webhook to believe. Confirming extends the period from
+whichever is later (the current end or today), un-suspends the pharmacy, writes
+the invoice, and books CANVEXIA's 30% through `recordSettlement` — which now
+asks the right table who owns the merchant instead of assuming a restaurant.
+
+The receipt is uploaded to the partner portal's own bucket and path shape. A new
+one would upload successfully and be invisible to the person who has to approve
+it.
 
 ## The three things worth knowing before changing it
 

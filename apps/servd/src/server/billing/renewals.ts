@@ -68,18 +68,43 @@ export async function pendingRenewals(partnerId: string): Promise<RenewalRow[]> 
       }),
     );
     if (rows.length === 0) return [];
-    const names = await systemDb((tx) =>
-      tx.restaurant.findMany({
-        where: { id: { in: rows.map((r) => r.merchantId) } },
-        select: { id: true, name: true },
-      }),
-    );
-    const byId = new Map(names.map((n) => [n.id, n.name]));
+    /*
+      NAMES FROM BOTH AXES. A merchant id means nothing without its product —
+      ids are unique within a product, not across them — so this asks each
+      table for the ids that belong to it rather than asking one table for all
+      of them and labelling the rest "Unknown".
+    */
+    const idsFor = (product: string) =>
+      rows.filter((r) => r.productId === product).map((r) => r.merchantId);
+    const [restaurants, pharmacies] = await Promise.all([
+      idsFor("servd").length
+        ? systemDb((tx) =>
+            tx.restaurant.findMany({
+              where: { id: { in: idsFor("servd") } },
+              select: { id: true, name: true },
+            }),
+          )
+        : Promise.resolve([]),
+      idsFor("pharmacy").length
+        ? systemDb((tx) =>
+            tx.pharmacy.findMany({
+              where: { id: { in: idsFor("pharmacy") } },
+              select: { id: true, name: true },
+            }),
+          )
+        : Promise.resolve([]),
+    ]);
+    // Keyed by product AND id, because the two id spaces are separate and a
+    // collision would label one merchant with another's name.
+    const byId = new Map<string, string>([
+      ...restaurants.map((n) => [`servd:${n.id}`, n.name] as [string, string]),
+      ...pharmacies.map((n) => [`pharmacy:${n.id}`, n.name] as [string, string]),
+    ]);
     return rows.map((r) => ({
       id: r.id,
       merchantId: r.merchantId,
       productId: r.productId,
-      merchantName: byId.get(r.merchantId) ?? "Unknown",
+      merchantName: byId.get(`${r.productId}:${r.merchantId}`) ?? "Unknown",
       amountCentavos: r.amountCentavos,
       months: r.months,
       status: r.status as RenewalStatus,
@@ -143,8 +168,18 @@ export async function confirmRenewal(input: {
       const row = await tx.merchantRenewal.findUnique({ where: { id: renewalId } });
       if (!row) return null;
 
+      /*
+        THE PRODUCT COMES OFF THE RENEWAL ROW, not off a form and not assumed.
+        `merchant_renewals` has carried `productId` since it was written; this
+        function simply never read it, which is why a pharmacy renewal could be
+        requested, receipted and confirmed and then extend nothing.
+      */
+      const productId = row.productId === "pharmacy" ? "pharmacy" : "servd";
+
       const sub = await tx.subscription.findFirst({
-        where: { restaurantId: row.merchantId },
+        // Both, always. Without `productId` this matches on an id alone across
+        // two separate id spaces.
+        where: { restaurantId: row.merchantId, productId },
         orderBy: { createdAt: "desc" },
         select: { id: true, currentPeriodEnd: true },
       });
@@ -160,11 +195,20 @@ export async function confirmRenewal(input: {
         data: { status: "active", currentPeriodEnd: paidUntil, failedCharges: 0 },
       });
       // Renewing brings a suspended shop back. Somebody who has just paid should
-      // not have to ask a second time to be switched on.
-      await tx.restaurant.updateMany({
-        where: { id: row.merchantId, partnerId },
-        data: { status: "active" },
-      });
+      // not have to ask a second time to be switched on. Resceta reads the same
+      // column in the same sense — its counter refuses to sell when it is not
+      // "active" — so the sentence is true of both.
+      if (productId === "pharmacy") {
+        await tx.pharmacy.updateMany({
+          where: { id: row.merchantId, partnerId },
+          data: { status: "active" },
+        });
+      } else {
+        await tx.restaurant.updateMany({
+          where: { id: row.merchantId, partnerId },
+          data: { status: "active" },
+        });
+      }
 
       /**
        * THE MERCHANT'S INVOICE, written in the same transaction as the money.
@@ -183,6 +227,7 @@ export async function confirmRenewal(input: {
       const invoice = await tx.restaurantInvoice.create({
         data: {
           restaurantId: row.merchantId,
+          productId,
           amount: amountCentavos,
           status: "paid",
           periodStart: base,
@@ -208,6 +253,7 @@ export async function confirmRenewal(input: {
        */
       await recordSettlement(tx, {
         restaurantId: row.merchantId,
+        productId,
         providerRef: `renewal:${renewalId}`,
         kind: "subscription",
         grossAmount: amountCentavos,
