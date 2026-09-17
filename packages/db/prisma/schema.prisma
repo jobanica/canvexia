@@ -1298,6 +1298,17 @@ model Partner {
   /// This is what makes `collectionMode: "partner_collects"` real. Until now
   /// the column said the partner took the money and the product gave them no
   /// way to be paid.
+  /// A domain this operator already owns and wants their portal on.
+  ///
+  /// Stored as a REQUEST, with `customDomainState` saying how far it has got.
+  /// Attaching it is a write to the hosting project, which needs a credential
+  /// this deployment does not carry (`getDomainProvider()` returns null without
+  /// VERCEL_TOKEN), so the honest flow is: the partner tells us the name and
+  /// adds their DNS, and HQ completes the attach. Pretending it is self-serve
+  /// would leave domains stuck in "verifying" with nothing driving them.
+  customDomain        String?
+  /// requested | dns_added | active | rejected
+  customDomainState   String?
   payQrPath           String?
   /// Free text beside the QR — "GCash 0917 123 4567, Juan D." — because a QR
   /// alone does not tell somebody what they are paying or who to chase.

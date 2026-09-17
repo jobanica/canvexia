@@ -3,6 +3,8 @@ import { requirePartnerPageWith } from "@/server/partners/auth";
 import { getPartnerProfile } from "@/server/partners/overview";
 import { listPartnerDomains } from "@/server/partners/domains";
 import { PortalShell } from "@/components/partner/PortalShell";
+import { CustomDomainForm } from "@/components/partner/CustomDomainForm";
+import { systemDb } from "@/server/tenancy/scoped-db";
 
 const STATE_CHIP: Record<string, string> = {
   planned: "bg-brand-ink/[0.06] text-brand-ink/55",
@@ -16,6 +18,12 @@ export default async function PartnerDomainsPage() {
   const partner = await requirePartnerPageWith("domains.write");
   const profile = await getPartnerProfile(partner.id);
   const domains = await listPartnerDomains(profile?.slug ?? null);
+  const own = await systemDb((tx) =>
+    tx.partner.findUnique({
+      where: { id: partner.id },
+      select: { customDomain: true, customDomainState: true },
+    }),
+  ).catch(() => null);
 
   return (
     <PortalShell
@@ -67,18 +75,23 @@ export default async function PartnerDomainsPage() {
         )}
 
         {/*
-          Adding a custom domain is a real feature and it is NOT here yet:
-          adding one means a write to the Vercel project, a verification poll and
-          a removal path, and half of that is a domain stuck in "verifying" with
-          no way back. The read side ships; the write side lands with its own
-          audit trail.
+          The instructions ARE the feature. This was a dashed box saying "not
+          wired up yet, tell HQ which one" — with no way to tell HQ and no
+          records to add, so a partner who wanted their own address had nothing
+          to do next.
+
+          The attach itself still needs a hosting credential this deployment
+          does not carry, and that is said plainly rather than dressed up as a
+          progress bar nothing is driving. What the partner CAN do without us —
+          point their DNS — is spelled out exactly, with copyable values.
         */}
-        <div className="mt-6 rounded-tile border border-dashed border-brand-ink/15 bg-white p-5">
-          <p className="text-sm font-semibold">Your own domain</p>
-          <p className="mt-1 text-sm text-brand-ink/55">
-            Bringing a domain you already own is not wired up yet. Tell HQ which one and we
-            will connect it by hand in the meantime.
-          </p>
+        <div className="mt-6">
+          <CustomDomainForm
+            current={own?.customDomain ?? null}
+            state={own?.customDomainState ?? null}
+            aRecordIp="76.76.21.21"
+            cnameTarget="cname.vercel-dns.com"
+          />
         </div>
     </PortalShell>
   );

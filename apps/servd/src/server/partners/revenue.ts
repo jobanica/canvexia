@@ -253,3 +253,32 @@ export async function listPayables(partnerId: string, take = 12): Promise<Payabl
     return [];
   }
 }
+
+
+/**
+ * What has accrued THIS month and is not yet billed.
+ *
+ * THE GAP THIS FILLS: every confirmed renewal writes a `PartnerLedgerEntry`
+ * immediately, but the Payables screen listed only FROZEN statements — and a
+ * month is frozen after it ends. So a partner could confirm ₱999 this morning,
+ * watch CANVEXIA's ₱299.70 land in the ledger, and see ₱0 owed, because
+ * September does not exist as a statement until October.
+ *
+ * That is not a reporting nicety. A partner who believes they owe nothing all
+ * month gets one bill on the first and seven days to find the money.
+ *
+ * Computed live from the ledger by the SAME function that freezes the month, so
+ * the running total and the eventual statement cannot disagree — one of them
+ * being a second implementation is exactly how they would.
+ */
+export async function currentMonthAccrual(
+  partnerId: string,
+): Promise<{ month: string; amountCentavos: number; merchantCount: number } | null> {
+  try {
+    const month = monthKeyOf(new Date());
+    const s = await partnerDb(partnerId, (tx) => computeStatement(tx, partnerId, month));
+    return { month, amountCentavos: s.hqCentavos, merchantCount: s.merchantCount };
+  } catch {
+    return null;
+  }
+}
