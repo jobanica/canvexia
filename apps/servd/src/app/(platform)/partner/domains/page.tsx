@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePartnerPageWith } from "@/server/partners/auth";
 import { getPartnerProfile } from "@/server/partners/overview";
-import { listPartnerDomains } from "@/server/partners/domains";
+import { listPartnerDomains, domainStatus } from "@/server/partners/domains";
 import { PortalShell } from "@/components/partner/PortalShell";
 import { CustomDomainForm } from "@/components/partner/CustomDomainForm";
 import { systemDb } from "@/server/tenancy/scoped-db";
@@ -24,6 +24,10 @@ export default async function PartnerDomainsPage() {
       select: { customDomain: true, customDomainState: true },
     }),
   ).catch(() => null);
+
+  // The host's own verification records, when a provider is configured. Falls
+  // back to the static instructions in the form when it is not.
+  const live = own?.customDomain ? await domainStatus(own.customDomain).catch(() => null) : null;
 
   return (
     <PortalShell
@@ -91,6 +95,8 @@ export default async function PartnerDomainsPage() {
             state={own?.customDomainState ?? null}
             aRecordIp="76.76.21.21"
             cnameTarget="cname.vercel-dns.com"
+            records={live?.records ?? []}
+            selfServe={!!live?.configured}
           />
         </div>
     </PortalShell>

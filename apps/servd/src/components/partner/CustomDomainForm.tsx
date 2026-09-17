@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import {
   requestCustomDomain,
   clearCustomDomain,
+  refreshCustomDomain,
   type DomainRequestState,
 } from "@/server/partners/domain-actions";
 
@@ -50,11 +51,22 @@ export function CustomDomainForm({
   state: domainState,
   aRecordIp,
   cnameTarget,
+  records,
+  selfServe,
 }: {
   current: string | null;
   state: string | null;
   aRecordIp: string;
   cnameTarget: string;
+  /**
+   * What the HOST says to add, when a domain provider is configured. Preferred
+   * over the constants above whenever it is non-empty: a record read back from
+   * the host is right today, and a constant in our UI was right when it was
+   * written.
+   */
+  records: { type: string; name: string; value: string }[];
+  /** Is the attach automatic here, or does HQ finish it by hand? */
+  selfServe: boolean;
 }) {
   const [state, action, pending] = useActionState<DomainRequestState, FormData>(
     requestCustomDomain,
@@ -62,6 +74,10 @@ export function CustomDomainForm({
   );
   const [clearState, clear, clearing] = useActionState<DomainRequestState, FormData>(
     clearCustomDomain,
+    null,
+  );
+  const [checkState, check, checking] = useActionState<DomainRequestState, FormData>(
+    refreshCustomDomain,
     null,
   );
 
@@ -111,21 +127,43 @@ export function CustomDomainForm({
           <ol className="mt-3 space-y-3 text-sm">
             <li className="rounded-lg bg-brand-surface p-3">
               <p className="font-semibold">
-                1. {isApex ? "An A record" : "A CNAME record"}
+                1. {records.length > 0
+                  ? records.length === 1
+                    ? "This record"
+                    : "These records"
+                  : isApex
+                    ? "An A record"
+                    : "A CNAME record"}
               </p>
-              <p className="mt-1 text-brand-ink/70">
-                {isApex ? (
-                  <>
-                    Type <Value text="A" /> · Name <Value text="@" /> · Value{" "}
-                    <Value text={aRecordIp} />
-                  </>
-                ) : (
-                  <>
-                    Type <Value text="CNAME" /> · Name <Value text={label} /> · Value{" "}
-                    <Value text={cnameTarget} />
-                  </>
-                )}
-              </p>
+              {/*
+                The host's own answer wins. A record read back from the platform
+                is right today; a constant in our UI was right when it was
+                written, and these values do change.
+              */}
+              {records.length > 0 ? (
+                <div className="mt-1 space-y-1 text-brand-ink/70">
+                  {records.map((r) => (
+                    <p key={`${r.type}-${r.name}-${r.value}`}>
+                      Type <Value text={r.type} /> · Name <Value text={r.name} /> · Value{" "}
+                      <Value text={r.value} />
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1 text-brand-ink/70">
+                  {isApex ? (
+                    <>
+                      Type <Value text="A" /> · Name <Value text="@" /> · Value{" "}
+                      <Value text={aRecordIp} />
+                    </>
+                  ) : (
+                    <>
+                      Type <Value text="CNAME" /> · Name <Value text={label} /> · Value{" "}
+                      <Value text={cnameTarget} />
+                    </>
+                  )}
+                </p>
+              )}
               <p className="mt-1 text-xs text-brand-ink/45">
                 {isApex
                   ? "An apex domain cannot use a CNAME, which is why this one is an A record."
@@ -140,11 +178,45 @@ export function CustomDomainForm({
               </p>
             </li>
             <li className="rounded-lg bg-brand-surface p-3">
-              <p className="font-semibold">3. Tell us it is done</p>
-              <p className="mt-1 text-brand-ink/70">
-                We finish the connection at our end and the certificate is issued
-                automatically. DNS usually spreads in minutes, occasionally in a few hours.
+              <p className="font-semibold">
+                3. {selfServe ? "Check it" : "Tell us it is done"}
               </p>
+              <p className="mt-1 text-brand-ink/70">
+                {selfServe ? (
+                  <>
+                    Tap Check once you have saved the record. The certificate is issued
+                    automatically after that. DNS usually spreads in minutes, occasionally in
+                    a few hours.
+                  </>
+                ) : (
+                  <>
+                    We finish the connection at our end and the certificate is issued
+                    automatically. DNS usually spreads in minutes, occasionally in a few
+                    hours.
+                  </>
+                )}
+              </p>
+              {/*
+                A button, not a poller. DNS takes minutes or hours and the person
+                waiting knows when they changed it; polling for every partner
+                forever would be slower AND more expensive.
+              */}
+              {selfServe && (
+                <form action={check} className="mt-2">
+                  <button
+                    disabled={checking}
+                    className="min-h-[40px] rounded-full border border-brand-ink/15 bg-white px-4 text-xs font-semibold text-brand-ink/70 disabled:opacity-50"
+                  >
+                    {checking ? "Checking…" : "Check now"}
+                  </button>
+                </form>
+              )}
+              {checkState?.ok && (
+                <p className="mt-2 text-xs font-semibold text-brand-primary">{checkState.ok}</p>
+              )}
+              {checkState?.error && (
+                <p className="mt-2 text-xs text-guava">{checkState.error}</p>
+              )}
             </li>
           </ol>
 

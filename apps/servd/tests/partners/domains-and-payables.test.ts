@@ -129,3 +129,53 @@ describe("a domain request cannot collide or be a CANVEXIA address", () => {
     expect(action).toContain("partner.custom_domain_requested");
   });
 });
+
+
+/**
+ * The self-serve attach, which turns on the moment the host credentials exist.
+ */
+describe("attaching a domain for real", () => {
+  const action = codeAt("src/server/partners/domain-actions.ts");
+  const ui = codeAt("src/components/partner/CustomDomainForm.tsx");
+
+  it("attaches when a provider is configured, and says so honestly when not", () => {
+    // getDomainProvider() returns null without VERCEL_TOKEN and
+    // VERCEL_PROJECT_ID. Both states are true statements about this deployment.
+    expect(action).toContain("const provider = getDomainProvider();");
+    expect(action).toContain("provider.addDomain(host)");
+    expect(action).toContain('let state = "requested"');
+  });
+
+  it("treats 'already exists' as success", () => {
+    // A partner re-submitting the same domain should land on the DNS
+    // instructions, not on an error.
+    expect(action).toContain("/already|exists/i.test(added.error");
+  });
+
+  it("detaches from the host on removal, not just from our row", () => {
+    // Forgetting it here while leaving it attached would hold the name against
+    // the project so nobody — including this partner — could add it again.
+    expect(action).toContain("provider.removeDomain(current.customDomain)");
+  });
+
+  it("prefers the host's records over our constants", () => {
+    // A record read back from the platform is right today; a constant in the UI
+    // was right when it was written, and these values do change.
+    expect(ui).toContain("records.length > 0 ?");
+    const page = codeAt("src/app/(platform)/partner/domains/page.tsx");
+    expect(page).toContain("records={live?.records ?? []}");
+    expect(page).toContain("selfServe={!!live?.configured}");
+  });
+
+  it("checks on a tap rather than polling", () => {
+    // DNS takes minutes or hours and the person waiting knows when they changed
+    // it. Polling for every partner forever would be slower AND costlier.
+    expect(action).toContain("export async function refreshCustomDomain");
+    expect(ui).toContain("Check now");
+    expect(action).not.toContain("setInterval");
+  });
+
+  it("refuses to pretend it can check when it cannot", () => {
+    expect(action).toContain("Checking is not available on this deployment yet");
+  });
+});
