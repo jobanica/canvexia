@@ -14,10 +14,12 @@ import { OfflineNotice } from "./OfflineNotice";
  */
 const NAV: { href: string; label: string; needs?: Permission }[] = [
   { href: "/", label: "Dashboard" },
+  { href: "/alerts", label: "Alerts" },
   { href: "/pos", label: "Counter", needs: "sell" },
   { href: "/receipts", label: "Receipts", needs: "sell" },
   { href: "/receiving", label: "Receive", needs: "manageStock" },
   { href: "/catalogue", label: "Catalogue", needs: "manageCatalogue" },
+  { href: "/suppliers", label: "Suppliers", needs: "manageStock" },
   { href: "/staff", label: "Staff", needs: "manageStaff" },
   { href: "/billing", label: "Billing", needs: "manageSettings" },
   { href: "/settings", label: "Settings", needs: "manageSettings" },

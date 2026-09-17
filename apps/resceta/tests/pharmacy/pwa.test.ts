@@ -155,8 +155,13 @@ describe("the install prompt", () => {
   });
 
   it("sits below the work, not above it", () => {
+    // Anchored on the LAST section of the dashboard rather than a heading,
+    // because the headings moved: the expiry and stock tables this used to
+    // name are the Alerts screen now, and the dashboard leads with the money.
+    // The rule is unchanged — an install banner must not push the figures down
+    // the screen on every visit.
     const page = src("app/page.tsx");
-    const content = page.indexOf("Expiring within 90 days");
+    const content = page.indexOf("Latest receipts");
     const banner = page.indexOf("<InstallApp");
     expect(content).toBeGreaterThan(-1);
     expect(banner).toBeGreaterThan(content);
