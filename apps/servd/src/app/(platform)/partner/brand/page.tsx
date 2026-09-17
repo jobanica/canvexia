@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePartnerPageWith } from "@/server/partners/auth";
 import { getPartnerBrand } from "@/server/partners/brand-actions";
 import { PartnerBrandForm } from "@/components/partner/PartnerBrandForm";
+import { partnerBrandVars } from "@/lib/partners/brand-vars";
 
 export default async function PartnerBrandPage() {
   // `brand.write` is the only thing this page does. The sidebar already hides
@@ -30,7 +31,12 @@ export default async function PartnerBrandPage() {
   const { config, brandMode } = await getPartnerBrand(partner.id);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-6 py-10">
+    // This page is outside PortalShell, so it sets the variables itself — and
+    // it is the one screen where seeing them is the point.
+    <div
+      className="mx-auto max-w-3xl space-y-6 px-6 py-10"
+      style={partnerBrandVars(partner.brand)}
+    >
       <div>
         <Link href="/partner" className="text-sm font-semibold text-brand-ink/50">
           ← Dashboard
@@ -38,9 +44,28 @@ export default async function PartnerBrandPage() {
         <h1 className="mt-2 font-heading text-2xl font-bold">Your brand</h1>
         <p className="text-sm text-brand-ink/50">
           {brandMode === "full_whitelabel"
-            ? "You're on full white-label: your merchants and their customers see only your brand."
-            : "Your merchants see your brand, with a “Powered by Servd” credit on customer-facing pages."}
+            ? "You're on full white-label: no Servd credit anywhere your merchants or their customers look."
+            : "Customer-facing pages carry a “Powered by Servd” credit; the rest is yours."}
         </p>
+
+        {/*
+          WHERE IT ACTUALLY APPLIES, listed rather than promised.
+
+          This page used to say "your merchants see your brand", flatly. They
+          did not — the only thing reading brandConfig was the invoice — so an
+          operator set their colours, read that sentence, and went looking for a
+          change that was never going to happen. Saying what is wired and what
+          is not costs three lines and is the difference between a product that
+          is unfinished and one that lies.
+        */}
+        <ul className="mt-3 space-y-1 text-xs text-brand-ink/45">
+          <li>· This portal — your logo, your name and your colours, on every screen here.</li>
+          <li>· Invoices you send your merchants — your logo, name and contacts.</li>
+          <li>
+            · Your merchants&rsquo; own dashboards still show Servd&rsquo;s. That one is coming;
+            it is not switched on yet.
+          </li>
+        </ul>
       </div>
 
       <section className="rounded-tile border border-brand-ink/10 bg-white p-5">

@@ -9,8 +9,17 @@ const FIELD = "w-full rounded-lg border border-brand-ink/15 px-3 py-2 text-sm";
 const LABEL = "mb-1 block text-xs font-semibold uppercase tracking-wide text-brand-ink/50";
 
 /**
- * A partner's own brand. What their merchants see instead of Servd, and — once
- * the brand engine lands in Phase 5 — what those merchants' diners see too.
+ * A partner's own brand.
+ *
+ * IT PAINTS THIS PORTAL NOW, which it did not before. The two colour pickers
+ * wrote a `brandConfig` nothing read: every partner route is wrapped in
+ * `.brand-canvexia`, so an operator could set their colours, see "Saved", and
+ * find every screen they owned unchanged. `partnerBrandVars` is what closed
+ * that, and the note under the primary picker is what makes the result
+ * predictable.
+ *
+ * It is also what their merchants see instead of Servd, and — once the brand
+ * engine lands in Phase 5 — what those merchants' diners see too.
  */
 export function PartnerBrandForm({
   brand,
@@ -78,7 +87,12 @@ export function PartnerBrandForm({
             choosing; the text box is for pasting the hex a designer sent, which
             a colour input cannot accept.
           */}
-          <ColourField name="primaryColor" initial={brand.primaryColor ?? ""} placeholder="#FF8A1E" />
+          <ColourField
+            name="primaryColor"
+            initial={brand.primaryColor ?? ""}
+            placeholder="#FF8A1E"
+            checkContrast
+          />
         </div>
         <div>
           <label className={LABEL}>Accent colour</label>
@@ -96,8 +110,9 @@ export function PartnerBrandForm({
           Support contacts
         </p>
         <p className="mb-3 text-xs text-brand-ink/45">
-          Where your merchants go for help. These replace Servd&apos;s own contacts on their
-          dashboards — if you leave them blank, your merchants will be asking us.
+          Where your merchants go for help. These print on every invoice you send them — leave
+          them blank and the invoice carries no one to call. They are not on your merchants&apos;
+          dashboards yet.
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <div>

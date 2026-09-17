@@ -9,6 +9,7 @@ import {
   type PartnerPermission,
   type PartnerUserRole,
   isPartnerUserRole,
+  parseBrandConfig,
 } from "@servd/core";
 import { resolvePermissions } from "@/server/partners/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -32,6 +33,24 @@ import { getImpersonation } from "@/server/hq/impersonate";
  *
  * A legacy login resolves as `admin`, which is what it always effectively was.
  */
+/**
+ * The two colours off a stored `brandConfig`, or nulls.
+ *
+ * `parseBrandConfig` is the same validator the editor saves through, so a row
+ * written before the field existed, or by hand, produces nulls rather than
+ * whatever text is in the column — a CSS variable set to garbage paints
+ * nothing and is invisible to debug.
+ */
+function brandOf(brandConfig: unknown): CurrentPartner["brand"] {
+  const c = parseBrandConfig(brandConfig);
+  return {
+    primaryColor: c.primaryColor ?? null,
+    accentColor: c.accentColor ?? null,
+    displayName: c.displayName ?? null,
+    logoUrl: c.logoUrl ?? null,
+  };
+}
+
 export interface CurrentPartner {
   id: string;
   name: string;
@@ -41,6 +60,29 @@ export interface CurrentPartner {
   /// 0 for every legacy reseller, 70 for a CANVEXIA operator. Selected because
   /// the dashboard has to tell the two apart: see the note in partner/page.tsx.
   revenueSharePct: number;
+
+  /**
+   * THE PARTNER'S OWN COLOURS, carried on the session so the portal can wear
+   * them.
+   *
+   * REPORTED — "already changed the color branding, but the color of my
+   * dashboard did not change." It could not: the portal is wrapped in
+   * `.brand-canvexia`, which pins the five `--brand-*` variables to CANVEXIA's
+   * palette, and nothing read `brandConfig` at all. A partner edited two
+   * colours, saved, and every screen they owned looked exactly the same.
+   *
+   * Selected here rather than fetched by the shell because all three sign-in
+   * paths already read this row. A second query per page, for two strings, to
+   * paint a border.
+   */
+  brand: {
+    primaryColor: string | null;
+    accentColor: string | null;
+    /** What they call the business. Falls back to `name` at the point of use. */
+    displayName: string | null;
+    /** An uploaded logo, or a https URL they pasted. */
+    logoUrl: string | null;
+  };
 
   /** The signed-in seat. */
   user: {
@@ -118,12 +160,15 @@ export async function getCurrentPartner(): Promise<CurrentPartner | null> {
           status: true,
           tier: true,
           revenueSharePct: true,
+          brandConfig: true,
         },
       }),
     );
     if (!partner) return null;
+    const { brandConfig, ...rest } = partner;
     return {
-      ...partner,
+      ...rest,
+      brand: brandOf(brandConfig),
       // `admin`, so HQ sees every screen the partner's own admin sees — which
       // is the point of looking. It grants no WRITE anywhere, because every
       // action refuses an impersonated session before it consults a capability.
@@ -166,6 +211,7 @@ export async function getCurrentPartner(): Promise<CurrentPartner | null> {
               status: true,
               tier: true,
               revenueSharePct: true,
+              brandConfig: true,
             },
           },
         },
@@ -175,8 +221,10 @@ export async function getCurrentPartner(): Promise<CurrentPartner | null> {
     // A deactivated seat is kept — the audit log names an actor, and deleting
     // the row makes past actions anonymous — but it does not sign in.
     if (seat && seat.status === "active" && isPartnerUserRole(seat.role)) {
+      const { brandConfig, ...rest } = seat.partner;
       return {
-        ...seat.partner,
+        ...rest,
+        brand: brandOf(brandConfig),
         user: { id: seat.id, email: seat.email, name: seat.name, role: seat.role },
         permissions: await resolvePermissions(seat.partner.id, seat.role),
       };
@@ -198,12 +246,15 @@ export async function getCurrentPartner(): Promise<CurrentPartner | null> {
           status: true,
           tier: true,
           revenueSharePct: true,
+          brandConfig: true,
         },
       }),
     );
     if (!partner) return null;
+    const { brandConfig, ...rest } = partner;
     return {
-      ...partner,
+      ...rest,
+      brand: brandOf(brandConfig),
       user: { id: null, email: partner.email, name: partner.name, role: "admin" },
       // A legacy login has no `partner_users` row, so it has no seat for the
       // grid to be about. It resolves through the partner's own admin

@@ -63,3 +63,57 @@ export function readableOn(background: string): "#FFFFFF" | "#1A1A1E" {
   if (!white || !ink) return "#1A1A1E";
   return white.ratio >= ink.ratio ? "#FFFFFF" : "#1A1A1E";
 }
+
+/**
+ * The same hue, dark enough to read.
+ *
+ * A partner's primary colour is used two ways in a portal: as TEXT on white
+ * (links, figures, the active nav row) and as a SOLID with white text on it
+ * (the primary button). Both fail in the same direction — too light — so one
+ * adjustment fixes both: darken until the colour clears `min` against white,
+ * and a pale yellow becomes a dark gold rather than an invisible button.
+ *
+ * KEEPS THE HUE. It scales the channels rather than blending toward black, so
+ * what comes back is recognisably the colour that was chosen. A partner who
+ * picks #FFE14D gets a deeper version of their yellow, not a grey.
+ *
+ * Returns the input untouched when it already passes, and null when it is not
+ * a hex this understands — the caller then falls back to its own default
+ * rather than rendering a broken variable.
+ *
+ * NOT a substitute for telling them. The brand editor shows the ratio and says
+ * when this will kick in; silently changing somebody's brand colour and never
+ * mentioning it is how you get a bug report about a colour that "won't save".
+ */
+export function darkenToContrast(color: string, min = 4.5): string | null {
+  // Against WHITE, fixed. Darkening only ever helps against a light background;
+  // taking a `background` parameter would invite passing a dark one, where this
+  // loop converges on black and makes the problem worse.
+  const against = "#FFFFFF";
+  const rgb = parseHex(color);
+  if (!rgb) return null;
+
+  const hex = (c: [number, number, number]) =>
+    "#" + c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("");
+
+  const current = contrast(hex(rgb), against);
+  if (!current) return null;
+  if (current.ratio >= min) return hex(rgb);
+
+  // Bisect on a scale factor rather than stepping: 24 halvings settle well
+  // inside one 8-bit step, and a loop that steps by 1% can run 100 times and
+  // still overshoot.
+  let lo = 0; // black — always passes against white
+  let hi = 1; // the colour as chosen — does not
+  for (let i = 0; i < 24; i += 1) {
+    const mid = (lo + hi) / 2;
+    const test = hex([rgb[0] * mid, rgb[1] * mid, rgb[2] * mid]);
+    const r = contrast(test, against);
+    if (r && r.ratio >= min) lo = mid;
+    else hi = mid;
+  }
+  // `lo` is the lightest factor that still passes. Guard the degenerate case
+  // where even the first step down did not: bisection converging on 0 means
+  // black, which passes by definition.
+  return hex([rgb[0] * lo, rgb[1] * lo, rgb[2] * lo]);
+}

@@ -9,8 +9,8 @@ import { kioskRequired } from "@/server/partners/kiosk";
 import { FieldApp } from "@/components/partner/FieldApp";
 import { NavDrawer } from "@/components/nav/NavDrawer";
 import { NavGroups, partnerNav } from "@/components/partner/portal-nav";
-import { Mark } from "@servd/ui";
-import Link from "next/link";
+import { partnerBrandVars } from "@/lib/partners/brand-vars";
+import { PartnerLockup } from "@/components/partner/PartnerLockup";
 
 export const metadata = { title: "Field — CANVEXIA" };
 
@@ -102,17 +102,17 @@ export default async function PartnerAttendancePage({
   const nav = partnerNav(partner);
 
   return (
-    <div className="brand-canvexia min-h-screen bg-brand-surface text-brand-ink">
+    // The field screen is outside PortalShell, so it carries the partner's
+    // colours itself rather than inheriting them.
+    <div
+      className="brand-canvexia min-h-screen bg-brand-surface text-brand-ink"
+      style={partnerBrandVars(partner.brand)}
+    >
       <FieldApp
         nav={
           <NavDrawer
             label="Portal"
-            header={
-              <Link href="/partner" className="flex items-center gap-2.5" aria-label="Portal home">
-                <Mark size={24} title="CANVEXIA" />
-                <span className="font-bold tracking-[0.12em] text-brand-ink">CANVEXIA</span>
-              </Link>
-            }
+            header={<PartnerLockup partner={partner} />}
           >
             <NavGroups main={nav.main} secondary={nav.secondary} />
           </NavDrawer>

@@ -3,8 +3,9 @@ import type { CurrentPartner } from "@/server/partners/auth";
 import { signOutPartner } from "@/server/partners/login-action";
 import { InstallApp } from "@/components/pwa/InstallApp";
 import { NavDrawer } from "@/components/nav/NavDrawer";
-import { Mark } from "@servd/ui";
+import { partnerBrandVars } from "@/lib/partners/brand-vars";
 import { IconBell, IconSearch } from "./PortalIcons";
+import { PartnerLockup } from "./PartnerLockup";
 import { NavGroups, NavRow, partnerNav, type NavCounts } from "./portal-nav";
 
 export type { NavCounts };
@@ -56,15 +57,20 @@ export function PortalShell({
     .map((s) => s[0]?.toUpperCase())
     .join("");
 
-  const lockup = (
-    <Link href="/partner" className="flex items-center gap-2.5" aria-label="Portal home">
-      <Mark size={24} title="CANVEXIA" />
-      <span className="font-bold tracking-[0.12em] text-brand-ink">CANVEXIA</span>
-    </Link>
-  );
 
   return (
-    <div className="brand-canvexia min-h-screen bg-brand-surface text-brand-ink">
+    /*
+      THE PARTNER'S OWN COLOURS, over CANVEXIA's.
+
+      `.brand-canvexia` sets the five --brand-* variables; this overrides two of
+      them inline on the same element, so the operator's primary and accent win
+      and every brand-* class in every child follows. An unbranded partner
+      writes nothing and gets CANVEXIA's palette exactly as before.
+    */
+    <div
+      className="brand-canvexia min-h-screen bg-brand-surface text-brand-ink"
+      style={partnerBrandVars(partner.brand)}
+    >
       {/*
         HQ IS LOOKING. Above everything, on every screen, in ink rather than a
         tasteful tint — this is the difference between an operator seeing HQ in
@@ -92,10 +98,7 @@ export function PortalShell({
       <div className="mx-auto flex max-w-[1400px]">
         {/* Sidebar */}
         <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-brand-ink/10 bg-white px-4 py-5 lg:flex">
-          <Link href="/partner" className="flex items-center gap-2.5 px-2" aria-label="Portal home">
-            <Mark size={26} title="CANVEXIA" />
-            <span className="font-bold tracking-[0.12em] text-brand-ink">CANVEXIA</span>
-          </Link>
+          <PartnerLockup partner={partner} size="md" />
 
           <nav aria-label="Portal" className="mt-8 flex flex-col gap-1">
             {main.map((i) => (
@@ -123,13 +126,13 @@ export function PortalShell({
               people reach for, and on a phone the logo is decoration.
             */}
             <div className="lg:hidden">
-              <NavDrawer label="Portal" header={lockup}>
+              <NavDrawer label="Portal" header={<PartnerLockup partner={partner} />}>
                 <NavGroups main={main} secondary={secondary} />
               </NavDrawer>
             </div>
-            <Link href="/partner" className="lg:hidden" aria-label="Portal home">
-              <Mark size={24} title="CANVEXIA" />
-            </Link>
+            <span className="min-w-0 lg:hidden">
+              <PartnerLockup partner={partner} />
+            </span>
 
             {/*
               The search box is PRESENT and DISABLED, with a label that says why.
@@ -155,7 +158,11 @@ export function PortalShell({
                 <IconBell size={20} />
               </span>
               <span className="hidden text-right text-xs leading-tight sm:block">
-                <span className="block font-semibold">{partner.name}</span>
+                {/* Their trading name where they have set one — the same answer
+                    the lockup gives, so the two corners of the bar agree. */}
+                <span className="block font-semibold">
+                  {partner.brand.displayName?.trim() || partner.name}
+                </span>
                 <span className="block text-brand-ink/45">{partner.user.role}</span>
               </span>
               <span
