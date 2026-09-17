@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getCurrentUser } from "@/server/tenancy/current-user";
 import { tenantDb } from "@/server/tenancy/scoped-db";
 import { getEntitledFeatures } from "@/server/billing/feature-gate";
@@ -7,6 +8,60 @@ import { getMerchantFacingBrand } from "@/server/branding/partner-brand";
 import { listBranches } from "@/server/tenancy/branches";
 import { unreadCount } from "@/server/announcements/queries";
 import { listMyFeedback, unreadReplyCount } from "@/server/platform-feedback/queries";
+
+/**
+ * THE DASHBOARD INSTALLS AS THE SHOP'S OWN APP.
+ *
+ * It had no manifest of its own, so it inherited the ROOT one — whose
+ * `start_url` is `/cashier`. An owner who installed from their dashboard got an
+ * app called "Servd", wearing Servd's orange tile, that opened on the till.
+ * Every merchant's phone showed the same icon, and on a partner-sold shop it
+ * was a competitor's brand.
+ *
+ * The manifest is per shop and keyed by the slug in its own path. That is
+ * forced rather than chosen: a browser fetches a manifest WITHOUT credentials
+ * unless the link sets `crossorigin="use-credentials"`, which Next's
+ * `metadata.manifest` does not — so a session-derived manifest is not possible
+ * and the identity has to be in the URL.
+ *
+ * ONE EXTRA QUERY, and only the columns the head needs. It runs in parallel
+ * with the layout's own render rather than before it, so it costs a round trip
+ * and not a wait.
+ *
+ * A visitor who is not staff gets nothing here. The page below renders bare and
+ * its own guard redirects them; advertising an installable dashboard to
+ * somebody who cannot open one would be worse than silence.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const user = await getCurrentUser().catch(() => null);
+  if (!user || user.kind !== "staff") return {};
+
+  const shop = await tenantDb(user.restaurantId, (tx) =>
+    tx.restaurant.findFirstOrThrow({ select: { name: true, displayName: true, slug: true } }),
+  ).catch(() => null);
+  if (!shop?.slug) return {};
+
+  const name = shop.displayName || shop.name;
+  return {
+    title: { default: `${name} — dashboard`, template: `%s · ${name}` },
+    manifest: `/m/${shop.slug}/manifest.webmanifest`,
+    appleWebApp: {
+      capable: true,
+      // What sits under the icon on an iPhone home screen. Inherited, it read
+      // "Servd".
+      title: name,
+      statusBarStyle: "default",
+    },
+    icons: {
+      // iOS ignores the manifest entirely and reads this one link. It cannot
+      // render the SVG monogram, so it gets Servd's PNG — the honest fallback
+      // rather than a broken tile.
+      apple: [{ url: "/brand/icon-apple-180.png", sizes: "180x180", type: "image/png" }],
+    },
+    // A back office behind a login has no business in a search index.
+    robots: { index: false, follow: false },
+  };
+}
 
 /**
  * Dashboard chrome for the restaurant back-office. Wraps every /admin page in

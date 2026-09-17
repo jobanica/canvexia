@@ -4,6 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { VendorCredit } from "@/components/admin/VendorCredit";
+import { InstallApp } from "@/components/pwa/InstallApp";
+import { ServiceWorkerRegister } from "@/components/offline/ServiceWorkerRegister";
+import { useOnline } from "@/lib/offline/useOnline";
 import { brandStyle, type BrandInput } from "@/lib/theme/brand";
 import { signOut } from "@/app/(platform)/login/actions";
 import { PlatformFeedbackButton } from "./PlatformFeedbackButton";
@@ -185,6 +188,7 @@ export function AdminShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const online = useOnline();
   const [open, setOpen] = useState(false);
   const isActive = (href: string) =>
     href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
@@ -332,6 +336,29 @@ export function AdminShell({
             and locked features show a contextual "included in [plan]" upgrade
             prompt instead of a persistent nag. */}
 
+        {/*
+          SAYS THE ONE THING AN INSTALLED APP HIDES.
+
+          Making this installable is what created the need for it. In a browser
+          tab an owner can see the connection has gone; in a standalone window
+          there is no address bar, no reload spinner and no dinosaur, so the
+          dashboard looks exactly as it did a minute ago and the first sign of
+          trouble is a Save button that hangs.
+
+          It says what still works, because most of this screen does: pages
+          already opened are served from the cache. What stops is writing, and
+          that is what it names.
+        */}
+        {!online && (
+          <div
+            role="status"
+            className="border-b border-mango/40 bg-mango/15 px-4 py-2 text-center text-sm font-medium text-plum-ink print:hidden"
+          >
+            No connection. You can still read what is already open — nothing will save until it
+            comes back.
+          </div>
+        )}
+
         {/* Top bar */}
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-plum-ink/10 bg-white/80 px-4 py-3 backdrop-blur print:hidden">
           <button
@@ -358,8 +385,33 @@ export function AdminShell({
           </span>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
+        <main className="flex-1 p-4 sm:p-6">
+          {children}
+
+          {/*
+            BELOW THE WORK, and in the main column rather than the sidebar —
+            the sidebar is `md:flex`, hidden on the phone that is the device an
+            owner actually installs this on. It renders nothing at all unless
+            this browser can install the dashboard and has not already, so it
+            cannot become a banner that survives being installed.
+          */}
+          <InstallApp
+            label={brand.name}
+            storageKey={`servd-install-admin-${brand.slug}`}
+            className="mt-8 max-w-sm print:hidden"
+          />
+        </main>
       </div>
+
+      {/*
+        A manifest alone makes nothing installable — the browser also wants a
+        service worker with a fetch handler controlling the start_url. It was
+        registered on the till, the partner portal and HQ, and never here, which
+        is why the dashboard could not be installed even after it had a
+        manifest. `/sw.js` is served from the root, so one registration covers
+        every surface.
+      */}
+      <ServiceWorkerRegister />
     </div>
   );
 }

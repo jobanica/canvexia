@@ -7,7 +7,7 @@
  *  - Everything else (POST / server actions / API): passthrough, never cached —
  *    the app's own offline queue handles writes.
  */
-const VERSION = "servd-v5";
+const VERSION = "servd-v6";
 const PAGES = `${VERSION}-pages`;
 const ASSETS = `${VERSION}-assets`;
 
@@ -83,6 +83,10 @@ function offlineShell(pathname) {
   if (pathname.startsWith("/partner/attendance")) return "/partner/attendance";
   if (pathname.startsWith("/partner")) return "/partner";
   if (pathname.startsWith("/hq")) return "/hq";
+  // The dashboard is its own installed app now, so a dropout inside it must
+  // land back on the dashboard rather than on the till — which is a different
+  // job, on a screen the owner may not even be standing at.
+  if (pathname.startsWith("/admin")) return "/admin";
   return "/cashier";
 }
 
