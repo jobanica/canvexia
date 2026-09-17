@@ -3,6 +3,7 @@ import { tenantDb } from "@/server/tenancy/scoped-db";
 import { getEntitledFeatures } from "@/server/billing/feature-gate";
 import { hasTutorials } from "@/server/tutorials/tutorials";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { getMerchantFacingBrand } from "@/server/branding/partner-brand";
 import { listBranches } from "@/server/tenancy/branches";
 import { unreadCount } from "@/server/announcements/queries";
 import { listMyFeedback, unreadReplyCount } from "@/server/platform-feedback/queries";
@@ -22,7 +23,16 @@ export default async function AdminLayout({
     return <>{children}</>;
   }
 
-  const [restaurant, features, tutorialsReady] = await Promise.all([
+  /**
+   * THE PARTNER WHO SOLD THEM THIS, resolved for the chrome.
+   *
+   * `getMerchantFacingBrand` has existed since the branding work and had no
+   * callers, which is why a partner-sold shop's dashboard still said "Powered
+   * by Servd" and pointed at Servd for help. Best-effort by construction — it
+   * falls back to the platform's own brand on any failure, so a lookup can
+   * never be the reason a dashboard does not render.
+   */
+  const [restaurant, features, tutorialsReady, vendor] = await Promise.all([
     tenantDb(user.restaurantId, (tx) =>
       tx.restaurant.findFirstOrThrow({
         select: {
@@ -38,6 +48,7 @@ export default async function AdminLayout({
     ),
     getEntitledFeatures(user.restaurantId),
     hasTutorials(),
+    getMerchantFacingBrand(user.restaurantId),
   ]);
   // Only an owner with more than one shop sees a switcher; for everyone else
   // this is one cheap query that resolves to a single row.
@@ -59,6 +70,13 @@ export default async function AdminLayout({
         slug: restaurant.slug,
         status: restaurant.status,
         logoUrl: restaurant.logoUrl,
+      }}
+      vendor={{
+        displayName: vendor.displayName ?? null,
+        logoUrl: vendor.logoUrl ?? null,
+        supportEmail: vendor.supportEmail ?? null,
+        supportPhone: vendor.supportPhone ?? null,
+        supportUrl: vendor.supportUrl ?? null,
       }}
       theme={{
         brandPrimaryColor: restaurant.brandPrimaryColor,

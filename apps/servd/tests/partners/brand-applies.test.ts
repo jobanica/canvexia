@@ -152,10 +152,16 @@ describe("the editor says what will happen before it happens", () => {
     expect(field).toContain("{adjusted}");
   });
 
-  it("stops claiming the merchant dashboards are branded", () => {
-    // They are not. The only merchant-facing surface reading brandConfig is the
-    // invoice, and the page said "your merchants see your brand" flatly.
+  it("lists where the brand applies instead of promising it flatly", () => {
+    // The page said "your merchants see your brand" when the only branded
+    // surface was the invoice. It now names each one — and the merchant
+    // dashboard moved onto that list under its own commit, so this asserts the
+    // shape of the claim rather than which items happen to be on it.
     expect(page).not.toContain("Your merchants see your brand");
-    expect(page).toContain("still show Servd");
+    expect(page).toContain("Invoices you send your merchants");
+    expect(page).toContain("Your merchants&rsquo; dashboards");
+    // The one thing that must never move onto it: a partner's logo on a
+    // diner's receipt confuses the restaurant's own customers.
+    expect(page).toContain("the restaurant&rsquo;s own brand");
   });
 });

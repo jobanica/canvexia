@@ -1,5 +1,7 @@
 "use client";
 
+import { PasswordField } from "@/components/auth/PasswordField";
+
 import { useActionState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -81,17 +83,13 @@ export function SignupForm() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium" htmlFor="password">
-            {t("password")}
-          </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            required
+          <PasswordField
+            label={t("password")}
             minLength={8}
             autoComplete="new-password"
-            className="mt-1 w-full rounded-lg border border-plum-ink/15 px-3 py-2"
+            labelClassName="block text-sm font-medium"
+            inputClassName="border-plum-ink/15"
+            toggleClassName="text-plum-ink/50 hover:text-plum-ink"
           />
         </div>
 

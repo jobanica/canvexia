@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Wordmark } from "@/components/Wordmark";
+import { VendorCredit } from "@/components/admin/VendorCredit";
 import { brandStyle, type BrandInput } from "@/lib/theme/brand";
 import { signOut } from "@/app/(platform)/login/actions";
 import { PlatformFeedbackButton } from "./PlatformFeedbackButton";
@@ -142,6 +142,7 @@ const NAV: { group: string; items: Item[] }[] = [
 
 export function AdminShell({
   brand,
+  vendor = null,
   theme,
   fullWhiteLabel = false,
   features,
@@ -154,6 +155,19 @@ export function AdminShell({
   children,
 }: {
   brand: { name: string; slug: string; status: string; logoUrl?: string | null };
+  /**
+   * WHO SELLS THIS SOFTWARE TO THEM — their partner, or Servd when they came
+   * direct. Distinct from `brand`, which is the RESTAURANT'S own identity: one
+   * is whose dashboard this is, the other is whose product it is, and putting
+   * the reseller's colours on a restaurant's own screen would confuse the two.
+   */
+  vendor?: {
+    displayName?: string | null;
+    logoUrl?: string | null;
+    supportEmail?: string | null;
+    supportPhone?: string | null;
+    supportUrl?: string | null;
+  } | null;
   theme?: BrandInput;
   fullWhiteLabel?: boolean;
   features?: string[];
@@ -287,11 +301,7 @@ export function AdminShell({
             Sign out
           </button>
         </form>
-        {!fullWhiteLabel && (
-          <p className="flex items-center gap-1 px-3 pt-1 text-[11px] text-plum-ink/35">
-            Powered by <Wordmark size="0.72rem" />
-          </p>
-        )}
+        <VendorCredit vendor={vendor} fullWhiteLabel={fullWhiteLabel} />
       </div>
     </div>
   );

@@ -1,5 +1,7 @@
 "use client";
 
+import { PasswordField } from "@/components/auth/PasswordField";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -81,14 +83,30 @@ export default function ResetPasswordPage() {
           <p className="mt-4 text-sm font-semibold text-mango">✓ Password updated. Redirecting to sign in…</p>
         ) : (
           <div className="mt-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium">New password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" className="mt-1 w-full rounded-lg border border-plum-ink/15 px-3 py-2" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Confirm password</label>
-              <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" className="mt-1 w-full rounded-lg border border-plum-ink/15 px-3 py-2" />
-            </div>
+            {/*
+              The screen where a toggle matters most: somebody has followed a
+              link from an email, is choosing a password they will have to
+              remember, and is typing it twice with nothing to check against.
+            */}
+            <PasswordField
+              label="New password"
+              autoComplete="new-password"
+              value={password}
+              onChange={setPassword}
+              labelClassName="block text-sm font-medium"
+              inputClassName="border-plum-ink/15"
+              toggleClassName="text-plum-ink/50 hover:text-plum-ink"
+            />
+            <PasswordField
+              name="confirm"
+              label="Confirm password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={setConfirm}
+              labelClassName="block text-sm font-medium"
+              inputClassName="border-plum-ink/15"
+              toggleClassName="text-plum-ink/50 hover:text-plum-ink"
+            />
             {error && <p className="text-sm text-guava">{error}</p>}
             <button onClick={submit} disabled={busy} className="w-full rounded-lg py-2.5 font-semibold btn-brand disabled:opacity-60">
               {busy ? "Saving…" : "Update password"}

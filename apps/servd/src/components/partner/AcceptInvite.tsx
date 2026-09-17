@@ -1,5 +1,7 @@
 "use client";
 
+import { PasswordField } from "@/components/auth/PasswordField";
+
 import { useActionState } from "react";
 import { acceptInviteAction, type AcceptState } from "@/server/partners/accept-invite-action";
 
@@ -34,33 +36,22 @@ export function AcceptInvite({ token, email }: { token: string; email: string })
         </label>
         <input name="name" required autoComplete="name" className={field} />
       </div>
-      <div>
-        <label className="block text-xs font-semibold uppercase tracking-wide text-brand-ink/50">
-          Password
-        </label>
-        <input
-          name="password"
-          type="password"
-          required
-          minLength={10}
-          autoComplete="new-password"
-          className={field}
-        />
-        <p className="mt-1 text-xs text-brand-ink/45">At least 10 characters.</p>
-      </div>
-      <div>
-        <label className="block text-xs font-semibold uppercase tracking-wide text-brand-ink/50">
-          Confirm password
-        </label>
-        <input
-          name="confirm"
-          type="password"
-          required
-          minLength={10}
-          autoComplete="new-password"
-          className={field}
-        />
-      </div>
+      {/*
+        No "forgot password" here — you are choosing one. The toggle is the
+        whole point on this screen: ten characters, typed twice, blind.
+      */}
+      <PasswordField
+        label="Password"
+        minLength={10}
+        autoComplete="new-password"
+        hint="At least 10 characters."
+      />
+      <PasswordField
+        name="confirm"
+        label="Confirm password"
+        minLength={10}
+        autoComplete="new-password"
+      />
       {state?.error && (
         <p role="alert" className="text-sm text-guava">
           {state.error}

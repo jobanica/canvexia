@@ -1,5 +1,7 @@
 "use client";
 
+import { PasswordField } from "@/components/auth/PasswordField";
+
 import { useActionState } from "react";
 import Link from "next/link";
 import { submitClaim, type ClaimState } from "@/server/build/claim";
@@ -45,16 +47,18 @@ export function ClaimForm({
 
       <input type="hidden" name="token" value={token} />
 
-      <label className="mt-5 block text-sm font-semibold text-plum-ink/70">New password</label>
-      <input
-        name="password"
-        type="password"
-        required
-        minLength={8}
-        autoFocus
-        placeholder="At least 8 characters"
-        className="mt-1 w-full rounded-xl border border-plum-ink/15 px-3 py-3 text-base"
-      />
+      <div className="mt-5">
+        <PasswordField
+          label="New password"
+          minLength={8}
+          autoComplete="new-password"
+          autoFocus
+          hint="At least 8 characters."
+          labelClassName="block text-sm font-semibold text-plum-ink/70"
+          inputClassName="border-plum-ink/15 py-3 text-base"
+          toggleClassName="text-plum-ink/50 hover:text-plum-ink"
+        />
+      </div>
 
       <label className="mt-4 block text-sm font-semibold text-plum-ink/70">
         Email <span className="font-normal text-plum-ink/40">(optional)</span>

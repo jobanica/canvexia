@@ -110,9 +110,9 @@ export function PartnerBrandForm({
           Support contacts
         </p>
         <p className="mb-3 text-xs text-brand-ink/45">
-          Where your merchants go for help. These print on every invoice you send them — leave
-          them blank and the invoice carries no one to call. They are not on your merchants&apos;
-          dashboards yet.
+          Where your merchants go for help. They sit in the sidebar of every merchant dashboard
+          and print on every invoice you send — leave them blank and a shop with a problem at 7pm
+          has Servd&apos;s address and nobody who answers it.
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <div>

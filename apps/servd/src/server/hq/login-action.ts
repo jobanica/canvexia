@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentHqUser, rateLimitHqLogin, recordHqLogin } from "./auth";
+import { partnerUrl } from "@/lib/urls";
 
 export type HqLoginState = { error?: string } | null;
 
@@ -61,4 +62,43 @@ export async function signOutHq(): Promise<void> {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut({ scope: "local" });
   redirect("/hq/login");
+}
+
+export type HqResetState = { ok?: boolean; error?: string } | null;
+
+/**
+ * SEND AN HQ ADMIN A RESET LINK.
+ *
+ * REPORTED — "in all the login details, add a show password and forgot
+ * password." HQ's form had the Show toggle and no way back in at all: no link,
+ * and no route behind one. An ops admin who forgot their password had exactly
+ * one option, which was to ask somebody with database access.
+ *
+ * HQ seats ARE Supabase auth users — `loginHq` above signs in through
+ * `signInWithPassword` — so this is the same mechanism the partner portal and
+ * the staff dashboard already use, pointed at HQ's own sign-in page.
+ *
+ * IT REPORTS SUCCESS EITHER WAY, like the other two. Saying "no HQ account uses
+ * that address" would turn this form into a way to enumerate who works here.
+ * The rate limit on `loginHq` is what stops the guessing; this one just refuses
+ * to answer the question.
+ */
+export async function requestHqPasswordReset(
+  _prev: HqResetState,
+  formData: FormData,
+): Promise<HqResetState> {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) return { error: "Enter your email address." };
+
+  const supabase = await createSupabaseServerClient();
+  try {
+    await supabase.auth.resetPasswordForEmail(email, {
+      // `/reset-password` is in the middleware's PASS_THROUGH list, so it
+      // answers on a CANVEXIA host rather than being prefixed with /partner.
+      redirectTo: `${partnerUrl()}/reset-password?next=${encodeURIComponent("/hq/login")}`,
+    });
+  } catch {
+    /* ignore — still report success, for the reason above */
+  }
+  return { ok: true };
 }

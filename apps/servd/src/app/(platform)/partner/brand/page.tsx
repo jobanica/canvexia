@@ -62,8 +62,12 @@ export default async function PartnerBrandPage() {
           <li>· This portal — your logo, your name and your colours, on every screen here.</li>
           <li>· Invoices you send your merchants — your logo, name and contacts.</li>
           <li>
-            · Your merchants&rsquo; own dashboards still show Servd&rsquo;s. That one is coming;
-            it is not switched on yet.
+            · Your merchants&rsquo; dashboards — &ldquo;Powered by you&rdquo;, and your support
+            contacts where they look for help.
+          </li>
+          <li>
+            · Their customers still see the restaurant&rsquo;s own brand, which is what the
+            restaurant is paying for.
           </li>
         </ul>
       </div>

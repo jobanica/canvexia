@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { loginHq, type HqLoginState } from "@/server/hq/login-action";
+import { PasswordField } from "@/components/auth/PasswordField";
 
 export function HqLoginForm() {
   const [state, action, pending] = useActionState<HqLoginState, FormData>(loginHq, null);
-  const [show, setShow] = useState(false);
   const field =
     "mt-1 w-full rounded-lg border border-brand-ink/15 bg-white px-3 py-2.5 text-sm";
 
@@ -28,32 +28,8 @@ export function HqLoginForm() {
         />
       </div>
 
-      <div>
-        <label
-          htmlFor="hq-password"
-          className="block text-xs font-semibold uppercase tracking-wide text-brand-ink/50"
-        >
-          Password
-        </label>
-        <div className="relative">
-          <input
-            id="hq-password"
-            name="password"
-            type={show ? "text" : "password"}
-            required
-            autoComplete="current-password"
-            className={`${field} pr-16`}
-          />
-          <button
-            type="button"
-            onClick={() => setShow((s) => !s)}
-            aria-pressed={show}
-            className="absolute inset-y-0 right-0 flex items-center px-3 text-xs font-semibold text-brand-ink/45 hover:text-brand-ink"
-          >
-            {show ? "Hide" : "Show"}
-          </button>
-        </div>
-      </div>
+      {/* HQ had the toggle and no way back in. /hq/forgot-password exists now. */}
+      <PasswordField forgotHref="/hq/forgot-password" />
 
       {state?.error && (
         <p role="alert" className="text-sm text-guava">
