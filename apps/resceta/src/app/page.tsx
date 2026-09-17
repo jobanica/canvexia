@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { catalogue, expiryReport, recentSales } from "@/server/pharmacy/queries";
 import { can } from "@/lib/pharmacy/roles";
 import { peso, manilaDate } from "@/lib/money";
+import { InstallApp } from "@/components/InstallApp";
 
 export const dynamic = "force-dynamic";
 
@@ -188,6 +189,15 @@ export default async function Dashboard() {
             )}
           </section>
         )}
+        {/*
+          BELOW THE WORK, not above it. The dashboard answers "what is expiring
+          and what is running out"; an install banner that pushes those down the
+          screen every visit is a worse app than one nobody installs. It renders
+          nothing at all unless this browser can install Resceta and has not
+          already.
+        */}
+        <InstallApp className="mt-10 max-w-md" />
+
       </main>
     </AppShell>
   );

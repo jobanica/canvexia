@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState } from "react";
 import { recordSale, type SaleState } from "./actions";
 import { peso } from "@/lib/money";
+import { useOnline } from "@/lib/useOnline";
 import { totalSale, type DiscountType } from "@/lib/pharmacy/discount";
 import type { CatalogueRow } from "@/server/pharmacy/queries";
 
@@ -32,6 +33,7 @@ export function Counter({
 }) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [discountType, setDiscountType] = useState<DiscountType>("none");
+  const online = useOnline();
   const [state, formAction, pending] = useActionState<SaleState, FormData>(
     recordSale,
     { status: "idle" },
@@ -235,11 +237,29 @@ export function Counter({
 
         <button
           type="submit"
-          disabled={pending || lines.length === 0 || blockedOnRx}
+          disabled={pending || lines.length === 0 || blockedOnRx || !online}
           className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
         >
           {pending ? "Recording…" : "Complete sale"}
         </button>
+
+        {/*
+          THE BUTTON SAYS WHY IT IS OFF.
+          A disabled control with no reason on it is the defect this codebase
+          keeps finding, and installing the app made this the likeliest place to
+          hit it: in a standalone window there is no address bar and no reload
+          spinner, so a dropped connection looks like nothing at all.
+
+          A sale allocates specific batches by expiry and mints a gapless
+          receipt number. Neither can be done from a cached page, and queueing
+          one would be a promise about stock nobody can keep — so it refuses,
+          out loud, instead of hanging with a customer waiting.
+        */}
+        {!online && lines.length > 0 && (
+          <p className="mt-2 text-center text-sm text-amber-800">
+            No connection — a sale cannot be recorded until it comes back.
+          </p>
+        )}
 
         {state.status === "error" && (
           <p className="mt-3 rounded border border-red-300 bg-red-50 p-2 text-sm text-red-900">

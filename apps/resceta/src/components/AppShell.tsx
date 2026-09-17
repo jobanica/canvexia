@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ROLE_LABEL, can, type Permission } from "@/lib/pharmacy/roles";
 import type { CurrentStaff } from "@/server/tenancy/current-user";
 import { PharmacySwitcher } from "./PharmacySwitcher";
+import { OfflineNotice } from "./OfflineNotice";
 
 /**
  * The signed-in chrome: who you are, which pharmacy, and where you can go.
@@ -33,6 +34,13 @@ export function AppShell({
 
   return (
     <div className="min-h-screen">
+      {/*
+        ABOVE EVERYTHING, on every screen. Installing the app is what created
+        the need for it: in a standalone window there is no address bar, no
+        reload spinner and no dinosaur, so a dropped connection looks exactly
+        like a working one until a Complete button hangs.
+      */}
+      <OfflineNotice />
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3">
           <span className="font-semibold tracking-tight">Resceta</span>

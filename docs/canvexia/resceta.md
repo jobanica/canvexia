@@ -132,14 +132,41 @@ Known gaps against what a Servd merchant gets, so nobody rediscovers them:
   account at a pharmacy still comes from the `staff:create` script. The reset
   flow below is what stops that being the only recovery path as well.
 - No partner branding, no feedback inbox, no HQ announcements, no tutorials.
-- No PWA, no service worker, no offline queue — arguably needed more at a
-  pharmacy counter than at a restaurant till.
 
 Suspension is NO LONGER on that list: `setStatus` in
 `servd/src/server/partners/merchant-actions.ts` writes `pharmacies.status` for
 `productId === "pharmacy"`, which the counter already honours.
 
-Neither is BILLING — see below.
+Neither is BILLING or the PWA — see below.
+
+## Installing it
+
+Manifest, service worker, icons at 192/512/180. The counter runs on a phone or
+a cheap tablet beside the till, all day, on one bar of signal.
+
+**The worker never touches a write.** `req.method !== "GET"` returns
+immediately, and so do the sign-in paths, whose correct content depends on a
+session cookie the cache knows nothing about. Pages are network-first (nobody
+should read stale stock), assets are stale-while-revalidate, and a navigation
+that fails falls back to the dashboard — the screen that answers "what is
+expiring and what is running out", which is the one thing worth reading with no
+signal.
+
+**It is not offline selling, and the app says so.** A sale allocates specific
+batches by expiry and mints a gapless receipt number; neither can be done from a
+cached page, and a queued sale would be a promise about stock nobody can keep.
+
+Installing it is what created the need to say that. In a standalone window there
+is no address bar, no reload spinner and no dinosaur, so a dropped connection
+looks exactly like a working one until Complete hangs with a customer waiting.
+`OfflineNotice` sits above everything on every screen, and the Complete button
+disables itself with the reason printed under it rather than hanging.
+
+`useOnline` starts TRUE and is corrected in an effect — `navigator.onLine` does
+not exist on the server, and guessing offline on the first render flashes an
+alarming banner at every cashier on every page load. It warns; it never decides.
+`onLine` true only means a network interface exists, and the server is what
+refuses a sale, by not answering.
 
 ## Billing
 
