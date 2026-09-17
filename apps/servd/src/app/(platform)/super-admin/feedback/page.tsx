@@ -31,7 +31,9 @@ export default async function SuperAdminFeedbackPage() {
       <div>
         <h1 className="font-heading text-2xl font-bold">Feedback</h1>
         <p className="text-sm text-plum-ink/50">
-          What restaurant owners are saying about Servd — sent from their dashboard.
+          What restaurant owners are saying, sent from their dashboard. A shop sold by a
+          partner writes to that partner, who answers it in their own portal — those are
+          flagged below so nobody replies twice.
         </p>
       </div>
 
@@ -73,6 +75,25 @@ function Section({
                 <span className="block text-xs text-plum-ink/40">
                   {f.authorEmail ?? "—"} · {manilaDateTime(f.createdAt)}
                 </span>
+                {/*
+                  WHOSE MERCHANT THIS IS. A partner-sold shop writes to their
+                  partner, who has their own inbox and may already be on it.
+                  Answering over the top of them means the owner gets two
+                  different replies from two companies.
+                */}
+                {f.partnerName && (
+                  <span
+                    className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[0.65rem] font-semibold ${
+                      f.answeredByPartner
+                        ? "bg-plum-ink/5 text-plum-ink/50"
+                        : "bg-mango/15 text-mango"
+                    }`}
+                  >
+                    {f.answeredByPartner
+                      ? `${f.partnerName} answered this`
+                      : `${f.partnerName}'s merchant — theirs to answer`}
+                  </span>
+                )}
               </div>
               <form action={setFeedbackResolved}>
                 <input type="hidden" name="id" value={f.id} />

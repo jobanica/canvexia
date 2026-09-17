@@ -9,7 +9,22 @@ import { internalLoginDomain } from "@/lib/branding/app-domain";
 
 export type FeedbackState = { ok?: boolean; error?: string } | null;
 
-/** A restaurant user sends feedback / a recommendation about Servd itself. */
+/**
+ * A restaurant user sends feedback — to WHOEVER SOLD THEM THE SOFTWARE.
+ *
+ * REPORTED — "yes build the feedback inbox to partners." This wrote to one
+ * table that only Servd's super-admin could read, so a shop in Tagum tapping
+ * "Send feedback" reached a company they have never dealt with, while the
+ * partner they signed with, pay monthly and would ring first never learned
+ * they wrote.
+ *
+ * The row now carries `partnerId`, stamped from the restaurant at submission.
+ * Null still means Servd sold them directly and nothing about that case
+ * changes.
+ *
+ * STAMPED, NOT JOINED: HQ can reassign a merchant between partners, and a
+ * message belongs to whoever was responsible when it was sent.
+ */
 export async function submitPlatformFeedback(
   _prev: FeedbackState,
   formData: FormData,
@@ -29,7 +44,7 @@ export async function submitPlatformFeedback(
     const r = await systemDb((tx) =>
       tx.restaurant.findFirst({
         where: { id: staff.restaurantId },
-        select: { name: true, displayName: true },
+        select: { name: true, displayName: true, partnerId: true },
       }),
     );
     await systemDb((tx) =>
@@ -40,6 +55,7 @@ export async function submitPlatformFeedback(
           authorEmail: staff.email,
           rating,
           message,
+          partnerId: r?.partnerId ?? null,
         },
       }),
     );

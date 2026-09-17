@@ -186,18 +186,21 @@ export const PERMISSION_LABELS: Record<PartnerPermission, string> = {
 };
 
 /**
- * `support.tickets` and `merchants.login_as` have NO screen in this repository.
+ * `merchants.login_as` has NO screen in this repository.
  *
- * There is no ticket model, table or route anywhere, and the only impersonation
- * flow that exists is HQ → partner, not partner → merchant. Both keys are
- * seeded and editable because the grid should describe the shape of the job
- * rather than the shape of this release — but nothing renders a nav entry for
- * them, because a menu item that leads nowhere is worse than an absent one.
+ * The only impersonation flow that exists is HQ → partner, not partner →
+ * merchant. The key is seeded and editable because the grid should describe the
+ * shape of the job rather than the shape of this release — but nothing renders
+ * a nav entry for it, because a menu item that leads nowhere is worse than an
+ * absent one.
+ *
+ * `support.tickets` WAS on this list and has come off it. It now gates
+ * /partner/feedback — the inbox where a partner reads and answers what their
+ * own merchants wrote from the "Send feedback" button in their dashboard.
+ * Those messages used to reach only Servd's super-admin, so the permission
+ * described a job nobody could do.
  */
-export const PERMISSIONS_WITHOUT_SCREENS: PartnerPermission[] = [
-  "support.tickets",
-  "merchants.login_as",
-];
+export const PERMISSIONS_WITHOUT_SCREENS: PartnerPermission[] = ["merchants.login_as"];
 
 const ALL = [...PARTNER_PERMISSIONS];
 

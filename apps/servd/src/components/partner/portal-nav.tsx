@@ -30,6 +30,8 @@ import {
 export interface NavCounts {
   pipeline?: number;
   merchants?: number;
+  /** Merchant messages nobody has answered. */
+  messages?: number;
 }
 
 export type NavItem = {
@@ -104,6 +106,18 @@ export function partnerNav(
       label: "Attendance",
       icon: <IconClock />,
       need: "attendance.view_all",
+    });
+  }
+
+  // Their merchants' own messages. Above the team block for the same reason
+  // Renewals sits high: somebody is waiting on it.
+  if (partner.permissions.has("support.tickets")) {
+    items.push({
+      href: "/partner/feedback",
+      label: "Messages",
+      icon: <IconChat />,
+      need: "support.tickets",
+      count: counts?.messages,
     });
   }
 

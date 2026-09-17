@@ -7,6 +7,7 @@ import { partnerBrandVars } from "@/lib/partners/brand-vars";
 import { IconBell, IconSearch } from "./PortalIcons";
 import { PartnerLockup } from "./PartnerLockup";
 import { NavGroups, NavRow, partnerNav, type NavCounts } from "./portal-nav";
+import { unansweredFeedbackCount } from "@/server/partners/feedback";
 
 export type { NavCounts };
 
@@ -30,7 +31,7 @@ export type { NavCounts };
  * A tap to open a menu is a cost. A section you cannot reach from your phone is
  * not a cost, it is a missing feature. So: one tap, and then all of it.
  */
-export function PortalShell({
+export async function PortalShell({
   partner,
   title,
   subtitle,
@@ -46,7 +47,25 @@ export function PortalShell({
   counts?: NavCounts;
   children: React.ReactNode;
 }) {
-  const { main, secondary } = partnerNav(partner, counts);
+  /**
+   * THE MESSAGE BADGE IS RESOLVED HERE, not passed in.
+   *
+   * Every other count comes from the page that already loaded the rows —
+   * cheap, and correct on the one screen it matters. A merchant waiting on an
+   * answer matters on EVERY screen, and a badge that only appears on the page
+   * you are already looking at is a badge nobody sees. One indexed count, and
+   * only for a seat that could act on it.
+   *
+   * Best-effort inside `unansweredFeedbackCount`: the columns ship as a
+   * hand-run migration and a zero is the honest answer before it runs.
+   */
+  const messages =
+    counts?.messages ??
+    (partner.permissions.has("support.tickets")
+      ? await unansweredFeedbackCount(partner.id)
+      : undefined);
+
+  const { main, secondary } = partnerNav(partner, { ...counts, messages });
 
   // The initials the avatar falls back to. No photo is stored anywhere in this
   // system, so the circle is always initials rather than a broken image.

@@ -176,10 +176,26 @@ model PlatformFeedback {
   repliedAt      DateTime?
   /// When the owner saw the reply. Drives the unread dot on their sidebar.
   replyReadAt    DateTime?
+
+  /// WHO THIS MESSAGE IS FOR.
+  ///
+  /// The partner who sold this shop the software, stamped at submission. Null
+  /// means Servd sold them directly — the original behaviour, unchanged.
+  ///
+  /// STAMPED, NOT JOINED, because `Restaurant.partnerId` can change: HQ
+  /// reassigns merchants between partners, and a message belongs to whoever was
+  /// responsible when it was sent. A live join would silently move every past
+  /// conversation into the new partner's inbox.
+  partnerId          String?
+  /// Who ANSWERED. Null with a reply present means Servd did. Without this the
+  /// merchant cannot tell which of the two companies is talking to them.
+  repliedByPartnerId String?
+
   createdAt      DateTime  @default(now())
 
   @@index([createdAt])
   @@index([restaurantId])
+  @@index([partnerId, createdAt])
   @@map("platform_feedback")
 }
 

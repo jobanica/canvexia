@@ -9,17 +9,33 @@ import {
 import type { PlatformFeedbackRow } from "@/server/platform-feedback/queries";
 
 /**
- * Lets a restaurant owner send feedback / a recommendation about Servd itself
- * (goes to the platform super-admin). Lives in the admin sidebar.
+ * Lets a restaurant owner write to WHOEVER SOLD THEM THE SOFTWARE. Lives in the
+ * admin sidebar.
+ *
+ * It used to say "This goes straight to the Servd team" on every dashboard,
+ * which for a partner-sold shop was both wrong and useless: they signed with
+ * their partner, pay their partner, and would ring their partner. The message
+ * went to Servd's super-admin list where nobody knew the shop, and the partner
+ * never learned they wrote.
+ *
+ * `vendor` is the partner's name when there is one, so the panel says who is
+ * actually reading it — including on the replies, because "Servd replied" over
+ * a partner's words names the wrong company.
  */
 export function PlatformFeedbackButton({
   history = [],
   unreadReplies = 0,
+  vendor = null,
 }: {
-  /** This restaurant's own past messages, with anything Servd wrote back. */
+  /** This restaurant's own past messages, with anything written back. */
   history?: PlatformFeedbackRow[];
   unreadReplies?: number;
+  /** Who receives it. Null means Servd sold this shop directly. */
+  vendor?: string | null;
 }) {
+  // Trimmed and compared, so a partner whose brand name is literally "Servd"
+  // does not produce "Servd replied" twice over in different words.
+  const who = vendor?.trim() && vendor.trim() !== "Servd" ? vendor.trim() : null;
   const [open, setOpen] = useState(false);
   const [rating, setRating] = useState(0);
   const [state, action, pending] = useActionState<FeedbackState, FormData>(submitPlatformFeedback, null);
@@ -66,7 +82,7 @@ export function PlatformFeedbackButton({
             </div>
             <p className="mb-3 text-sm text-plum-ink/55">
               Tell us what you love, what&apos;s missing, or what we could improve. This goes
-              straight to the Servd team.
+              straight to {who ? <strong>{who}</strong> : "the Servd team"}.
             </p>
 
             {/* What Servd wrote back. Above the form on purpose: an owner with
@@ -79,7 +95,7 @@ export function PlatformFeedbackButton({
                     <p className="whitespace-pre-wrap text-sm text-plum-ink/70">{h.message}</p>
                     <div className="mt-2 border-l-2 border-brand-primary pl-2">
                       <p className="text-xs font-semibold uppercase tracking-wide text-brand-primary">
-                        Servd replied
+                        {who ?? "Servd"} replied
                       </p>
                       <p className="whitespace-pre-wrap text-sm text-plum-ink/85">{h.reply}</p>
                     </div>

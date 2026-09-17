@@ -295,7 +295,11 @@ export function AdminShell({
             <span className="text-plum-ink/30">↗</span>
           </a>
         )}
-        <PlatformFeedbackButton history={feedbackHistory} unreadReplies={unreadFeedbackReplies} />
+        <PlatformFeedbackButton
+          history={feedbackHistory}
+          unreadReplies={unreadFeedbackReplies}
+          vendor={vendor?.displayName ?? null}
+        />
         <form action={signOut}>
           <button className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-plum-ink/60 hover:bg-plum-ink/5">
             Sign out

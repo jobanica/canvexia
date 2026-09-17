@@ -15,6 +15,18 @@ export interface PlatformFeedbackRow {
   repliedAt: string | null;
   /** Set once the owner has seen the reply — drives the unread dot. */
   replyReadAt: string | null;
+  /**
+   * WHOSE MERCHANT THIS IS, and who answered.
+   *
+   * A partner-sold shop's message is addressed to their partner, who has their
+   * own inbox at /partner/feedback. Servd still sees every row — one table, one
+   * platform operator — but must be able to tell at a glance that somebody else
+   * is already on it, or two companies answer the same question differently.
+   *
+   * Both null is the original case: Servd sold them directly and Servd answers.
+   */
+  partnerName: string | null;
+  answeredByPartner: boolean;
 }
 
 /**
@@ -34,6 +46,41 @@ const FIELDS = {
   resolved: true,
   createdAt: true,
 } as const;
+
+/**
+ * Layered on separately, like the reply columns and for the same reason: they
+ * ship as a hand-run migration, and a database without them must still show the
+ * feedback it has.
+ */
+async function withOwners(rows: PlatformFeedbackRow[]): Promise<PlatformFeedbackRow[]> {
+  if (rows.length === 0) return rows;
+  try {
+    const extra = await systemDb((tx) =>
+      tx.platformFeedback.findMany({
+        where: { id: { in: rows.map((r) => r.id) } },
+        select: { id: true, partnerId: true, repliedByPartnerId: true },
+      }),
+    );
+    const ids = [...new Set(extra.map((e) => e.partnerId).filter(Boolean))] as string[];
+    const names = new Map<string, string>();
+    if (ids.length > 0) {
+      const partners = await systemDb((tx) =>
+        tx.partner.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }),
+      );
+      for (const p of partners) names.set(p.id, p.name);
+    }
+    const byId = new Map(extra.map((e) => [e.id, e]));
+    for (const row of rows) {
+      const e = byId.get(row.id);
+      if (!e) continue;
+      row.partnerName = e.partnerId ? (names.get(e.partnerId) ?? "a partner") : null;
+      row.answeredByPartner = !!e.repliedByPartnerId;
+    }
+  } catch {
+    /* columns not migrated — every row reads as Servd's own, which it was */
+  }
+  return rows;
+}
 
 type Base = {
   id: string;
@@ -57,6 +104,8 @@ function shape(r: Base): PlatformFeedbackRow {
     reply: null,
     repliedAt: null,
     replyReadAt: null,
+    partnerName: null,
+    answeredByPartner: false,
   };
 }
 
@@ -96,7 +145,7 @@ export async function listPlatformFeedback(): Promise<PlatformFeedbackRow[]> {
     const rows = await systemDb((tx) =>
       tx.platformFeedback.findMany({ orderBy: { createdAt: "desc" }, take: 300, select: FIELDS }),
     );
-    return withReplies(rows.map(shape));
+    return withOwners(await withReplies(rows.map(shape)));
   } catch {
     return [];
   }
