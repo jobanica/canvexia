@@ -138,6 +138,16 @@ export function partnerNav(
   }
 
   const lower: NavItem[] = [
+    /*
+      EVERY SEAT HAS ONE, so it carries no `need`.
+
+      A field agent could be looked AT — /partner/team/staff/[id], behind
+      `team.manage` — and could not look at themselves, including at the mobile
+      number their own merchants are now told to ring. There is no permission
+      for "may read their own record" and inventing one would be a key an
+      operator could turn off to no useful end.
+    */
+    { href: "/partner/me", label: "My profile", icon: <IconUsers /> },
     {
       href: "/partner/commissions",
       label: "Commissions",

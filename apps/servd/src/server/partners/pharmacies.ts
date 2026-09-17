@@ -125,3 +125,42 @@ export async function activatePharmacy(input: {
 
   return { ok: true, name: found.displayName || found.name };
 }
+
+/**
+ * ONE pharmacy's activation state, for its own merchant page.
+ *
+ * REPORTED — "I tried to create a merchant for Resceta, but I don't know where
+ * to activate it." The control existed and lived in exactly one place: a card
+ * on the partner-wide overview. `/partner` forks before that card — a seat
+ * without `merchants.view_all` gets "My day" instead — so a field agent who had
+ * just opened a pharmacy could not reach it at all, and an operator had to know
+ * to scroll their dashboard rather than open the account they had just created.
+ *
+ * The fourth dead end of the same shape in this area, after the merchant form,
+ * the login handover and the field app's subject list. The answer is the same
+ * one: put it on the thing it acts on.
+ *
+ * Returns null for a merchant that is not a pharmacy or not this partner's —
+ * the caller renders nothing, and a forged id learns nothing either way.
+ */
+export async function pharmacyActivation(
+  partnerId: string,
+  pharmacyId: string,
+): Promise<{ status: string; hasLto: boolean; activation: ActivationCheck } | null> {
+  try {
+    const row = await partnerDb(partnerId, (tx) =>
+      tx.pharmacy.findFirst({
+        where: { id: pharmacyId, partnerId },
+        select: { status: true, fdaLtoNumber: true },
+      }),
+    );
+    if (!row) return null;
+    return {
+      status: row.status,
+      hasLto: !!row.fdaLtoNumber?.trim(),
+      activation: canActivatePharmacy({ status: row.status, fdaLtoNumber: row.fdaLtoNumber }),
+    };
+  } catch {
+    return null;
+  }
+}

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { PRODUCTS, isProductId } from "@servd/core";
 import { requireWritablePartner } from "@/server/partners/auth";
 import { provisionMerchantForPartner } from "@/server/products";
+import { systemDb } from "@/server/tenancy/scoped-db";
 import { captureConsent } from "@/server/partners/sms-contacts";
 
 export type ProvisionState =
@@ -53,11 +54,63 @@ export async function provisionMerchantAction(
     address: address || undefined,
     phone: phone || undefined,
     // Recorded on the audit row so the merchant's creation names a person, the
-    // same way its activation does.
+    // same way its activation does. Both adapters write it now — the Servd one
+    // used to drop it, which made this comment true of half the products.
     extra: { actorEmail: partner.email },
   });
 
   if (!outcome.ok) return { status: "error", message: outcome.message };
+
+  /**
+   * THE SEAT THAT OPENED IT OWNS IT, AND SUPPORTS IT.
+   *
+   * REPORTED — "all the merchants that I activated will be supported by the
+   * agent who created it, so partner can see who activated it and if have
+   * problem, knows who to call."
+   *
+   * `assignedSalesUserId` was READ in five places — the commission run, the
+   * staff scorecard, the staff detail screen, and both reassignment paths — and
+   * written by NONE of them at the moment a merchant was opened. So a field
+   * agent signed a shop and their commission was zero, their scorecard was
+   * empty, and the merchant's own page read "Signed by: Nobody yet". The column
+   * existed, the readers existed, nothing ever filled it in.
+   *
+   * BOTH COLUMNS, because at this size they are the same person: the agent who
+   * signed the shop is who that shop rings when the printer dies. An operator
+   * can move support to somebody else later — `reassignStaffMerchants` already
+   * does exactly that — and the point is that it starts somewhere real rather
+   * than nowhere.
+   *
+   * A LEGACY LOGIN HAS NO SEAT, so there is nobody to credit and the columns
+   * stay null, which is what they have always been for those accounts.
+   *
+   * AFTER PROVISIONING AND NEVER INSIDE IT. The merchant is created and
+   * belongs to the partner either way; an attribution that failed must not cost
+   * somebody the account they just sold. A failure is logged and leaves the
+   * merchant page reading "Nobody yet", which is a visible, fixable state
+   * rather than a silent wrong answer.
+   */
+  const seatId = who.userId;
+  if (seatId) {
+    try {
+      await systemDb(async (tx) => {
+        const data = { assignedSalesUserId: seatId, assignedSupportUserId: seatId };
+        // Ownership in the WHERE clause on both axes, so a merchant belonging
+        // to another partner matches zero rows rather than being stamped.
+        const where = { id: outcome.result.merchantId, partnerId: partner.id };
+        if (productId === "pharmacy") {
+          await tx.pharmacy.updateMany({ where, data });
+        } else {
+          await tx.restaurant.updateMany({ where, data });
+        }
+      });
+    } catch (e) {
+      console.error(
+        `Provisioned ${productId}:${outcome.result.merchantId} but could not assign seat ${seatId}`,
+        e,
+      );
+    }
+  }
 
   /**
    * The owner's SMS consent, asked on this one screen.

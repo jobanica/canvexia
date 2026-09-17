@@ -225,30 +225,52 @@ export async function getPartnerMerchant(
  * shows dozens of merchants and would pay for two joins per row to render a
  * name nobody reads there. The detail screen asks for one.
  *
- * Names, not ids. A deactivated seat still answers — the person who signed it
- * is a historical fact, and blanking them the day they leave loses the one
- * thing the column is for.
+ * A deactivated seat still answers — the person who signed it is a historical
+ * fact, and blanking them the day they leave loses the one thing the column is
+ * for.
+ *
+ * IT RETURNS A WAY TO REACH THEM, not just a name.
+ *
+ * REPORTED — "so partner can see who activated it and if have problem, knows
+ * who to call." A name alone answers the first half and not the second: an
+ * operator reading "Signed by Juan" at 8pm with a broken till still has to go
+ * and look Juan up. The mobile is on the seat's own staff record already.
  */
+export interface Assignee {
+  name: string;
+  email: string;
+  mobile: string | null;
+  /** False once they have been deactivated — still shown, with a note. */
+  active: boolean;
+}
+
 export async function merchantAssignees(
   partnerId: string,
   productId: string,
   merchantId: string,
-): Promise<{ signedBy: string | null; supportedBy: string | null }> {
+): Promise<{ signedBy: Assignee | null; supportedBy: Assignee | null }> {
   try {
     const row = await systemDb(async (tx: any) => {
-      const select = {
-        assignedSales: { select: { name: true, email: true } },
-        assignedSupport: { select: { name: true, email: true } },
-      };
+      const person = { select: { name: true, email: true, mobile: true, status: true } };
+      const select = { assignedSales: person, assignedSupport: person };
       return productId === "pharmacy"
         ? tx.pharmacy.findFirst({ where: { id: merchantId, partnerId }, select })
         : tx.restaurant.findFirst({ where: { id: merchantId, partnerId }, select });
     });
-    const label = (u: { name: string | null; email: string } | null | undefined) =>
-      u ? (u.name ?? u.email) : null;
+    const shape = (
+      u: { name: string | null; email: string; mobile: string | null; status: string } | null | undefined,
+    ): Assignee | null =>
+      u
+        ? {
+            name: u.name ?? u.email,
+            email: u.email,
+            mobile: u.mobile?.trim() || null,
+            active: u.status === "active",
+          }
+        : null;
     return {
-      signedBy: label(row?.assignedSales),
-      supportedBy: label(row?.assignedSupport),
+      signedBy: shape(row?.assignedSales),
+      supportedBy: shape(row?.assignedSupport),
     };
   } catch {
     // The assignment columns are not migrated yet. Null reads as "nobody", which

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { partnerAllows, partnerCan, requirePartnerPageWith } from "@/server/partners/auth";
 import { getPartnerMerchant, merchantAssignees, isPaying } from "@/server/partners/merchants";
+import { pharmacyActivation } from "@/server/partners/pharmacies";
+import { PharmacyActivate } from "@/components/partner/PharmacyActivate";
 import { demoLogin } from "@/server/partners/demo-queries";
 import { PortalShell } from "@/components/partner/PortalShell";
 import { PartnerConvertForm } from "@/components/partner/PartnerConvertForm";
@@ -32,6 +34,12 @@ export default async function PartnerMerchantPage({
   if (!merchant) notFound();
 
   const assignees = await merchantAssignees(partner.id, merchant.productId, merchant.id);
+  // Only a pharmacy has one. Null for everything else, and the section below
+  // renders nothing.
+  const pharmacy =
+    merchant.productId === "pharmacy"
+      ? await pharmacyActivation(partner.id, merchant.id)
+      : null;
 
   /**
    * THE LOGIN, and the step that creates one.
@@ -72,10 +80,6 @@ export default async function PartnerMerchantPage({
       ? [{ label: "Login", value: login.converted ? (login.username ?? "Set up") : "No login yet" }]
       : []),
     { label: "Address", value: merchant.city ?? "—" },
-    // A7. "Nobody yet" rather than an em dash: an unassigned merchant is a
-    // thing to fix, and a dash reads as "not applicable".
-    { label: "Signed by", value: assignees.signedBy ?? "Nobody yet" },
-    { label: "Supported by", value: assignees.supportedBy ?? "Nobody yet" },
   ];
 
   return (
@@ -106,11 +110,97 @@ export default async function PartnerMerchantPage({
           ))}
         </dl>
 
+        {/*
+          WHO TO CALL.
+
+          REPORTED — "so partner can see who activated it and if have problem,
+          knows who to call." These two names were already on the page, in the
+          facts grid, and always read "Nobody yet": the columns are READ in five
+          places — commissions, the scorecard, the staff screen, reassignment —
+          and were written by none of them at the moment a merchant was opened.
+          Stamping the creator is the other half of this change.
+
+          A name alone answers half the question. An operator reading "Signed by
+          Juan" at 8pm with a broken till still has to go and look Juan up, so
+          the number is here and it dials.
+        */}
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {(
+            [
+              ["Signed by", assignees.signedBy],
+              ["Supported by", assignees.supportedBy],
+            ] as const
+          ).map(([label, who]) => (
+            <div key={label} className="rounded-tile border border-brand-ink/10 bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-ink/45">
+                {label}
+              </p>
+              {who ? (
+                <>
+                  <p className="mt-1 text-sm font-semibold">
+                    {who.name}
+                    {/* Still named, and marked. The person who signed it is a
+                        historical fact; ringing a number that has left the
+                        company is not. */}
+                    {!who.active && (
+                      <span className="ml-2 rounded-full bg-brand-ink/8 px-2 py-0.5 text-[0.65rem] font-semibold uppercase text-brand-ink/50">
+                        Left
+                      </span>
+                    )}
+                  </p>
+                  {who.mobile ? (
+                    <a
+                      href={`tel:${who.mobile.replace(/\s+/g, "")}`}
+                      className="mt-0.5 block text-sm font-semibold text-brand-primary"
+                    >
+                      {who.mobile}
+                    </a>
+                  ) : (
+                    // Said, not left blank. A missing number is something the
+                    // seat can fix on their own profile.
+                    <p className="mt-0.5 text-xs text-brand-ink/45">
+                      No mobile on their profile yet.
+                    </p>
+                  )}
+                  <p className="text-xs text-brand-ink/45">{who.email}</p>
+                </>
+              ) : (
+                // "Nobody yet" rather than an em dash: an unassigned merchant
+                // is a thing to fix, and a dash reads as "not applicable".
+                <p className="mt-1 text-sm text-brand-ink/50">Nobody yet</p>
+              )}
+            </div>
+          ))}
+        </div>
+
         <p className="mt-4 text-sm text-brand-ink/55">
           {isPaying(merchant)
             ? `Earning you ${peso(Math.floor(((merchant.priceMonthly ?? 0) * partner.revenueSharePct) / 100))} a month at your ${partner.revenueSharePct}% share.`
             : "Not paying yet, so it is not earning either of you anything."}
         </p>
+
+        {/*
+          THE LAST STEP, on the account it belongs to.
+
+          REPORTED — "I tried to create a merchant for Resceta, but I don't know
+          where to activate it." The control lived on the partner-wide overview
+          and only there, and /partner forks before it: a seat without
+          `merchants.view_all` gets "My day" instead. So the agent who opened the
+          pharmacy could not reach the one button that makes it usable.
+
+          `merchants.manage` is what the action checks, so it is what decides
+          whether the button renders — but the STATE renders for anybody who can
+          see the merchant, because "this cannot dispense yet" is a fact about
+          the account, not a capability to hide.
+        */}
+        {pharmacy && (
+          <PharmacyActivate
+            merchantId={merchant.id}
+            status={pharmacy.status}
+            activation={pharmacy.activation}
+            canActivate={partnerCan(partner, "merchants.manage")}
+          />
+        )}
 
         {/*
           Handing the owner their login. The one action that is built, and the
