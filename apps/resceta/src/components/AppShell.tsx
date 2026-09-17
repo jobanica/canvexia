@@ -73,18 +73,28 @@ export async function AppShell({
   const who = staff.displayName ?? staff.email;
 
   return (
-    <div className="app-shell min-h-screen lg:grid lg:grid-cols-[264px_1fr]">
+    <div className="app-shell min-h-screen">
       {/*
         ABOVE EVERYTHING, on every screen. Installing the app is what created
         the need for it: in a standalone window there is no address bar, no
         reload spinner and no dinosaur, so a dropped connection looks exactly
         like a working one until a Complete button hangs.
+
+        OUTSIDE THE GRID, and that is not cosmetic. As a child of the two-column
+        grid it became the FIRST CELL — it took the sidebar's 264px column, shoved
+        the sidebar into the content column and pushed the page off the right
+        edge of the screen. A banner that breaks the layout it is warning you
+        about is worse than no banner.
       */}
       <OfflineNotice />
 
+      <div className="lg:grid lg:grid-cols-[264px_1fr]">
       <aside
         data-print-hide
-        className="hidden border-r border-white/10 bg-white/[0.04] backdrop-blur-xl lg:flex lg:h-screen lg:flex-col lg:overflow-hidden"
+        // `sticky`, not a fixed `h-screen` column: the banner above pushes the
+        // grid down, and a full-viewport-height sidebar would then hang past
+        // the bottom of the window by exactly the banner's height.
+        className="hidden border-r border-white/10 bg-white/[0.04] backdrop-blur-xl lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden"
       >
         <Link href="/" className="flex shrink-0 items-center gap-3 px-5 py-5">
           <span className="brand-gradient flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white shadow-lg shadow-violet-900/40">
@@ -154,6 +164,7 @@ export async function AppShell({
         )}
 
         <main className="min-w-0 flex-1">{children}</main>
+      </div>
       </div>
     </div>
   );

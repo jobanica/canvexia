@@ -18,7 +18,7 @@
  * OfflineNotice. An installable app that silently cannot do its one job is
  * worse than a browser tab that obviously cannot.
  */
-const VERSION = "resceta-v1";
+const VERSION = "resceta-v2";
 const PAGES = `${VERSION}-pages`;
 const ASSETS = `${VERSION}-assets`;
 
