@@ -151,11 +151,39 @@ describe("a pharmacy can be switched on from the pharmacy's own page", () => {
     // "This cannot dispense yet" is a fact about the account, not a capability
     // to hide — and hiding the whole thing is what produced the bug report.
     expect(activate).toContain("Not live yet");
-    expect(detail).toContain('canActivate={partnerCan(partner, "merchants.manage")}');
+    expect(detail).toContain('canActivate={partnerCan(partner, "merchants.create")}');
   });
 
   it("names who can do it rather than leaving a blank", () => {
-    expect(activate).toContain("An admin or ops manager at your partner switches it on");
+    expect(activate).toContain("Whoever opens merchant accounts at your partner");
+  });
+
+  it("is a field agent's to press", () => {
+    // REPORTED — "field agent should be the one to activate it." It checked
+    // `merchants.manage`, which bundles changing plans and suspending shops and
+    // which a field agent correctly does not hold. Activating is the last step
+    // of opening the account, done by the person standing in the shop.
+    expect(codeAt("src/server/partners/pharmacy-actions.ts")).toContain(
+      'requireWritablePartner("merchants.create")',
+    );
+    expect(permissionDefault("sales" as PartnerUserRole, "merchants.create")).toBe(true);
+  });
+
+  it("does not block on a licence it cannot verify", () => {
+    // REPORTED — "I should be able to activate it even though FDA licence is
+    // not yet available." It is a text box: nothing verifies it with the FDA,
+    // so it stopped licensed pharmacies whose number had not been typed in and
+    // was satisfied by anything at all.
+    expect(activate).toContain("activation.warning");
+    expect(codeAt("src/server/partners/pharmacies.ts")).toContain(
+      "NO FDA LTO on file at the time of activation",
+    );
+  });
+
+  it("keeps saying so until somebody records one", () => {
+    // What replaces the block. A standing notice on the account beats a door
+    // only the honest bother to knock on.
+    expect(activate).toContain("Still no FDA Licence to Operate on file");
   });
 
   it("puts the reason where the button would be, instead of disabling it", () => {

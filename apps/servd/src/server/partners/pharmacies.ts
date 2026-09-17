@@ -117,9 +117,16 @@ export async function activatePharmacy(input: {
       entityId: found.id,
       // What was asserted, and on what basis. "Activated" alone does not answer
       // the question an inspection asks.
-      reason: `FDA LTO on file: ${found.fdaLtoNumber}`,
+      // WHAT WAS TRUE WHEN IT WAS SWITCHED ON. The licence stopped being a
+      // block — it is a text box nothing can verify, and it was stopping
+      // licensed pharmacies whose number had not been typed in yet — so this
+      // line is what replaces it. "Activated" alone does not answer the
+      // question an inspection asks.
+      reason: found.fdaLtoNumber?.trim()
+        ? `FDA LTO on file: ${found.fdaLtoNumber.trim()}`
+        : "NO FDA LTO on file at the time of activation",
       before: { status: found.status },
-      after: { status: "active" },
+      after: { status: "active", hadLto: !!found.fdaLtoNumber?.trim() },
     });
   });
 

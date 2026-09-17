@@ -1,16 +1,27 @@
 /**
  * Whether a partner may switch a pharmacy on.
  *
- * A pharmacy is provisioned `pending` because it cannot legally dispense before
- * its FDA Licence to Operate is on file, and a platform that defaulted to
- * `active` would be the one that enabled it. That reasoning only holds if
- * something actually checks — otherwise "pending on purpose" is a comment.
+ * THE FDA LICENCE IS NO LONGER A BLOCK, and that is a correction rather than a
+ * loosening.
  *
- * So the licence number IS the gate. Not the platform verifying a licence with
- * the FDA, which it cannot do; the pharmacy asserting it has one, recorded
- * against a named person and a timestamp. That is the control an audit can
- * actually use, and it is the reason activation belongs to the partner who owns
- * the merchant rather than to a psql session.
+ * It used to refuse activation outright until a Licence to Operate number was
+ * recorded, on the argument that a pharmacy cannot legally dispense without
+ * one. The argument is true and the gate did not serve it: this is a text box.
+ * Nothing here verifies a number with the FDA, and nothing can — so a licensed
+ * pharmacy whose number had not been typed in yet was blocked, while anything
+ * at all typed into the field satisfied it. It bought the APPEARANCE of a
+ * control at the price of a real one, and the people it stopped were the
+ * legitimate ones.
+ *
+ * What replaces it is a record. Activation states whether the licence was on
+ * file at the time, in the audit row and on the screen, so an operator can be
+ * asked about it afterwards and a missing one keeps being visible until it is
+ * fixed. A control an audit can use beats a door that only the honest bother to
+ * knock on.
+ *
+ * TWO REFUSALS REMAIN, and both are about state rather than paperwork:
+ * something already active has nothing to do, and something suspended was
+ * suspended by a person whose decision Activate must not quietly erase.
  *
  * Pure so the rule can be tested exhaustively without a database, a session or
  * a browser — the same reason `roles.ts` is pure on the Resceta side.
@@ -23,8 +34,20 @@ export interface PharmacyForActivation {
 }
 
 export type ActivationCheck =
-  | { ok: true }
-  | { ok: false; reason: "already_active" | "suspended" | "no_lto"; message: string };
+  | {
+      ok: true;
+      /**
+       * Present when it can be switched on but something should be chased.
+       * Shown beside the button, and recorded on the audit row — not a reason
+       * to stop, and not nothing either.
+       */
+      warning?: string;
+    }
+  | { ok: false; reason: "already_active" | "suspended"; message: string };
+
+export const NO_LTO_WARNING =
+  "No FDA Licence to Operate recorded yet. You can switch it on now — ask the pharmacy to " +
+  "add it under Settings in Resceta, and this will keep saying so until they do.";
 
 export function canActivatePharmacy(pharmacy: PharmacyForActivation): ActivationCheck {
   if (pharmacy.status === "active") {
@@ -42,14 +65,13 @@ export function canActivatePharmacy(pharmacy: PharmacyForActivation): Activation
   }
 
   if (!pharmacy.fdaLtoNumber?.trim()) {
-    return {
-      ok: false,
-      reason: "no_lto",
-      message:
-        "No FDA Licence to Operate on file. The pharmacy records it under Settings in Resceta; " +
-        "it cannot dispense until it is there.",
-    };
+    return { ok: true, warning: NO_LTO_WARNING };
   }
 
   return { ok: true };
+}
+
+/** Whether a licence is on file — read the same way everywhere. */
+export function hasLto(fdaLtoNumber: string | null): boolean {
+  return !!fdaLtoNumber?.trim();
 }

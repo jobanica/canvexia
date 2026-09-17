@@ -188,17 +188,19 @@ export default async function PartnerMerchantPage({
           `merchants.view_all` gets "My day" instead. So the agent who opened the
           pharmacy could not reach the one button that makes it usable.
 
-          `merchants.manage` is what the action checks, so it is what decides
-          whether the button renders — but the STATE renders for anybody who can
-          see the merchant, because "this cannot dispense yet" is a fact about
-          the account, not a capability to hide.
+          `merchants.create` is what the action checks, so it is what decides
+          whether the button renders — the seat that may open the account may
+          finish opening it. The STATE renders for anybody who can see the
+          merchant, because "this cannot dispense yet" is a fact about the
+          account, not a capability to hide.
         */}
         {pharmacy && (
           <PharmacyActivate
             merchantId={merchant.id}
             status={pharmacy.status}
+            hasLto={pharmacy.hasLto}
             activation={pharmacy.activation}
-            canActivate={partnerCan(partner, "merchants.manage")}
+            canActivate={partnerCan(partner, "merchants.create")}
           />
         )}
 

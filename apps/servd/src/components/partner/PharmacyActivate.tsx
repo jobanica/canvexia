@@ -14,6 +14,12 @@ const IDLE: ActivateState = { status: "idle" };
  * which a field agent's dashboard forks away from before rendering. So the
  * account existed, could not dispense, and there was nowhere to say so.
  *
+ * A FIELD AGENT PRESSES IT. The action checks `merchants.create` — the key the
+ * seat that opened the account already holds — rather than `merchants.manage`,
+ * which bundles changing plans and suspending shops and which a field agent
+ * correctly does not have. Activating is the last step of opening, done by the
+ * person standing in the shop.
+ *
  * THE STATE IS SHOWN TO EVERYONE WHO CAN SEE THE MERCHANT; the BUTTON only to a
  * seat that may press it. That is a deliberate departure from the portal's
  * usual hide-don't-disable rule, and the reason is that this is not a hidden
@@ -28,11 +34,14 @@ const IDLE: ActivateState = { status: "idle" };
 export function PharmacyActivate({
   merchantId,
   status,
+  hasLto,
   activation,
   canActivate,
 }: {
   merchantId: string;
   status: string;
+  /** Drives the standing reminder once it is live. */
+  hasLto: boolean;
   activation: ActivationCheck;
   /** Does this seat hold the capability the action checks? */
   canActivate: boolean;
@@ -41,11 +50,32 @@ export function PharmacyActivate({
 
   if (status === "active") {
     return (
-      <div className="mt-8 rounded-tile border border-brand-primary/30 bg-brand-primary/[0.04] p-5">
+      <div
+        className={`mt-8 rounded-tile border p-5 ${
+          hasLto
+            ? "border-brand-primary/30 bg-brand-primary/[0.04]"
+            : "border-mango/40 bg-mango/[0.06]"
+        }`}
+      >
         <p className="text-sm font-semibold">This pharmacy is live</p>
-        <p className="mt-1 text-sm text-brand-ink/55">
-          It can dispense. Its FDA Licence to Operate is on file.
-        </p>
+        {hasLto ? (
+          <p className="mt-1 text-sm text-brand-ink/55">
+            It can dispense. Its FDA Licence to Operate is on file.
+          </p>
+        ) : (
+          /*
+            IT KEEPS SAYING SO. The licence is no longer a block — it is a text
+            box nothing can verify, and blocking on it stopped licensed
+            pharmacies whose number had not been typed in yet. What replaces
+            the block is this: a standing, visible reminder on the account
+            until somebody records it, rather than a door that quietly nobody
+            had to walk through.
+          */
+          <p className="mt-1 text-sm text-brand-ink/70">
+            <strong>Still no FDA Licence to Operate on file.</strong> The pharmacy records it
+            under Settings in Resceta. This notice stays until they do.
+          </p>
+        )}
       </div>
     );
   }
@@ -72,6 +102,16 @@ export function PharmacyActivate({
         </p>
       )}
 
+      {/*
+        A WARNING SITS ABOVE THE BUTTON, not in place of it. There is something
+        to chase and nothing to stop.
+      */}
+      {activation.ok && activation.warning && (
+        <p className="mt-3 rounded-lg border border-brand-ink/10 bg-white p-3 text-sm text-brand-ink/70">
+          {activation.warning}
+        </p>
+      )}
+
       {!activation.ok ? (
         <p className="mt-3 text-sm text-brand-ink/60">{activation.message}</p>
       ) : canActivate ? (
@@ -85,11 +125,12 @@ export function PharmacyActivate({
           </button>
         </form>
       ) : (
-        // Named, not hidden. The seat that signed this shop should be able to
-        // tell whose job the last step is rather than wondering why nothing
-        // happens.
+        // Named, not hidden. A seat whose operator has taken `merchants.create`
+        // away should be able to tell whose job the last step is rather than
+        // wondering why nothing happens.
         <p className="mt-3 text-sm text-brand-ink/60">
-          Everything it needs is on file. An admin or ops manager at your partner switches it on.
+          Your seat cannot switch a pharmacy on. Whoever opens merchant accounts at your partner
+          can.
         </p>
       )}
     </div>

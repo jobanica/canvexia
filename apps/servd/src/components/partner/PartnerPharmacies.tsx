@@ -20,8 +20,13 @@ const BADGE: Record<string, { label: string; cls: string }> = {
  *
  * The button is absent — not disabled — when the pharmacy cannot be activated,
  * with the reason in its place. A disabled control that does not say why is the
- * thing people click twice and then write a support message about, and here the
- * reason is always actionable: the pharmacy has to record its licence.
+ * thing people click twice and then write a support message about.
+ *
+ * The two refusals left are about state, not paperwork: already active, or
+ * suspended by somebody whose decision this must not quietly erase. A missing
+ * FDA licence used to be a third and is not any more — see
+ * lib/partners/pharmacy-activation.ts for why a text box nothing can verify was
+ * buying the appearance of a control at the price of a real one.
  */
 export function PartnerPharmacies({ pharmacies }: { pharmacies: PartnerPharmacyRow[] }) {
   const [state, action, pending] = useActionState(activatePharmacyAction, IDLE);
@@ -36,9 +41,9 @@ export function PartnerPharmacies({ pharmacies }: { pharmacies: PartnerPharmacyR
         Your pharmacies ({live} live · {pharmacies.length - live} not yet)
       </p>
       <p className="mb-3 text-xs text-brand-ink/50">
-        A pharmacy is set up pending and cannot dispense until you switch it on.
-        That needs its FDA Licence to Operate recorded first — the pharmacy does
-        that under Settings in Resceta.
+        A pharmacy is set up pending and cannot dispense until you switch it on. A missing FDA
+        Licence to Operate no longer stops that — it is recorded against the activation and keeps
+        showing on the account until the pharmacy adds it under Settings in Resceta.
       </p>
 
       {state.status === "error" && (

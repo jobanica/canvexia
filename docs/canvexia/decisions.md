@@ -1515,25 +1515,45 @@ update pharmacies set status = 'active' where slug = '…';
 which worked and was wrong: no actor, no reason, no record, and no check that
 the thing it asserts is true.
 
-### Activation is gated on the licence, which is what makes D30 real
+### Activation records the licence; it no longer blocks on it — SUPERSEDED
 
 A pharmacy is provisioned `pending` because it cannot legally dispense before
-its FDA Licence to Operate is on file. That reasoning only holds if something
-checks — otherwise "pending on purpose" is a comment in a provisioning script.
+its FDA Licence to Operate is on file. `canActivatePharmacy` used to REFUSE
+until `fdaLtoNumber` was recorded, on the argument that otherwise "pending on
+purpose" is a comment in a provisioning script.
 
-So `canActivatePharmacy` refuses until `fdaLtoNumber` is recorded. Not the
-platform verifying a licence with the FDA, which it cannot do: **the pharmacy
-asserting it has one, and the partner acting on that assertion, both recorded.**
-That is a control an inspection can use. The audit row carries the number that
-was on file at the moment of activation, because "activated" alone does not
-answer the question an inspection asks.
+**That gate is gone, and removing it was a correction rather than a loosening.**
+It is a text box. Nothing here verifies a number with the FDA and nothing can,
+so what the refusal actually did was stop a licensed pharmacy whose number had
+not been typed in yet, while being satisfied by any string at all. It bought the
+*appearance* of a control at the price of a real one, and the only people it
+stopped were the ones doing it properly — reported from the field as "I should
+be able to activate it even though FDA licence is not yet available."
 
-Two refusals beyond the licence, and both are about not erasing a decision
-somebody else made:
+What the reasoning above was always really about survives, and is now the whole
+of it: **the record.** The audit row states the number that was on file at the
+moment of activation, or `NO FDA LTO on file at the time of activation` when
+there was none, plus `hadLto` on the `after` object. The account then keeps
+saying so, on its own page, until somebody records one. A standing notice an
+operator can be asked about beats a door only the honest bother to knock on.
+
+Two refusals remain, and both are about state rather than paperwork — not
+erasing a decision somebody else made:
 
 - **already active** — nothing to do, and a second audit row would imply there was
 - **suspended** — a suspension is a decision; a partner clearing it by pressing
   Activate would undo it without recording anything
+
+### Activation belongs to the seat that opened the account
+
+`activatePharmacyAction` checked `merchants.manage` — the legacy capability
+bundling change-plan, extend-trial, suspend and mark-invoice-paid, which a field
+agent correctly holds none of. But activating is not one of those four: it is
+the last step of opening the account, taken by the person standing in the shop
+that just signed. Reported as "field agent should be the one to activate it."
+
+It checks `merchants.create` now — the same key the login handover uses, and one
+an operator can still take off a seat if they want the last step held back.
 
 ### Scoped by the database, not by a `where` clause
 
