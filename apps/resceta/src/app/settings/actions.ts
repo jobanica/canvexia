@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/server/tenancy/current-user";
 import { updatePharmacySettings } from "@/server/pharmacy/settings";
-import { SettingsInput } from "@/lib/pharmacy/settings-input";
+import { SettingsInput, parseStorefrontFlags } from "@/lib/pharmacy/settings-input";
 
 /**
  * Save the pharmacy's statutory identity.
@@ -52,6 +52,17 @@ export async function saveSettings(
     fdaLtoNumber: formData.get("fdaLtoNumber") ?? "",
     prcLicenseNo: formData.get("prcLicenseNo") ?? "",
     vatRatePct: formData.get("vatRatePct") ?? "",
+
+    receiptPaperMm: formData.get("receiptPaperMm") ?? "58",
+    receiptHeader: formData.get("receiptHeader") ?? "",
+    receiptFooter: formData.get("receiptFooter") ?? "",
+    birPermitNo: formData.get("birPermitNo") ?? "",
+    posSerialNo: formData.get("posSerialNo") ?? "",
+
+    loyaltyPointsPerPeso: formData.get("loyaltyPointsPerPeso") ?? "",
+    loyaltyCentavosPerPoint: formData.get("loyaltyCentavosPerPoint") ?? "",
+
+    storefrontBlurb: formData.get("storefrontBlurb") ?? "",
   });
   if (!parsed.success) {
     // Surface the schema's own message where it has one — "enter the VAT rate"
@@ -65,10 +76,20 @@ export async function saveSettings(
     };
   }
 
+  // The checkboxes are read against the marker the section carries: an
+  // unticked box is absent from the FormData, so without it "not sent" and
+  // "turned off" are indistinguishable and a partial save would close the shop.
+  const flags = parseStorefrontFlags({
+    sectionPresent: formData.get("storefrontSection"),
+    storefrontOn: formData.get("storefrontOn"),
+    storefrontAcceptsDelivery: formData.get("storefrontAcceptsDelivery"),
+  });
+
   const saved = await updatePharmacySettings({
     pharmacyId: staff.pharmacyId,
     actorStaffId: staff.staffId,
     ...parsed.data,
+    ...flags,
   });
   if (!saved) return { status: "error", message: "That pharmacy no longer exists." };
 
@@ -76,6 +97,8 @@ export async function saveSettings(
   // they knew.
   revalidatePath("/settings");
   revalidatePath("/receipts", "layout");
+  // The storefront renders from these too, and it is the page a customer sees.
+  revalidatePath("/shop", "layout");
 
   return { status: "done", message: "Saved. New receipts carry these details." };
 }

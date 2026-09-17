@@ -27,6 +27,7 @@ const NAV: (NavLink & { needs?: Permission })[] = [
   { href: "/pos", label: "Counter", group: "Today", needs: "sell" },
   { href: "/receipts", label: "Receipts", group: "Today", needs: "sell" },
   { href: "/shift", label: "Till", group: "Today", needs: "sell" },
+  { href: "/orders", label: "Online orders", group: "Today", needs: "sell" },
   { href: "/readings", label: "Z-readings", group: "Business", needs: "viewReports" },
 
   { href: "/catalogue", label: "Catalogue", group: "Stock", needs: "manageCatalogue" },

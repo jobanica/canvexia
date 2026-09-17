@@ -28,6 +28,23 @@ export interface PharmacySettings {
   prcLicenseNo: string | null;
   vatRatePct: number;
   status: string;
+
+  /** What the receipt says and what it is printed on. */
+  receiptPaperMm: number;
+  receiptHeader: string | null;
+  receiptFooter: string | null;
+  birPermitNo: string | null;
+  posSerialNo: string | null;
+
+  /** The loyalty programme. Both zero means it is off. */
+  loyaltyPointsPerPeso: number;
+  loyaltyCentavosPerPoint: number;
+
+  /** The public shop page. Off until somebody turns it on. */
+  storefrontOn: boolean;
+  storefrontBlurb: string | null;
+  storefrontAcceptsDelivery: boolean;
+  slug: string;
 }
 
 const FIELDS = {
@@ -41,6 +58,17 @@ const FIELDS = {
   prcLicenseNo: true,
   vatRatePct: true,
   status: true,
+  receiptPaperMm: true,
+  receiptHeader: true,
+  receiptFooter: true,
+  birPermitNo: true,
+  posSerialNo: true,
+  loyaltyPointsPerPeso: true,
+  loyaltyCentavosPerPoint: true,
+  storefrontOn: true,
+  storefrontBlurb: true,
+  storefrontAcceptsDelivery: true,
+  slug: true,
 } as const;
 
 export async function pharmacySettings(
@@ -62,12 +90,37 @@ export interface UpdateSettingsInput {
   fdaLtoNumber: string | null;
   prcLicenseNo: string | null;
   vatRatePct: number;
+
+  /**
+   * EVERY FIELD BELOW IS OPTIONAL, and that is the contract rather than
+   * laziness: a caller that does not send one must not blank it. A settings
+   * form that covers the statutory identity and nothing else would otherwise
+   * switch the loyalty programme off and close the storefront every time
+   * somebody corrected a TIN.
+   */
+  receiptPaperMm?: number;
+  receiptHeader?: string | null;
+  receiptFooter?: string | null;
+  birPermitNo?: string | null;
+  posSerialNo?: string | null;
+
+  loyaltyPointsPerPeso?: number;
+  loyaltyCentavosPerPoint?: number;
+
+  storefrontOn?: boolean;
+  storefrontBlurb?: string | null;
+  storefrontAcceptsDelivery?: boolean;
 }
 
 export async function updatePharmacySettings(
   input: UpdateSettingsInput,
 ): Promise<PharmacySettings | null> {
-  const { pharmacyId, actorStaffId, ...fields } = input;
+  const { pharmacyId, actorStaffId, ...rest } = input;
+  // Drop anything the caller left out, so Prisma does not write undefined as
+  // null over a value somebody set on another screen.
+  const fields = Object.fromEntries(
+    Object.entries(rest).filter(([, v]) => v !== undefined),
+  );
 
   return systemDb(async (tx) => {
     const before = await tx.pharmacy.findUnique({

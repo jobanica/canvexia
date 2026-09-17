@@ -3469,7 +3469,28 @@ model Pharmacy {
   employees      PharmacyEmployee[]
   attendance     PharmacyAttendance[]
   leaveRequests  PharmacyLeaveRequest[]
+  /// WHAT THE RECEIPT SAYS AND WHAT IT IS PRINTED ON.
+  /// 58 or 80 — the two thermal roll widths in use. Stored rather than
+  /// guessed, because a receipt laid out for 80mm and printed on 58mm wraps
+  /// every line.
+  receiptPaperMm Int     @default(58)
+  receiptHeader  String?
+  receiptFooter  String?
+  /// The BIR permit number and the machine serial a registered POS has to
+  /// print on every receipt.
+  birPermitNo    String?
+  posSerialNo    String?
+
+  /// THE STOREFRONT IS OFF BY DEFAULT. A public page listing medicine is a
+  /// decision a pharmacy makes deliberately, not one it discovers it has made.
+  storefrontOn              Boolean @default(false)
+  storefrontBlurb           String?
+  storefrontAcceptsDelivery Boolean @default(false)
+  nextOrderNo               Int     @default(1)
+
   branches       PharmacyBranch[]
+  orders         PharmacyOrder[]
+  orderItems     PharmacyOrderItem[]
   transfers      PharmacyStockTransfer[]
   transferItems  PharmacyStockTransferItem[]
 
@@ -3555,6 +3576,7 @@ model PharmacyProduct {
   stocktakeItems PharmacyStocktakeItem[]
   writeoffs      PharmacyWriteoff[]
   transferItems  PharmacyStockTransferItem[]
+  orderItems     PharmacyOrderItem[]
 
   @@unique([pharmacyId, sku])
   @@unique([pharmacyId, barcode])
@@ -3726,6 +3748,7 @@ model PharmacySale {
   customer     PharmacyCustomer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   prescription PharmacyPrescription? @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
   loyaltyTxns  PharmacyLoyaltyTxn[]
+  orders       PharmacyOrder[]
   shift        PharmacyShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   branch       PharmacyBranch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
@@ -4608,6 +4631,7 @@ model PharmacyCustomer {
   loyaltyTxns   PharmacyLoyaltyTxn[]
   prescriptions PharmacyPrescription[]
   sales         PharmacySale[]
+  orders        PharmacyOrder[]
 
   @@index([pharmacyId])
   @@index([pharmacyId, phone])
@@ -5100,6 +5124,7 @@ model PharmacyBranch {
   employees      PharmacyEmployee[]
   transfersOut   PharmacyStockTransfer[] @relation("TransferFrom")
   transfersIn    PharmacyStockTransfer[] @relation("TransferTo")
+  orders         PharmacyOrder[]
 
   @@index([pharmacyId])
   @@map("pharmacy_branches")
@@ -5159,4 +5184,88 @@ model PharmacyStockTransferItem {
   @@index([transferId])
   @@index([pharmacyId])
   @@map("pharmacy_stock_transfer_items")
+}
+
+// ============================================================================
+// RESCETA, WAVE 7 — the storefront and online orders.
+//
+// AN ONLINE ORDER DOES NOT MOVE STOCK. It is a REQUEST: the customer asks, the
+// pharmacy confirms and prepares, and the sale is rung up at the counter like
+// any other. That keeps ONE stock path — the one that already allocates FEFO,
+// snapshots cost and writes the ledger. A second path deducting stock on
+// "order placed" would be a second set of rules to keep in agreement with the
+// first, and they would drift.
+// ============================================================================
+
+enum PharmacyOrderStatus {
+  placed
+  confirmed
+  ready
+  completed
+  cancelled
+}
+
+enum PharmacyFulfilment {
+  pickup
+  delivery
+}
+
+model PharmacyOrder {
+  id          String              @id @default(uuid())
+  pharmacyId  String
+  branchId    String?
+  orderNumber String
+  status      PharmacyOrderStatus @default(placed)
+  fulfilment  PharmacyFulfilment  @default(pickup)
+
+  customerName    String
+  customerPhone   String
+  customerAddress String?
+  customerId      String?
+  notes           String?
+
+  /// Snapshotted when the order is placed, so a price change afterwards does
+  /// not silently alter what the customer was quoted.
+  totalCentavos Int @default(0)
+
+  /// The sale, once it is rung up. Nullable and set late: an order is a
+  /// request, and it is not a sale until somebody takes the money.
+  saleId String?
+
+  handledByStaffId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  pharmacy Pharmacy            @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  branch   PharmacyBranch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customer PharmacyCustomer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  sale     PharmacySale?       @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  items    PharmacyOrderItem[]
+
+  @@unique([pharmacyId, orderNumber])
+  @@index([pharmacyId, createdAt])
+  @@index([pharmacyId, status])
+  @@map("pharmacy_orders")
+}
+
+model PharmacyOrderItem {
+  id         String  @id @default(uuid())
+  pharmacyId String
+  orderId    String
+  productId  String?
+
+  /// Snapshotted, like a sale line: the product may be renamed or archived and
+  /// the order still has to read.
+  nameAtTime        String
+  quantity          Int
+  unitPriceCentavos Int @default(0)
+  lineTotalCentavos Int @default(0)
+
+  pharmacy Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  order    PharmacyOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product  PharmacyProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([pharmacyId])
+  @@map("pharmacy_order_items")
 }
