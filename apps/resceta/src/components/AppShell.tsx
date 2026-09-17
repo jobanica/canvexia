@@ -36,7 +36,12 @@ const NAV: (NavLink & { needs?: Permission })[] = [
 
   { href: "/customers", label: "Customers", group: "People", needs: "sell" },
   { href: "/prescriptions", label: "Prescriptions", group: "People", needs: "sell" },
-  { href: "/staff", label: "Staff", group: "People", needs: "manageStaff" },
+  { href: "/staff", label: "Staff logins", group: "People", needs: "manageStaff" },
+  { href: "/hr/clock", label: "Clock in", group: "People" },
+  { href: "/hr/employees", label: "Employees", group: "People", needs: "manageStaff" },
+  { href: "/hr/timesheets", label: "Timesheets", group: "People", needs: "manageStaff" },
+  { href: "/hr/payroll", label: "Payroll", group: "People", needs: "manageStaff" },
+  { href: "/hr/leave", label: "Leave", group: "People" },
 
   { href: "/billing", label: "Billing", group: "Business", needs: "manageSettings" },
   { href: "/settings", label: "Settings", group: "Business", needs: "manageSettings" },

@@ -3466,6 +3466,9 @@ model Pharmacy {
   writeoffs      PharmacyWriteoff[]
   shifts         PharmacyShift[]
   readings       PharmacyReading[]
+  employees      PharmacyEmployee[]
+  attendance     PharmacyAttendance[]
+  leaveRequests  PharmacyLeaveRequest[]
 
   @@map("pharmacies")
 }
@@ -3486,6 +3489,8 @@ model PharmacyStaff {
   @@unique([pharmacyId, authUserId])
   @@unique([pharmacyId, email])
   @@index([authUserId])
+  employees PharmacyEmployee[]
+
   @@map("pharmacy_staff")
 }
 
@@ -4880,4 +4885,125 @@ model PharmacyReading {
   @@unique([pharmacyId, zCounter])
   @@index([pharmacyId, closedAt])
   @@map("pharmacy_readings")
+}
+
+// ============================================================================
+// RESCETA, WAVE 5 — employees, attendance, leave.
+//
+// See prisma/manual/pharmacy-wave5.sql.
+// ============================================================================
+
+enum PharmacyPayType {
+  hourly
+  daily
+  monthly
+}
+
+enum PharmacyLeaveKind {
+  vacation
+  sick
+  emergency
+  unpaid
+  maternity
+  paternity
+}
+
+enum PharmacyLeaveStatus {
+  pending
+  approved
+  rejected
+}
+
+enum PharmacyAttendanceKind {
+  clock_in
+  clock_out
+}
+
+/// A person on the payroll.
+///
+/// NOT THE SAME THING AS `PharmacyStaff`, and the split is deliberate.
+/// PharmacyStaff is a LOGIN — who may sign in and what they may do. An employee
+/// may have no login at all (a rider, a cleaner) and carries a pay rate, which
+/// has no business sitting next to an authentication row where every staff
+/// screen would read it.
+model PharmacyEmployee {
+  id         String  @id @default(uuid())
+  pharmacyId String
+  /// Their login, if they have one. Optional, and SET NULL on delete:
+  /// offboarding an account must not delete the employment record.
+  staffId    String?
+
+  fullName String
+  position String?
+  email    String?
+  phone    String?
+
+  payType         PharmacyPayType @default(monthly)
+  payRateCentavos BigInt          @default(0)
+  /// Minutes past midnight, Manila. An integer rather than a `time` so the
+  /// lateness arithmetic is one subtraction with no timezone in it.
+  workStartMinute Int             @default(540)
+  hoursPerDay     Int             @default(8)
+  /// Minutes of lateness that do not count as late. A real policy, and one that
+  /// has to be recorded or every payroll argument is about what it was.
+  graceMinutes    Int             @default(0)
+
+  hireDate DateTime?
+  isActive Boolean   @default(true)
+  notes    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pharmacy      Pharmacy               @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  staff         PharmacyStaff?         @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  attendance    PharmacyAttendance[]
+  leaveRequests PharmacyLeaveRequest[]
+
+  @@index([pharmacyId])
+  @@index([staffId])
+  @@map("pharmacy_employees")
+}
+
+/// A punch. APPEND-ONLY, like the stock ledger.
+///
+/// Never edited and never deleted: a correction is another punch, and the pair
+/// is the record. Editing one is how a payroll dispute becomes unanswerable.
+model PharmacyAttendance {
+  id         String                 @id @default(uuid())
+  pharmacyId String
+  employeeId String
+  kind       PharmacyAttendanceKind
+  note       String?
+  createdAt  DateTime               @default(now())
+
+  pharmacy Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  employee PharmacyEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId, createdAt])
+  @@index([employeeId, createdAt])
+  @@map("pharmacy_attendance")
+}
+
+model PharmacyLeaveRequest {
+  id         String              @id @default(uuid())
+  pharmacyId String
+  employeeId String
+  leaveType  PharmacyLeaveKind   @default(vacation)
+  startDate  DateTime
+  endDate    DateTime
+  reason     String?
+  status     PharmacyLeaveStatus @default(pending)
+
+  reviewedByStaffId String?
+  reviewedAt        DateTime?
+  reviewNote        String?
+  createdAt         DateTime  @default(now())
+
+  pharmacy Pharmacy         @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  employee PharmacyEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId, startDate])
+  @@index([employeeId])
+  @@map("pharmacy_leave_requests")
 }
