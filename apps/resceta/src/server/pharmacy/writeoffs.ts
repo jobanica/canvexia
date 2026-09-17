@@ -108,6 +108,7 @@ export async function writeOffStock(input: {
           costCentavos: true,
           lotNumber: true,
           productId: true,
+          branchId: true,
           product: { select: { name: true } },
         },
       });
@@ -159,6 +160,9 @@ export async function writeOffStock(input: {
           // statement disagree with the balance it is supposed to explain.
           quantityDelta: -values.quantity,
           referenceId: writeoff.id,
+          // FROM THE BATCH, not from the session: the stock left the shelf it
+          // was actually on, whichever branch the person recording it is at.
+          branchId: batch.branchId,
           reason: values.recipient
             ? `${values.reason}: ${values.recipient}`
             : values.reason,

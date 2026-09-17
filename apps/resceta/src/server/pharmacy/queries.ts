@@ -1,6 +1,8 @@
 import "server-only";
 import { systemDb, pharmacyDb } from "@/server/tenancy/scoped-db";
 import { expiringWithin, onHand, type AllocatableBatch } from "@/lib/pharmacy/fefo";
+import type { BranchContext } from "@/server/pharmacy/branches";
+import { branchWhere } from "@/server/pharmacy/branches";
 
 /**
  * Reads for the pharmacy screens.
@@ -57,7 +59,17 @@ export interface CatalogueRow {
  * numbers that drift, and the one that matters for dispensing is the batch
  * list. See fefo.ts.
  */
-export async function catalogue(pharmacyId: string, asOf = new Date()): Promise<CatalogueRow[]> {
+export async function catalogue(
+  pharmacyId: string,
+  asOf = new Date(),
+  /**
+   * Which branch's shelf. Omitted means every branch, which is what a
+   * single-branch pharmacy always gets and what an owner looking at the whole
+   * business asks for.
+   */
+  branch?: BranchContext,
+): Promise<CatalogueRow[]> {
+  const scope = branch ? branchWhere(branch) : {};
   const rows = await pharmacyDb(pharmacyId, (tx) =>
     tx.pharmacyProduct.findMany({
       where: { isActive: true },
@@ -73,7 +85,7 @@ export async function catalogue(pharmacyId: string, asOf = new Date()): Promise<
         requiresPrescription: true,
         reorderPoint: true,
         batches: {
-          where: { quantity: { gt: 0 } },
+          where: { quantity: { gt: 0 }, ...scope },
           select: {
             id: true,
             expiryDate: true,
@@ -129,10 +141,11 @@ export async function expiryReport(
   pharmacyId: string,
   days = 90,
   asOf = new Date(),
+  branch?: BranchContext,
 ): Promise<ExpiryRow[]> {
   const batches = await pharmacyDb(pharmacyId, (tx) =>
     tx.pharmacyBatch.findMany({
-      where: { quantity: { gt: 0 } },
+      where: { quantity: { gt: 0 }, ...(branch ? branchWhere(branch) : {}) },
       select: {
         id: true,
         lotNumber: true,
@@ -160,9 +173,10 @@ export async function expiryReport(
   });
 }
 
-export async function recentSales(pharmacyId: string, take = 20) {
+export async function recentSales(pharmacyId: string, take = 20, branch?: BranchContext) {
   return pharmacyDb(pharmacyId, (tx) =>
     tx.pharmacySale.findMany({
+      where: branch ? branchWhere(branch) : undefined,
       orderBy: { createdAt: "desc" },
       take,
       select: {

@@ -1,6 +1,7 @@
 import "server-only";
 import { pharmacyDb } from "@/server/tenancy/scoped-db";
 import { enumerateDays, manilaDayIso, type DateRange } from "@/lib/pharmacy/range";
+import { branchWhere, type BranchContext } from "@/server/pharmacy/branches";
 
 /**
  * The numbers an owner opens the app to see.
@@ -33,11 +34,16 @@ export interface SalesReport {
   discountCentavos: number;
 }
 
-export async function salesReport(pharmacyId: string, range: DateRange): Promise<SalesReport> {
+export async function salesReport(
+  pharmacyId: string,
+  range: DateRange,
+  branch?: BranchContext,
+): Promise<SalesReport> {
+  const scope = branch ? branchWhere(branch) : {};
   const [sales, items] = await Promise.all([
     pharmacyDb(pharmacyId, (tx) =>
       tx.pharmacySale.findMany({
-        where: { status: "completed", createdAt: { gte: range.start, lt: range.end } },
+        where: { status: "completed", createdAt: { gte: range.start, lt: range.end }, ...scope },
         select: {
           totalCentavos: true,
           discountCentavos: true,
@@ -50,7 +56,9 @@ export async function salesReport(pharmacyId: string, range: DateRange): Promise
       tx.pharmacySaleItem.findMany({
         // Through the sale, so a line belonging to a voided receipt is excluded
         // by the same rule that excludes the receipt.
-        where: { sale: { status: "completed", createdAt: { gte: range.start, lt: range.end } } },
+        where: {
+          sale: { status: "completed", createdAt: { gte: range.start, lt: range.end }, ...scope },
+        },
         select: {
           nameAtTime: true,
           quantity: true,
@@ -134,10 +142,11 @@ export interface Valuation {
 export async function inventoryValuation(
   pharmacyId: string,
   asOf: Date = new Date(),
+  branch?: BranchContext,
 ): Promise<Valuation> {
   const batches = await pharmacyDb(pharmacyId, (tx) =>
     tx.pharmacyBatch.findMany({
-      where: { quantity: { gt: 0 } },
+      where: { quantity: { gt: 0 }, ...(branch ? branchWhere(branch) : {}) },
       select: {
         quantity: true,
         costCentavos: true,

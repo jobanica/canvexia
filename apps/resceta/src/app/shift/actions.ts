@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/server/tenancy/current-user";
 import { closeShift, openShift } from "@/server/pharmacy/shifts";
+import { branchContext } from "@/server/pharmacy/branches";
 import { peso } from "@/lib/money";
 
 export type ShiftState =
@@ -51,11 +52,16 @@ export async function startShift(_prev: ShiftState, formData: FormData): Promise
     return { status: "error", message: "Count the float and enter it, even if it is zero." };
   }
 
+  // The branch from the session, never the form. "All branches" is a reading
+  // position; a till has to be somewhere, so this falls back to the main one.
+  const branch = await branchContext(staff.pharmacyId);
+
   const res = await openShift({
     pharmacyId: staff.pharmacyId,
     staffId: staff.staffId,
     openingCashCentavos: opening,
     notes: String(formData.get("notes") ?? "").trim() || null,
+    branchId: branch.writeBranchId,
   });
   if (!res.ok) return { status: "error", message: res.error };
 

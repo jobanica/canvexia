@@ -76,8 +76,13 @@ describe("the dashboard", () => {
     // `viewReports` gates the whole top half. The person at the till on a
     // Saturday has no business knowing the shop's margin.
     expect(page).toContain('const showMoney = can(staff.role, "viewReports");');
-    expect(page).toContain("showMoney ? salesReport(staff.pharmacyId, range) : null");
-    expect(page).toContain("showMoney ? inventoryValuation(staff.pharmacyId) : null");
+    // The GATE, not the argument list — wave 6 added a branch argument to both
+    // calls, and a test that pins the exact call signature fails on a change
+    // that does not touch the rule it is protecting.
+    // `.*` rather than `[^)]*`: the arguments now contain a `new Date()`, and
+    // a character class that stops at the first paren stopped inside it.
+    expect(page).toMatch(/showMoney \? salesReport\(.*\) : null/);
+    expect(page).toMatch(/showMoney \? inventoryValuation\(.*\) : null/);
   });
 
   it("does not run the money queries for a cashier at all", () => {

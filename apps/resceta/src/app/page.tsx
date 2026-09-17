@@ -8,6 +8,7 @@ import { RangeFilter } from "@/components/RangeFilter";
 import { catalogue, expiryReport, recentSales } from "@/server/pharmacy/queries";
 import { salesReport, inventoryValuation } from "@/server/pharmacy/reports";
 import { parseRange } from "@/lib/pharmacy/range";
+import { branchContext } from "@/server/pharmacy/branches";
 import { can } from "@/lib/pharmacy/roles";
 import { peso, manilaDate } from "@/lib/money";
 import { InstallApp } from "@/components/InstallApp";
@@ -46,13 +47,14 @@ export default async function Dashboard({
 
   const showMoney = can(staff.role, "viewReports");
   const range = parseRange(await searchParams);
+  const branch = await branchContext(staff.pharmacyId);
 
   const [stock, expiring, report, valuation, sales] = await Promise.all([
-    catalogue(staff.pharmacyId),
-    expiryReport(staff.pharmacyId, 90),
-    showMoney ? salesReport(staff.pharmacyId, range) : null,
-    showMoney ? inventoryValuation(staff.pharmacyId) : null,
-    showMoney ? recentSales(staff.pharmacyId, 6) : Promise.resolve([]),
+    catalogue(staff.pharmacyId, new Date(), branch),
+    expiryReport(staff.pharmacyId, 90, new Date(), branch),
+    showMoney ? salesReport(staff.pharmacyId, range, branch) : null,
+    showMoney ? inventoryValuation(staff.pharmacyId, new Date(), branch) : null,
+    showMoney ? recentSales(staff.pharmacyId, 6, branch) : Promise.resolve([]),
   ]);
 
   const lowStock = stock.filter((p) => p.onHand <= p.reorderPoint);
@@ -65,6 +67,16 @@ export default async function Dashboard({
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">{staff.pharmacyName}</h1>
+            {/*
+              Said out loud whenever it is not the whole business. A figure
+              that silently covers one branch of three is a figure somebody
+              will quote in a meeting.
+            */}
+            {branch.multi && (
+              <p className="mt-1 text-sm font-medium text-slate-700">
+                {branch.all ? "All branches" : branch.current?.name}
+              </p>
+            )}
             {showMoney && (
               <p className="mt-1 text-sm text-slate-500">
                 Profit is the selling price less what that batch cost to buy.

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireStaff } from "@/server/tenancy/current-user";
+import { branchContext } from "@/server/pharmacy/branches";
 import { receiveDelivery } from "@/server/pharmacy/receiving";
 import { can } from "@/lib/pharmacy/roles";
 import type { LineIssue } from "@/lib/pharmacy/receiving";
@@ -77,9 +78,16 @@ export async function receiveAction(
     };
   }
 
+  // The delivery lands on the shelf of the branch the session is looking at.
+  // From the server, never the form: a branch id in a request body is one
+  // somebody can change, and stock filed at the wrong branch is invisible at
+  // the right one.
+  const branch = await branchContext(staff.pharmacyId);
+
   const outcome = await receiveDelivery({
     pharmacyId: staff.pharmacyId,
     actorStaffId: staff.staffId,
+    branchId: branch.writeBranchId,
     canCreateProducts: can(staff.role, "manageCatalogue"),
     ...parsed.data,
     supplierId: parsed.data.supplierId ?? null,

@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { catalogue, expiryReport } from "@/server/pharmacy/queries";
 import { can } from "@/lib/pharmacy/roles";
 import { peso, manilaDate, manilaExpiry } from "@/lib/money";
+import { branchContext } from "@/server/pharmacy/branches";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +31,10 @@ export default async function AlertsPage() {
   if (!staff) redirect("/login");
 
   const showCost = can(staff.role, "viewReports");
+  const branch = await branchContext(staff.pharmacyId);
   const [stock, expiring] = await Promise.all([
-    catalogue(staff.pharmacyId),
-    expiryReport(staff.pharmacyId, 90),
+    catalogue(staff.pharmacyId, new Date(), branch),
+    expiryReport(staff.pharmacyId, 90, new Date(), branch),
   ]);
 
   const expired = expiring.filter((b) => b.expired);
@@ -51,8 +53,9 @@ export default async function AlertsPage() {
       <main className="mx-auto max-w-5xl px-6 py-10">
         <h1 className="text-2xl font-semibold tracking-tight">Alerts</h1>
         <p className="mt-1 text-sm text-slate-500">
-          What needs doing about stock today. On-hand excludes expired batches —
-          they are not sellable, so they are not counted.
+          What needs doing about stock today
+          {branch.multi && ` at ${branch.all ? "every branch" : branch.current?.name}`}. On-hand
+          excludes expired batches — they are not sellable, so they are not counted.
         </p>
 
         {nothing && (

@@ -4,6 +4,8 @@ import type { CurrentStaff } from "@/server/tenancy/current-user";
 import { PharmacySwitcher } from "./PharmacySwitcher";
 import { OfflineNotice } from "./OfflineNotice";
 import { NavDrawer, type NavLink } from "./NavDrawer";
+import { BranchSwitcher } from "./BranchSwitcher";
+import { branchContext } from "@/server/pharmacy/branches";
 
 /**
  * The signed-in chrome: who you are, which pharmacy, and where you can go.
@@ -33,6 +35,7 @@ const NAV: (NavLink & { needs?: Permission })[] = [
   { href: "/suppliers", label: "Suppliers", group: "Stock", needs: "manageStock" },
   { href: "/inventory", label: "Adjustments", group: "Stock", needs: "manageStock" },
   { href: "/stocktake", label: "Stocktake", group: "Stock", needs: "manageStock" },
+  { href: "/transfers", label: "Transfers", group: "Stock", needs: "manageStock" },
 
   { href: "/customers", label: "Customers", group: "People", needs: "sell" },
   { href: "/prescriptions", label: "Prescriptions", group: "People", needs: "sell" },
@@ -45,9 +48,15 @@ const NAV: (NavLink & { needs?: Permission })[] = [
 
   { href: "/billing", label: "Billing", group: "Business", needs: "manageSettings" },
   { href: "/settings", label: "Settings", group: "Business", needs: "manageSettings" },
+  { href: "/branches", label: "Branches", group: "Business", needs: "manageSettings" },
 ];
 
-export function AppShell({
+/**
+ * ASYNC, because the branch selection is read from a cookie on the server.
+ * Every page already awaits its own data; this joins that list rather than
+ * shipping a client component that fetches the branch list on mount.
+ */
+export async function AppShell({
   staff,
   children,
 }: {
@@ -55,6 +64,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const links = NAV.filter((n) => !n.needs || can(staff.role, n.needs));
+  const branch = await branchContext(staff.pharmacyId);
 
   return (
     <div className="min-h-screen">
@@ -80,6 +90,15 @@ export function AppShell({
           <Link href="/" className="font-semibold tracking-tight">
             Resceta
           </Link>
+
+          <BranchSwitcher
+            branches={branch.branches}
+            currentId={branch.current?.id ?? null}
+            all={branch.all}
+            // Spanning branches is a reporting position, so it is offered to
+            // the people who read reports.
+            canSeeAll={can(staff.role, "viewReports")}
+          />
 
           {staff.memberships.length > 1 ? (
             <PharmacySwitcher

@@ -96,6 +96,8 @@ export async function openShift(input: {
   staffId: string;
   openingCashCentavos: number;
   notes: string | null;
+  /** The till's branch, from the session. Null is read as the main branch. */
+  branchId?: string | null;
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   try {
     return await systemDb(async (tx) => {
@@ -112,6 +114,7 @@ export async function openShift(input: {
           staffId: input.staffId,
           openingCashCentavos: input.openingCashCentavos,
           notes: input.notes,
+          branchId: input.branchId ?? null,
         },
         select: { id: true },
       });
@@ -210,7 +213,13 @@ export async function closeShift(input: {
     return await systemDb(async (tx) => {
       const shift = await tx.pharmacyShift.findFirst({
         where: { id: input.shiftId, pharmacyId: input.pharmacyId },
-        select: { id: true, status: true, openedAt: true, openingCashCentavos: true },
+        select: {
+          id: true,
+          status: true,
+          openedAt: true,
+          openingCashCentavos: true,
+          branchId: true,
+        },
       });
       if (!shift) return { ok: false as const, error: "That shift was not found." };
       if (shift.status === "closed") {
@@ -258,6 +267,7 @@ export async function closeShift(input: {
           openedAt: shift.openedAt,
           closedAt,
           openingCashCentavos: shift.openingCashCentavos,
+          branchId: shift.branchId,
           ...totals,
         },
       });

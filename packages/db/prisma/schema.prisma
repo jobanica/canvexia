@@ -3469,6 +3469,9 @@ model Pharmacy {
   employees      PharmacyEmployee[]
   attendance     PharmacyAttendance[]
   leaveRequests  PharmacyLeaveRequest[]
+  branches       PharmacyBranch[]
+  transfers      PharmacyStockTransfer[]
+  transferItems  PharmacyStockTransferItem[]
 
   @@map("pharmacies")
 }
@@ -3551,6 +3554,7 @@ model PharmacyProduct {
   poItems        PharmacyPurchaseOrderItem[]
   stocktakeItems PharmacyStocktakeItem[]
   writeoffs      PharmacyWriteoff[]
+  transferItems  PharmacyStockTransferItem[]
 
   @@unique([pharmacyId, sku])
   @@unique([pharmacyId, barcode])
@@ -3602,6 +3606,11 @@ model PharmacyBatch {
   /// so margin stays correct when the next delivery costs something else.
   costCentavos Int       @default(0)
   receivedAt   DateTime  @default(now())
+  /// The branch this belongs to. NULLABLE, and a null is read by the app as
+  /// "the main branch" rather than "no branch" — so a row written by an older
+  /// deploy lands somewhere real instead of vanishing from every per-branch
+  /// total.
+  branchId String?
   createdAt    DateTime  @default(now())
 
   pharmacy  Pharmacy                @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
@@ -3609,11 +3618,14 @@ model PharmacyBatch {
   supplier  PharmacySupplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   movements PharmacyStockMovement[]
   saleItems PharmacySaleItem[]
+  branch    PharmacyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  transferItems PharmacyStockTransferItem[]
   writeoffs PharmacyWriteoff[]
 
   @@index([pharmacyId])
   @@index([productId, expiryDate])
   @@index([pharmacyId, expiryDate])
+  @@index([branchId])
   @@map("pharmacy_batches")
 }
 
@@ -3637,14 +3649,21 @@ model PharmacyStockMovement {
   reason        String?
   actorStaffId  String?
   createdAt     DateTime             @default(now())
+  /// The branch this belongs to. NULLABLE, and a null is read by the app as
+  /// "the main branch" rather than "no branch" — so a row written by an older
+  /// deploy lands somewhere real instead of vanishing from every per-branch
+  /// total.
+  branchId String?
 
   pharmacy Pharmacy        @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   product  PharmacyProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
   batch    PharmacyBatch?  @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  branch   PharmacyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([pharmacyId, createdAt])
   @@index([productId])
   @@index([batchId])
+  @@index([branchId])
   @@map("pharmacy_stock_movements")
 }
 
@@ -3695,6 +3714,11 @@ model PharmacySale {
   /// Which shift rang it. Nullable: sales taken before shifts existed, and
   /// sales rung up with no shift open, are both valid rows.
   shiftId String?
+  /// The branch this belongs to. NULLABLE, and a null is read by the app as
+  /// "the main branch" rather than "no branch" — so a row written by an older
+  /// deploy lands somewhere real instead of vanishing from every per-branch
+  /// total.
+  branchId String?
 
   pharmacy     Pharmacy              @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   items        PharmacySaleItem[]
@@ -3703,6 +3727,7 @@ model PharmacySale {
   prescription PharmacyPrescription? @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
   loyaltyTxns  PharmacyLoyaltyTxn[]
   shift        PharmacyShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  branch       PharmacyBranch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@unique([pharmacyId, receiptNumber])
   @@index([pharmacyId, createdAt])
@@ -3710,6 +3735,7 @@ model PharmacySale {
   @@index([customerId])
   @@index([prescriptionId])
   @@index([shiftId])
+  @@index([branchId, createdAt])
   @@map("pharmacy_sales")
 }
 
@@ -4705,6 +4731,11 @@ model PharmacyStocktake {
   pharmacyId String
   status     PharmacyStocktakeStatus @default(draft)
   notes      String?
+  /// The branch this belongs to. NULLABLE, and a null is read by the app as
+  /// "the main branch" rather than "no branch" — so a row written by an older
+  /// deploy lands somewhere real instead of vanishing from every per-branch
+  /// total.
+  branchId String?
 
   actorStaffId      String?
   approvedByStaffId String?
@@ -4712,9 +4743,11 @@ model PharmacyStocktake {
   approvedAt        DateTime?
 
   pharmacy Pharmacy                @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  branch   PharmacyBranch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
   items    PharmacyStocktakeItem[]
 
   @@index([pharmacyId, createdAt])
+  @@index([branchId])
   @@map("pharmacy_stocktakes")
 }
 
@@ -4806,6 +4839,11 @@ model PharmacyShift {
   id         String              @id @default(uuid())
   pharmacyId String
   staffId    String?
+  /// The branch this belongs to. NULLABLE, and a null is read by the app as
+  /// "the main branch" rather than "no branch" — so a row written by an older
+  /// deploy lands somewhere real instead of vanishing from every per-branch
+  /// total.
+  branchId String?
   status     PharmacyShiftStatus @default(open)
 
   openingCashCentavos Int  @default(0)
@@ -4828,11 +4866,13 @@ model PharmacyShift {
   overShortCentavos     Int?
 
   pharmacy Pharmacy          @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  branch   PharmacyBranch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
   sales    PharmacySale[]
   readings PharmacyReading[]
 
   @@index([pharmacyId, openedAt])
   @@index([pharmacyId, status])
+  @@index([branchId])
   @@map("pharmacy_shifts")
 }
 
@@ -4850,6 +4890,11 @@ model PharmacyReading {
   zCounter   Int?
   shiftId    String?
   staffId    String?
+  /// The branch this belongs to. NULLABLE, and a null is read by the app as
+  /// "the main branch" rather than "no branch" — so a row written by an older
+  /// deploy lands somewhere real instead of vanishing from every per-branch
+  /// total.
+  branchId String?
 
   openedAt            DateTime
   closedAt            DateTime @default(now())
@@ -4880,10 +4925,12 @@ model PharmacyReading {
   createdAt DateTime @default(now())
 
   pharmacy Pharmacy       @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
-  shift    PharmacyShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  shift    PharmacyShift?  @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  branch   PharmacyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@unique([pharmacyId, zCounter])
   @@index([pharmacyId, closedAt])
+  @@index([branchId])
   @@map("pharmacy_readings")
 }
 
@@ -4932,6 +4979,11 @@ model PharmacyEmployee {
   /// Their login, if they have one. Optional, and SET NULL on delete:
   /// offboarding an account must not delete the employment record.
   staffId    String?
+  /// The branch this belongs to. NULLABLE, and a null is read by the app as
+  /// "the main branch" rather than "no branch" — so a row written by an older
+  /// deploy lands somewhere real instead of vanishing from every per-branch
+  /// total.
+  branchId String?
 
   fullName String
   position String?
@@ -4957,11 +5009,13 @@ model PharmacyEmployee {
 
   pharmacy      Pharmacy               @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   staff         PharmacyStaff?         @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  branch        PharmacyBranch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
   attendance    PharmacyAttendance[]
   leaveRequests PharmacyLeaveRequest[]
 
   @@index([pharmacyId])
   @@index([staffId])
+  @@index([branchId])
   @@map("pharmacy_employees")
 }
 
@@ -5006,4 +5060,103 @@ model PharmacyLeaveRequest {
   @@index([pharmacyId, startDate])
   @@index([employeeId])
   @@map("pharmacy_leave_requests")
+}
+
+// ============================================================================
+// RESCETA, WAVE 6 — branches, and transfers between them.
+//
+// See prisma/manual/pharmacy-wave6.sql, which also backfills every pre-branch
+// row to each pharmacy's Main Branch.
+// ============================================================================
+
+enum PharmacyTransferStatus {
+  /// The boxes are in a van. Stock has left the source and has not arrived.
+  in_transit
+  received
+  cancelled
+}
+
+model PharmacyBranch {
+  id         String  @id @default(uuid())
+  pharmacyId String
+  name       String
+  address    String?
+  phone      String?
+  /// Exactly one per pharmacy, enforced by a partial unique index. It is where
+  /// every pre-branch row was filed and what a null branchId resolves to, so a
+  /// pharmacy without one has stock that belongs nowhere.
+  isMain     Boolean @default(false)
+  isActive   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  pharmacy       Pharmacy                @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  batches        PharmacyBatch[]
+  sales          PharmacySale[]
+  movements      PharmacyStockMovement[]
+  shifts         PharmacyShift[]
+  readings       PharmacyReading[]
+  stocktakes     PharmacyStocktake[]
+  employees      PharmacyEmployee[]
+  transfersOut   PharmacyStockTransfer[] @relation("TransferFrom")
+  transfersIn    PharmacyStockTransfer[] @relation("TransferTo")
+
+  @@index([pharmacyId])
+  @@map("pharmacy_branches")
+}
+
+/// Stock moving between two branches.
+///
+/// TWO STEPS ON PURPOSE. Stock leaves the source when the transfer is created
+/// and arrives when somebody at the destination confirms it. The gap is real —
+/// the boxes are in a van — and a one-step transfer makes stock teleport, which
+/// hides a shortfall at either end until a stocktake finds it months later.
+model PharmacyStockTransfer {
+  id           String                 @id @default(uuid())
+  pharmacyId   String
+  fromBranchId String
+  toBranchId   String
+  status       PharmacyTransferStatus @default(in_transit)
+  notes        String?
+
+  actorStaffId      String?
+  receivedByStaffId String?
+  createdAt         DateTime  @default(now())
+  receivedAt        DateTime?
+
+  pharmacy   Pharmacy                    @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  fromBranch PharmacyBranch              @relation("TransferFrom", fields: [fromBranchId], references: [id])
+  toBranch   PharmacyBranch              @relation("TransferTo", fields: [toBranchId], references: [id])
+  items      PharmacyStockTransferItem[]
+
+  @@index([pharmacyId, createdAt])
+  @@index([fromBranchId])
+  @@index([toBranchId])
+  @@map("pharmacy_stock_transfers")
+}
+
+model PharmacyStockTransferItem {
+  id         String @id @default(uuid())
+  pharmacyId String
+  transferId String
+  productId  String
+  /// The batch it came out of at the source. The lot number and expiry are
+  /// COPIED onto the line as well, so they travel with the goods even if the
+  /// source batch is later emptied and tidied away — a transfer that loses them
+  /// turns traceable stock into anonymous stock.
+  sourceBatchId String?
+  lotNumber     String?
+  expiryDate    DateTime?
+
+  quantity         Int
+  unitCostCentavos Int @default(0)
+
+  pharmacy Pharmacy              @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  transfer PharmacyStockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product  PharmacyProduct       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  batch    PharmacyBatch?        @relation(fields: [sourceBatchId], references: [id], onDelete: SetNull)
+
+  @@index([transferId])
+  @@index([pharmacyId])
+  @@map("pharmacy_stock_transfer_items")
 }

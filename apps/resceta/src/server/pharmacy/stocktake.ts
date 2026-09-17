@@ -282,7 +282,7 @@ export async function approveStocktake(input: {
           const batches = await tx.pharmacyBatch.findMany({
             where: { pharmacyId: input.pharmacyId, productId: line.productId, quantity: { gt: 0 } },
             orderBy: [{ expiryDate: "asc" }, { receivedAt: "asc" }],
-            select: { id: true, quantity: true },
+            select: { id: true, quantity: true, branchId: true },
           });
           for (const b of batches) {
             if (remaining <= 0) break;
@@ -299,6 +299,7 @@ export async function approveStocktake(input: {
                 type: "adjustment",
                 quantityDelta: -take,
                 referenceId: sheet.id,
+                branchId: b.branchId,
                 reason: "Stocktake: counted short",
                 actorStaffId: input.actorStaffId,
               },

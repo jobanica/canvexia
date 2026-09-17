@@ -36,6 +36,13 @@ export interface CompleteSaleRequest {
   /** Required if any line is an Rx product. */
   prescriptionRef?: string;
   soldByStaffId?: string;
+  /**
+   * Which branch's till. Resolved by the caller from the session, never from
+   * the browser — a branch id in a request body is one somebody can change, and
+   * a sale filed at the wrong branch takes its stock movement with it. Falls
+   * back to the open shift's branch, then to null (read as the main branch).
+   */
+  branchId?: string | null;
   /** Test seam. Defaults to now; expiry comparisons are date-based. */
   asOf?: Date;
 }
@@ -181,7 +188,7 @@ export async function completeSale(
     const openShift = await tx.pharmacyShift.findFirst({
       where: { pharmacyId: req.pharmacyId, status: "open" },
       orderBy: { openedAt: "desc" },
-      select: { id: true },
+      select: { id: true, branchId: true },
     });
 
     const sale = await tx.pharmacySale.create({
@@ -209,6 +216,13 @@ export async function completeSale(
           not adopted shifts still sells.
         */
         shiftId: openShift?.id ?? null,
+        /*
+          The branch the till is at, resolved the same way as the shift: from
+          the server, never from the form. A branch id in a request body is a
+          branch id somebody can change, and a sale filed at the wrong branch
+          takes its stock movement with it.
+        */
+        branchId: req.branchId ?? openShift?.branchId ?? null,
       },
       select: { id: true },
     });
@@ -250,6 +264,7 @@ export async function completeSale(
             referenceId: sale.id,
             reason: `Sale ${receiptNumber}`,
             actorStaffId: req.soldByStaffId ?? null,
+            branchId: req.branchId ?? openShift?.branchId ?? null,
           },
         });
       }
