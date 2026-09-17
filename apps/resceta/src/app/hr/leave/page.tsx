@@ -55,7 +55,7 @@ export default async function LeavePage() {
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
               Waiting
             </h2>
-            <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <ul className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl">
               {pending.map((r) => (
                 <LeaveRow key={r.id} request={r} canDecide={canDecide} />
               ))}
@@ -68,11 +68,11 @@ export default async function LeavePage() {
             Decided
           </h2>
           {settled.length === 0 ? (
-            <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+            <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
               Nothing decided yet.
             </p>
           ) : (
-            <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <ul className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl">
               {settled.map((r) => (
                 <LeaveRow key={r.id} request={r} canDecide={false} />
               ))}

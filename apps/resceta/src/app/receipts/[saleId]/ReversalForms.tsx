@@ -29,33 +29,33 @@ export function VoidForm({ saleId, receiptNumber }: { saleId: string; receiptNum
 
   if (state.status === "done") {
     return (
-      <p className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
+      <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
         {state.message}
       </p>
     );
   }
 
   return (
-    <form action={action} className="space-y-3 rounded-lg border border-red-200 bg-red-50/40 p-4">
+    <form action={action} className="space-y-3 rounded-lg border border-red-500/30 bg-red-500/10/40 p-4">
       <input type="hidden" name="saleId" value={saleId} />
-      <p className="text-sm text-slate-700">
+      <p className="text-sm text-slate-200">
         Voiding {receiptNumber} puts every unit back in the batch it came from
         and marks the receipt void. Use it for a sale that should not have
         happened — rung up twice, wrong customer. If the customer is bringing
         something back, take a return instead.
       </p>
       <label className="block text-sm">
-        <span className="mb-1 block text-slate-600">Reason</span>
+        <span className="mb-1 block text-slate-300">Reason</span>
         <input
           name="reason"
           required
           maxLength={200}
           placeholder="Rung up twice"
-          className="w-full rounded border border-slate-300 px-2 py-1.5"
+          className="w-full rounded border border-white/15 px-2 py-1.5"
         />
       </label>
       {state.status === "error" && (
-        <p role="alert" className="rounded border border-red-300 bg-red-50 p-2 text-sm text-red-900">
+        <p role="alert" className="rounded border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-200">
           {state.message}
         </p>
       )}
@@ -112,7 +112,7 @@ export function ReturnForm({
 
   if (state.status === "done") {
     return (
-      <div className="space-y-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
+      <div className="space-y-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
         <p>{state.message}</p>
         {state.creditNoteHref && (
           // A new tab, like the receipt: the print dialog opens over the credit
@@ -133,7 +133,7 @@ export function ReturnForm({
   const anyReturnable = lines.some((l) => l.quantity - l.alreadyReturned > 0);
   if (!anyReturnable) {
     return (
-      <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+      <p className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
         Everything on this receipt has already been returned.
       </p>
     );
@@ -144,7 +144,7 @@ export function ReturnForm({
       <input type="hidden" name="saleId" value={saleId} />
       <input type="hidden" name="lines" value={JSON.stringify(payload)} />
 
-      <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <ul className="divide-y divide-white/10 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl">
         {lines.map((l) => {
           const remaining = l.quantity - l.alreadyReturned;
           const chosen = qty[l.saleItemId] ?? 0;
@@ -179,14 +179,14 @@ export function ReturnForm({
                         ),
                       }))
                     }
-                    className="mt-1 w-24 rounded border border-slate-300 px-2 py-1.5 text-right tabular-nums disabled:bg-slate-100"
+                    className="mt-1 w-24 rounded border border-white/15 px-2 py-1.5 text-right tabular-nums disabled:bg-white/10"
                     aria-label={`Quantity to return of ${l.productName}`}
                   />
                 </div>
               </div>
 
               {chosen > 0 && canRestock && (
-                <label className="mt-2 flex items-start gap-2 text-xs text-slate-600">
+                <label className="mt-2 flex items-start gap-2 text-xs text-slate-300">
                   <input
                     type="checkbox"
                     checked={restock[l.saleItemId] === true}
@@ -209,21 +209,21 @@ export function ReturnForm({
         })}
       </ul>
 
-      <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2">
+      <div className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">Reason</span>
+          <span className="mb-1 block text-slate-300">Reason</span>
           <input
             name="reason"
             maxLength={200}
             placeholder="Wrong item, customer changed mind…"
-            className="w-full rounded border border-slate-300 px-2 py-1.5"
+            className="w-full rounded border border-white/15 px-2 py-1.5"
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">Refund by</span>
+          <span className="mb-1 block text-slate-300">Refund by</span>
           <select
             name="refundMethod"
-            className="w-full rounded border border-slate-300 px-2 py-1.5"
+            className="w-full rounded border border-white/15 px-2 py-1.5"
           >
             <option value="cash">Cash</option>
             <option value="gcash">GCash</option>
@@ -235,7 +235,7 @@ export function ReturnForm({
       </div>
 
       {gross > 0 && (
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-slate-300">
           Returning {peso(gross)} at the prices charged. The refund is prorated
           by what was actually paid, so a discounted sale refunds the discounted
           amount — the exact figure is on the credit note.
@@ -243,7 +243,7 @@ export function ReturnForm({
       )}
 
       {state.status === "error" && (
-        <p role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-900">
+        <p role="alert" className="rounded border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {state.message}
         </p>
       )}
@@ -251,7 +251,7 @@ export function ReturnForm({
       <button
         type="submit"
         disabled={pending || payload.length === 0}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+        className="rounded-md brand-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
       >
         {pending ? "Recording…" : "Record return"}
       </button>

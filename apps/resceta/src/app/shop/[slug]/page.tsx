@@ -45,7 +45,8 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   const name = shop.displayName ?? shop.name;
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="mx-auto max-w-3xl px-6 py-10">
       <h1 className="text-3xl font-semibold tracking-tight">{name}</h1>
       {shop.blurb && <p className="mt-2 text-slate-600">{shop.blurb}</p>}
       <p className="mt-2 text-sm text-slate-500">
@@ -68,6 +69,7 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
       <div className="mt-8">
         <ShopForm slug={shop.slug} items={items} acceptsDelivery={shop.acceptsDelivery} />
       </div>
+    </div>
     </main>
   );
 }

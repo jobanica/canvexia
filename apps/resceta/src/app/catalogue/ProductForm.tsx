@@ -5,8 +5,8 @@ import { saveProduct, toggleProduct, type CatalogueState } from "./actions";
 import type { CatalogueEditRow, CategoryRow } from "@/server/pharmacy/catalogue";
 
 const idle: CatalogueState = { status: "idle" };
-const FIELD = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm";
-const LABEL = "mb-1 block text-xs font-medium text-slate-600";
+const FIELD = "w-full rounded-lg border border-white/15 px-3 py-2 text-sm";
+const LABEL = "mb-1 block text-xs font-medium text-slate-300";
 
 /**
  * One product's fields.
@@ -106,7 +106,7 @@ export function ProductForm({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="rounded-xl border border-white/10 bg-white/[0.06] p-3">
           <label className={LABEL}>Warn me at</label>
           <input
             name="reorderPoint"
@@ -126,7 +126,7 @@ export function ProductForm({
           </p>
         </div>
 
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
@@ -135,7 +135,7 @@ export function ProductForm({
               className="mt-0.5 h-4 w-4"
             />
             <span>
-              <span className="block text-sm font-medium text-amber-900">
+              <span className="block text-sm font-medium text-amber-200">
                 Prescription-only
               </span>
               {/*
@@ -143,7 +143,7 @@ export function ProductForm({
                 these unless a pharmacist is signed in, and asks for the
                 prescription reference before it will complete the sale.
               */}
-              <span className="mt-1 block text-xs text-amber-800">
+              <span className="mt-1 block text-xs text-amber-300">
                 Only a pharmacist or the owner can complete a sale containing this item, and the
                 prescription has to be recorded first.
               </span>
@@ -155,7 +155,7 @@ export function ProductForm({
       <div className="flex flex-wrap items-center gap-3">
         <button
           disabled={pending}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-lg brand-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {pending ? "Saving…" : product ? "Save changes" : "Add to catalogue"}
         </button>
@@ -163,12 +163,12 @@ export function ProductForm({
           <button
             type="button"
             onClick={onDone}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600"
+            className="rounded-lg border border-white/15 px-4 py-2 text-sm text-slate-300"
           >
             Cancel
           </button>
         )}
-        {state.status === "error" && <p className="text-sm text-red-700">{state.message}</p>}
+        {state.status === "error" && <p className="text-sm text-red-300">{state.message}</p>}
         {state.status === "done" && <p className="text-sm text-green-700">{state.message}</p>}
       </div>
     </form>
@@ -201,7 +201,7 @@ export function ArchiveButton({ product }: { product: CatalogueEditRow }) {
       >
         {pending ? "…" : product.isActive ? "Archive" : "Restore"}
       </button>
-      {state.status === "error" && <span className="ml-2 text-xs text-red-700">{state.message}</span>}
+      {state.status === "error" && <span className="ml-2 text-xs text-red-300">{state.message}</span>}
     </form>
   );
 }

@@ -140,13 +140,13 @@ export function ReceivingForm({
         value={JSON.stringify(started.map((s) => s.l))}
       />
 
-      <section className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2">
+      <section className="grid gap-4 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">Supplier</span>
+          <span className="mb-1 block text-slate-300">Supplier</span>
           <select
             value={supplierId}
             onChange={(e) => setSupplierId(e.target.value)}
-            className="w-full rounded border border-slate-300 px-2 py-1.5"
+            className="w-full rounded border border-white/15 px-2 py-1.5"
           >
             <option value="">— new or unrecorded —</option>
             {suppliers.map((s) => (
@@ -160,18 +160,18 @@ export function ReceivingForm({
               value={newSupplierName}
               onChange={(e) => setNewSupplierName(e.target.value)}
               placeholder="New supplier name (optional)"
-              className="mt-2 w-full rounded border border-slate-300 px-2 py-1.5"
+              className="mt-2 w-full rounded border border-white/15 px-2 py-1.5"
             />
           )}
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block text-slate-600">Delivery reference</span>
+          <span className="mb-1 block text-slate-300">Delivery reference</span>
           <input
             value={reference}
             onChange={(e) => setReference(e.target.value)}
             placeholder="Invoice or DR number"
-            className="w-full rounded border border-slate-300 px-2 py-1.5"
+            className="w-full rounded border border-white/15 px-2 py-1.5"
           />
           <span className="mt-1 block text-xs text-slate-500">
             Written onto every movement in this delivery.
@@ -189,17 +189,17 @@ export function ReceivingForm({
           return (
             <div
               key={row.key}
-              className={`rounded-lg border bg-white p-4 ${
-                errors.length ? "border-red-300" : "border-slate-200"
+              className={`rounded-lg border bg-white/[0.04] p-4 ${
+                errors.length ? "border-red-300" : "border-white/10"
               }`}
             >
               <div className="grid gap-3 sm:grid-cols-6">
                 <label className="block text-sm sm:col-span-3">
-                  <span className="mb-1 block text-slate-600">Product</span>
+                  <span className="mb-1 block text-slate-300">Product</span>
                   <select
                     value={row.productId}
                     onChange={(e) => update(row.key, { productId: e.target.value })}
-                    className="w-full rounded border border-slate-300 px-2 py-1.5"
+                    className="w-full rounded border border-white/15 px-2 py-1.5"
                   >
                     <option value="">
                       {canCreateProducts ? "— new product —" : "— pick one —"}
@@ -214,39 +214,39 @@ export function ReceivingForm({
                 </label>
 
                 <label className="block text-sm sm:col-span-2">
-                  <span className="mb-1 block text-slate-600">Lot number</span>
+                  <span className="mb-1 block text-slate-300">Lot number</span>
                   <input
                     value={row.lotNumber}
                     onChange={(e) => update(row.key, { lotNumber: e.target.value })}
-                    className="w-full rounded border border-slate-300 px-2 py-1.5 font-mono"
+                    className="w-full rounded border border-white/15 px-2 py-1.5 font-mono"
                   />
                 </label>
 
                 <label className="block text-sm">
-                  <span className="mb-1 block text-slate-600">Quantity</span>
+                  <span className="mb-1 block text-slate-300">Quantity</span>
                   <input
                     type="number"
                     min={1}
                     value={row.quantity}
                     onChange={(e) => update(row.key, { quantity: e.target.value })}
-                    className="w-full rounded border border-slate-300 px-2 py-1.5 tabular-nums"
+                    className="w-full rounded border border-white/15 px-2 py-1.5 tabular-nums"
                   />
                 </label>
 
                 {creating && (
                   <>
                     <label className="block text-sm sm:col-span-3">
-                      <span className="mb-1 block text-slate-600">New product name</span>
+                      <span className="mb-1 block text-slate-300">New product name</span>
                       <input
                         value={row.newProductName}
                         onChange={(e) => update(row.key, { newProductName: e.target.value })}
                         disabled={!canCreateProducts}
                         placeholder="e.g. Biogesic 500mg"
-                        className="w-full rounded border border-slate-300 px-2 py-1.5 disabled:bg-slate-100"
+                        className="w-full rounded border border-white/15 px-2 py-1.5 disabled:bg-white/10"
                       />
                     </label>
                     <label className="block text-sm sm:col-span-3">
-                      <span className="mb-1 block text-slate-600">Selling price (₱)</span>
+                      <span className="mb-1 block text-slate-300">Selling price (₱)</span>
                       <input
                         type="number"
                         step="0.01"
@@ -254,20 +254,20 @@ export function ReceivingForm({
                         value={row.newProductPrice}
                         onChange={(e) => update(row.key, { newProductPrice: e.target.value })}
                         disabled={!canCreateProducts}
-                        className="w-full rounded border border-slate-300 px-2 py-1.5 tabular-nums disabled:bg-slate-100"
+                        className="w-full rounded border border-white/15 px-2 py-1.5 tabular-nums disabled:bg-white/10"
                       />
                     </label>
                   </>
                 )}
 
                 <label className="block text-sm sm:col-span-2">
-                  <span className="mb-1 block text-slate-600">Expiry</span>
+                  <span className="mb-1 block text-slate-300">Expiry</span>
                   <input
                     type="date"
                     value={row.expiryDate}
                     disabled={row.noExpiry}
                     onChange={(e) => update(row.key, { expiryDate: e.target.value })}
-                    className="w-full rounded border border-slate-300 px-2 py-1.5 disabled:bg-slate-100"
+                    className="w-full rounded border border-white/15 px-2 py-1.5 disabled:bg-white/10"
                   />
                   <label className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
                     <input
@@ -280,14 +280,14 @@ export function ReceivingForm({
                 </label>
 
                 <label className="block text-sm sm:col-span-2">
-                  <span className="mb-1 block text-slate-600">Unit cost (₱)</span>
+                  <span className="mb-1 block text-slate-300">Unit cost (₱)</span>
                   <input
                     type="number"
                     step="0.01"
                     min={0}
                     value={row.unitCost}
                     onChange={(e) => update(row.key, { unitCost: e.target.value })}
-                    className="w-full rounded border border-slate-300 px-2 py-1.5 tabular-nums"
+                    className="w-full rounded border border-white/15 px-2 py-1.5 tabular-nums"
                   />
                 </label>
 
@@ -296,7 +296,7 @@ export function ReceivingForm({
                     <button
                       type="button"
                       onClick={() => setRows((rs) => rs.filter((r) => r.key !== row.key))}
-                      className="text-xs text-slate-500 hover:text-red-700 hover:underline"
+                      className="text-xs text-slate-500 hover:text-red-300 hover:underline"
                     >
                       Remove line
                     </button>
@@ -305,12 +305,12 @@ export function ReceivingForm({
               </div>
 
               {errors.map((i, n) => (
-                <p key={`e${n}`} role="alert" className="mt-2 text-sm text-red-700">
+                <p key={`e${n}`} role="alert" className="mt-2 text-sm text-red-300">
                   {i.message}
                 </p>
               ))}
               {warnings.map((i, n) => (
-                <p key={`w${n}`} className="mt-2 text-sm text-amber-700">
+                <p key={`w${n}`} className="mt-2 text-sm text-amber-300">
                   {i.message}
                 </p>
               ))}
@@ -324,13 +324,13 @@ export function ReceivingForm({
             setRows((rs) => [...rs, blank(nextKey)]);
             setNextKey((k) => k + 1);
           }}
-          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+          className="rounded-md border border-white/15 bg-white/[0.04] px-3 py-1.5 text-sm hover:bg-white/[0.06]"
         >
           Add another line
         </button>
       </section>
 
-      <section className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4">
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4">
         <dl className="flex gap-6 text-sm">
           <div>
             <dt className="text-slate-500">Units</dt>
@@ -347,7 +347,7 @@ export function ReceivingForm({
             <button
               type="button"
               onClick={reset}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
+              className="rounded-md border border-white/15 px-3 py-2 text-sm hover:bg-white/[0.06]"
             >
               Start another
             </button>
@@ -355,7 +355,7 @@ export function ReceivingForm({
           <button
             type="submit"
             disabled={pending || blocked}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+            className="rounded-md brand-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
           >
             {pending ? "Recording…" : "Receive delivery"}
           </button>
@@ -363,12 +363,12 @@ export function ReceivingForm({
       </section>
 
       {state.status === "error" && (
-        <p role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-900">
+        <p role="alert" className="rounded border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {state.message}
         </p>
       )}
       {state.status === "done" && (
-        <p className="rounded border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
+        <p className="rounded border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
           {state.message}
         </p>
       )}

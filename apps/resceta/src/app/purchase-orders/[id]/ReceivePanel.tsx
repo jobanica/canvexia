@@ -5,7 +5,7 @@ import { receiveDelivery, sendPurchaseOrder, cancelPo, type PoState } from "../a
 import { outstanding } from "@/lib/pharmacy/po-input";
 
 const IDLE: PoState = { status: "idle" };
-const FIELD = "w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm";
+const FIELD = "w-full rounded-xl border border-white/10 px-2 py-1.5 text-sm";
 
 export interface PoItemView {
   id: string;
@@ -35,14 +35,14 @@ export function ReceivePanel({ poId, items }: { poId: string; items: PoItemView[
   const open = items.filter((i) => outstanding(i) > 0);
   if (open.length === 0) {
     return (
-      <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+      <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
         Everything on this order has arrived.
       </p>
     );
   }
 
   return (
-    <form action={action} className="rounded-xl border border-slate-200 bg-white p-5">
+    <form action={action} className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
       <input type="hidden" name="poId" value={poId} />
       <p className="text-sm font-semibold">Receive a delivery</p>
       <p className="mt-1 text-sm text-slate-500">
@@ -52,7 +52,7 @@ export function ReceivePanel({ poId, items }: { poId: string; items: PoItemView[
 
       <div className="mt-4 space-y-3">
         {open.map((item) => (
-          <div key={item.id} className="rounded-lg border border-slate-100 p-3">
+          <div key={item.id} className="rounded-lg border border-white/10 p-3">
             <input type="hidden" name="itemId" value={item.id} />
             <p className="text-sm font-medium">
               {item.name}
@@ -99,13 +99,13 @@ export function ReceivePanel({ poId, items }: { poId: string; items: PoItemView[
       <div className="mt-4 flex items-center gap-3">
         <button
           disabled={pending}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          className="rounded-lg brand-gradient px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
           {pending ? "Recording…" : "Record the delivery"}
         </button>
-        {state.status === "error" && <span className="text-sm text-red-700">{state.message}</span>}
+        {state.status === "error" && <span className="text-sm text-red-300">{state.message}</span>}
         {state.status === "done" && (
-          <span className="text-sm text-emerald-700">{state.message}</span>
+          <span className="text-sm text-emerald-300">{state.message}</span>
         )}
       </div>
     </form>
@@ -132,7 +132,7 @@ export function PoControls({
           <input type="hidden" name="poId" value={poId} />
           <button
             disabled={sending}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-40"
+            className="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold disabled:opacity-40"
           >
             {sending ? "Marking…" : "Mark as sent"}
           </button>
@@ -149,16 +149,16 @@ export function PoControls({
           <input type="hidden" name="poId" value={poId} />
           <button
             disabled={cancelling}
-            className="text-sm text-slate-500 underline hover:text-red-700 disabled:opacity-40"
+            className="text-sm text-slate-500 underline hover:text-red-300 disabled:opacity-40"
           >
             {cancelling ? "Cancelling…" : "Cancel this order"}
           </button>
         </form>
       )}
 
-      {sent.status === "error" && <span className="text-sm text-red-700">{sent.message}</span>}
+      {sent.status === "error" && <span className="text-sm text-red-300">{sent.message}</span>}
       {cancelled.status === "error" && (
-        <span className="text-sm text-red-700">{cancelled.message}</span>
+        <span className="text-sm text-red-300">{cancelled.message}</span>
       )}
     </div>
   );

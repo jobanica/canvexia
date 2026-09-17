@@ -194,29 +194,42 @@ describe("stocktakes", () => {
   });
 });
 
-describe("the nav drawer", () => {
-  const drawer = src("components/NavDrawer.tsx");
+describe("the nav", () => {
+  /**
+   * The drawer became a PINNED SIDEBAR on desktop and a drawer on a phone when
+   * the app was restyled, so these moved from NavDrawer to MobileNav and
+   * SidebarNav. The rules are unchanged — they are about behaviour, not about
+   * which file holds it.
+   */
+  const drawer = src("components/MobileNav.tsx");
+  const sidebar = src("components/SidebarNav.tsx");
   const shell = src("components/AppShell.tsx");
 
-  it("closes on a click that bubbles out of the panel", () => {
+  it("closes the phone drawer on a link tap, not only on a route change", () => {
     // Covers a link to the page you are already on: no route change, so
     // usePathname never fires and nothing else would close it.
-    expect(drawer).toContain("onClick={() => setOpen(false)}");
     expect(drawer).toContain("useEffect(() => setOpen(false), [pathname]);");
+    expect(drawer).toContain("onNavigate={() => setOpen(false)}");
   });
 
-  it("locks the page behind it", () => {
+  it("locks the page behind the drawer", () => {
     expect(drawer).toContain('document.body.style.overflow = "hidden"');
   });
 
   it("never truncates the list", () => {
-    // The links that would fall off a row are the newest ones — which are
-    // exactly the ones nobody has found yet.
+    // The links that would fall off are the newest ones — which are exactly
+    // the ones nobody has found yet.
     expect(shell).not.toMatch(/NAV[^\n;]*\.slice\(/);
-    expect(drawer).not.toMatch(/links[^\n;]*\.slice\(/);
+    expect(sidebar).not.toMatch(/links[^\n;]*\.slice\(/);
   });
 
   it("still filters by permission rather than disabling", () => {
     expect(shell).toContain("NAV.filter((n) => !n.needs || can(staff.role, n.needs))");
+  });
+
+  it("highlights the dashboard only on the dashboard", () => {
+    // A prefix test on "/" matches every page in the app, lights up two items
+    // at once, and teaches people the highlight means nothing.
+    expect(sidebar).toContain('l.href === "/" ? pathname === "/" : pathname.startsWith(l.href)');
   });
 });

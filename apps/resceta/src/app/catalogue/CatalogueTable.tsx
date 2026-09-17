@@ -47,7 +47,7 @@ export function CatalogueTable({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name, generic, SKU or barcode"
           aria-label="Search the catalogue"
-          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="min-w-0 flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm"
         />
         {!adding && (
           <button
@@ -55,7 +55,7 @@ export function CatalogueTable({
               setAdding(true);
               setEditing(null);
             }}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            className="rounded-lg brand-gradient px-4 py-2 text-sm font-medium text-white"
           >
             Add a product
           </button>
@@ -68,7 +68,7 @@ export function CatalogueTable({
         dashboard can only tell them about it after they have run out.
       */}
       {unset > 0 && !adding && (
-        <p className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
           <strong>{unset}</strong> {unset === 1 ? "item has" : "items have"} no reorder point set,
           so the dashboard can only warn you once {unset === 1 ? "it has" : "they have"} run out.
           Open one and set &ldquo;Warn me at&rdquo;.
@@ -76,21 +76,21 @@ export function CatalogueTable({
       )}
 
       {adding && (
-        <div className="mb-4 rounded-lg border border-slate-300 bg-white p-4">
+        <div className="mb-4 rounded-lg border border-white/15 bg-white/[0.04] p-4">
           <h2 className="mb-3 text-sm font-semibold text-slate-800">New product</h2>
           <ProductForm categories={categories} onDone={() => setAdding(false)} />
         </div>
       )}
 
       {products.length === 0 ? (
-        <p className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+        <p className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6 text-sm text-slate-300">
           Nothing in the catalogue yet. Add a product here, or create one as you receive a
           delivery.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <div className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-2 font-medium">Item</th>
                 <th className="px-4 py-2 text-right font-medium">Price</th>
@@ -99,7 +99,7 @@ export function CatalogueTable({
                 <th className="px-4 py-2 font-medium" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-white/10">
               {shown.map((p) => (
                 <FragmentRow
                   key={p.id}
@@ -141,16 +141,16 @@ function FragmentRow({
 }) {
   return (
     <>
-      <tr className={p.isActive ? "" : "bg-slate-50 text-slate-400"}>
+      <tr className={p.isActive ? "" : "bg-white/[0.06] text-slate-500"}>
         <td className="px-4 py-2">
           <span className="font-medium">{p.name}</span>
           {p.requiresPrescription && (
-            <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase text-amber-900">
+            <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[0.65rem] font-semibold uppercase text-amber-200">
               Rx
             </span>
           )}
           {!p.isActive && (
-            <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[0.65rem] uppercase">
+            <span className="ml-2 rounded bg-white/15 px-1.5 py-0.5 text-[0.65rem] uppercase">
               Archived
             </span>
           )}
@@ -167,7 +167,7 @@ function FragmentRow({
         <td className="px-4 py-2 text-right tabular-nums">
           {p.reorderPoint === 0 ? (
             // "0" reads as a configured threshold. It is the absence of one.
-            <span className="text-amber-700">not set</span>
+            <span className="text-amber-300">not set</span>
           ) : (
             p.reorderPoint
           )}
@@ -175,7 +175,7 @@ function FragmentRow({
         <td className="px-4 py-2 text-right whitespace-nowrap">
           <button
             onClick={onOpen}
-            className="mr-3 text-xs font-medium text-slate-600 underline hover:text-slate-900"
+            className="mr-3 text-xs font-medium text-slate-300 underline hover:text-white"
           >
             {open ? "Close" : "Edit"}
           </button>
@@ -184,7 +184,7 @@ function FragmentRow({
       </tr>
       {open && (
         <tr>
-          <td colSpan={5} className="bg-slate-50 px-4 py-4">
+          <td colSpan={5} className="bg-white/[0.06] px-4 py-4">
             <ProductForm product={p} categories={categories} onDone={onClose} />
           </td>
         </tr>

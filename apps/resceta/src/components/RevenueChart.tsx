@@ -28,7 +28,7 @@ export function RevenueChart({
           return (
             <div
               key={p.iso}
-              className="flex-1 rounded-t bg-slate-300"
+              className="flex-1 rounded-t bg-gradient-to-t from-violet-600/60 to-fuchsia-400"
               style={{ height: `${pct}%` }}
               title={`${p.iso}: ${peso(p.revenueCentavos)} · ${p.count} sale${p.count === 1 ? "" : "s"}`}
             />

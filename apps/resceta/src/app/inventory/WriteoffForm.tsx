@@ -6,7 +6,7 @@ import { REASON_LABEL, WRITEOFF_REASONS } from "@/lib/pharmacy/writeoff-input";
 import { peso, manilaExpiry } from "@/lib/money";
 
 const IDLE: WriteoffState = { status: "idle" };
-const FIELD = "mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
+const FIELD = "mt-1 w-full rounded-xl border border-white/10 px-3 py-2 text-sm";
 const LABEL = "block text-xs font-semibold uppercase tracking-wide text-slate-500";
 
 export interface BatchOption {
@@ -30,14 +30,14 @@ export function WriteoffForm({ batches }: { batches: BatchOption[] }) {
 
   if (batches.length === 0) {
     return (
-      <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+      <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
         Nothing on the shelf to write off.
       </p>
     );
   }
 
   return (
-    <form action={action} className="rounded-xl border border-slate-200 bg-white p-5">
+    <form action={action} className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
       <p className="text-sm font-semibold">Take stock off the shelf</p>
       <p className="mt-1 text-sm text-slate-500">
         Expired, damaged, donated, lost or recalled. The batch comes down, the
@@ -105,13 +105,13 @@ export function WriteoffForm({ batches }: { batches: BatchOption[] }) {
       <div className="mt-4 flex items-center gap-3">
         <button
           disabled={pending}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          className="rounded-lg brand-gradient px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
           {pending ? "Recording…" : "Record it"}
         </button>
-        {state.status === "error" && <span className="text-sm text-red-700">{state.message}</span>}
+        {state.status === "error" && <span className="text-sm text-red-300">{state.message}</span>}
         {state.status === "done" && (
-          <span className="text-sm text-emerald-700">{state.message}</span>
+          <span className="text-sm text-emerald-300">{state.message}</span>
         )}
       </div>
     </form>

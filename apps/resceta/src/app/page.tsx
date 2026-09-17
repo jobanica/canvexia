@@ -63,7 +63,7 @@ export default async function Dashboard({
 
   return (
     <AppShell staff={staff}>
-      <main className="mx-auto max-w-5xl px-6 py-10">
+      <main className="mx-auto max-w-7xl px-4 py-8 md:px-6">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">{staff.pharmacyName}</h1>
@@ -73,7 +73,7 @@ export default async function Dashboard({
               will quote in a meeting.
             */}
             {branch.multi && (
-              <p className="mt-1 text-sm font-medium text-slate-700">
+              <p className="mt-1 text-sm font-medium text-slate-200">
                 {branch.all ? "All branches" : branch.current?.name}
               </p>
             )}
@@ -88,35 +88,36 @@ export default async function Dashboard({
 
         {report && valuation && (
           <>
-            <section className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
               <Kpi
                 label="Revenue"
                 value={peso(report.revenueCentavos)}
                 note={`${range.from} to ${range.to}`}
-                tone="emerald"
+                tone="revenue"
               />
               <Kpi
                 label="Gross profit"
                 value={peso(report.profitCentavos)}
                 note={`${report.marginPct.toFixed(1)}% margin`}
-                tone={report.profitCentavos < 0 ? "red" : "emerald"}
+                tone={report.profitCentavos < 0 ? "loss" : "profit"}
               />
               <Kpi
                 label="Transactions"
                 value={report.transactions.toLocaleString("en-PH")}
                 note={`${report.itemsSold.toLocaleString("en-PH")} items sold`}
+                tone="count"
               />
               <Kpi
                 label="Stock at cost"
                 value={peso(valuation.atCostCentavos)}
                 note={`${valuation.units.toLocaleString("en-PH")} units on hand`}
-                tone="amber"
+                tone="stock"
               />
               <Kpi
                 label="Profit on the shelf"
                 value={peso(valuation.potentialProfitCentavos)}
                 note="if every unit sold at today's price"
-                tone="amber"
+                tone="shelf"
               />
               <Kpi
                 label="Expired stock"
@@ -126,12 +127,12 @@ export default async function Dashboard({
                     ? `${valuation.expiredUnits} units to write off`
                     : "nothing expired"
                 }
-                tone={valuation.expiredUnits > 0 ? "red" : "slate"}
+                tone={valuation.expiredUnits > 0 ? "loss" : "plain"}
               />
             </section>
 
             {report.revenueCentavos > 0 ? (
-              <section className="mb-8 rounded-xl border border-slate-200 bg-white p-4">
+              <section className="mb-8 rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4">
                 <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
                   Takings per day
                 </h2>
@@ -144,7 +145,7 @@ export default async function Dashboard({
                 )}
               </section>
             ) : (
-              <p className="mb-8 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+              <p className="mb-8 rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
                 No sales in this window. Change the dates, or ring one up at the{" "}
                 <Link href="/pos" className="font-medium underline">
                   counter
@@ -193,13 +194,13 @@ export default async function Dashboard({
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
               Best sellers in this window
             </h2>
-            <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
+            <ul className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
               {report.topProducts.map((p) => (
                 <li key={p.name} className="flex items-center justify-between px-4 py-2">
                   <span>{p.name}</span>
                   <span className="flex items-center gap-4 text-slate-500">
                     <span className="tabular-nums">{p.qty} sold</span>
-                    <span className="tabular-nums text-slate-900">{peso(p.totalCentavos)}</span>
+                    <span className="tabular-nums text-white">{peso(p.totalCentavos)}</span>
                   </span>
                 </li>
               ))}
@@ -217,16 +218,16 @@ export default async function Dashboard({
                 All receipts
               </Link>
             </div>
-            <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
+            <ul className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
               {sales.map((s) => (
                 <li key={s.id} className="flex items-center justify-between px-4 py-2">
                   <Link href={`/receipts/${s.id}`} className="font-mono text-xs text-slate-500 underline">
                     {s.receiptNumber}
                   </Link>
                   <span className="flex items-center gap-3">
-                    <span className="text-xs text-slate-400">{manilaDate(s.createdAt)}</span>
+                    <span className="text-xs text-slate-500">{manilaDate(s.createdAt)}</span>
                     {s.discountType !== "none" && (
-                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs uppercase text-emerald-800">
+                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs uppercase text-emerald-300">
                         {s.discountType}
                       </span>
                     )}
@@ -262,9 +263,9 @@ function Alert({
   tone: "slate" | "amber" | "red";
 }) {
   const tones = {
-    slate: "border-slate-200 bg-white text-slate-900",
-    amber: "border-amber-200 bg-amber-50 text-amber-900",
-    red: "border-red-200 bg-red-50 text-red-900",
+    slate: "border-white/10 bg-white/[0.04] backdrop-blur-xl text-white",
+    amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+    red: "border-red-500/30 bg-red-500/10 text-red-200",
   } as const;
   return (
     <Link href={href} className={`block rounded-xl border p-4 hover:shadow-sm ${tones[tone]}`}>

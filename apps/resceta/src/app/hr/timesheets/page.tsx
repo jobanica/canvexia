@@ -47,7 +47,7 @@ export default async function TimesheetsPage({
         </div>
 
         {unpaired > 0 && (
-          <p className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
             {unpaired} day{unpaired === 1 ? " was" : "s were"} clocked in and never clocked out.
             Those days count as zero hours until somebody clocks out — fix them
             before running payroll.
@@ -55,20 +55,20 @@ export default async function TimesheetsPage({
         )}
 
         {withHours.length === 0 ? (
-          <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
             Nobody clocked in during this window.
           </p>
         ) : (
           <div className="space-y-6">
             {withHours.map((s) => (
-              <section key={s.employee.id} className="rounded-xl border border-slate-200 bg-white">
-                <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 px-5 py-3">
+              <section key={s.employee.id} className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl">
+                <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-white/10 px-5 py-3">
                   <h2 className="font-semibold">{s.employee.fullName}</h2>
                   <p className="text-sm text-slate-500">
                     {s.daysPresent} day{s.daysPresent === 1 ? "" : "s"} ·{" "}
-                    <span className="font-semibold text-slate-900">{s.totalHours} hours</span>
+                    <span className="font-semibold text-white">{s.totalHours} hours</span>
                     {s.lateCount > 0 && (
-                      <span className="ml-2 text-amber-700">
+                      <span className="ml-2 text-amber-300">
                         late {s.lateCount}× ({s.lateMinutes} min)
                       </span>
                     )}
@@ -84,24 +84,24 @@ export default async function TimesheetsPage({
                       <th className="px-5 py-2 text-right font-medium">Late</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-white/10">
                     {s.days.map((d) => (
-                      <tr key={d.day} className={d.unpaired ? "bg-amber-50" : undefined}>
+                      <tr key={d.day} className={d.unpaired ? "bg-amber-500/10" : undefined}>
                         <td className="px-5 py-2">{d.day}</td>
-                        <td className="px-5 py-2 text-slate-600">
+                        <td className="px-5 py-2 text-slate-300">
                           {d.clockIn ? manilaDateTime(d.clockIn) : "—"}
                         </td>
-                        <td className="px-5 py-2 text-slate-600">
+                        <td className="px-5 py-2 text-slate-300">
                           {d.clockOut ? (
                             manilaDateTime(d.clockOut)
                           ) : (
-                            <span className="text-amber-700">never clocked out</span>
+                            <span className="text-amber-300">never clocked out</span>
                           )}
                         </td>
                         <td className="px-5 py-2 text-right tabular-nums">{d.hours}</td>
                         <td className="px-5 py-2 text-right tabular-nums">
                           {d.late ? (
-                            <span className="text-amber-700">{d.lateByMinutes} min</span>
+                            <span className="text-amber-300">{d.lateByMinutes} min</span>
                           ) : (
                             <span className="text-slate-300">—</span>
                           )}

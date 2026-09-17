@@ -5,14 +5,14 @@ import { startShift, endShift, type ShiftState } from "./actions";
 import { peso, manilaDateTime } from "@/lib/money";
 
 const IDLE: ShiftState = { status: "idle" };
-const FIELD = "mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
+const FIELD = "mt-1 w-full rounded-xl border border-white/10 px-3 py-2 text-sm";
 const LABEL = "block text-xs font-semibold uppercase tracking-wide text-slate-500";
 
 export function OpenShiftForm() {
   const [state, action, pending] = useActionState(startShift, IDLE);
 
   return (
-    <form action={action} className="rounded-xl border border-slate-200 bg-white p-5">
+    <form action={action} className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
       <p className="text-sm font-semibold">Open the till</p>
       <p className="mt-1 text-sm text-slate-500">
         Count the float before you start. Every sale rung up from now is attached
@@ -30,11 +30,11 @@ export function OpenShiftForm() {
       </div>
       <button
         disabled={pending}
-        className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+        className="mt-4 rounded-lg brand-gradient px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
       >
         {pending ? "Opening…" : "Open the shift"}
       </button>
-      {state.status === "error" && <p className="mt-2 text-sm text-red-700">{state.message}</p>}
+      {state.status === "error" && <p className="mt-2 text-sm text-red-300">{state.message}</p>}
     </form>
   );
 }
@@ -65,13 +65,13 @@ export function CloseShiftForm({
   const expected = openingCashCentavos + cashSoFarCentavos;
 
   return (
-    <form action={action} className="rounded-xl border border-slate-200 bg-white p-5">
+    <form action={action} className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
       <input type="hidden" name="shiftId" value={shiftId} />
       <p className="text-sm font-semibold">Close the till</p>
       <p className="mt-1 text-sm text-slate-500">
         Open since {manilaDateTime(openedAt)}. Float {peso(openingCashCentavos)} plus{" "}
         {peso(cashSoFarCentavos)} taken in cash —{" "}
-        <span className="font-semibold text-slate-900">{peso(expected)}</span> should be in
+        <span className="font-semibold text-white">{peso(expected)}</span> should be in
         the drawer.
       </p>
       <p className="mt-1 text-xs text-slate-500">
@@ -92,13 +92,13 @@ export function CloseShiftForm({
 
       <button
         disabled={pending}
-        className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+        className="mt-4 rounded-lg brand-gradient px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
       >
         {pending ? "Closing…" : "Close the shift and cut the Z-reading"}
       </button>
-      {state.status === "error" && <p className="mt-2 text-sm text-red-700">{state.message}</p>}
+      {state.status === "error" && <p className="mt-2 text-sm text-red-300">{state.message}</p>}
       {state.status === "done" && (
-        <p className="mt-2 text-sm font-medium text-emerald-700">{state.message}</p>
+        <p className="mt-2 text-sm font-medium text-emerald-300">{state.message}</p>
       )}
     </form>
   );

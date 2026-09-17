@@ -3,7 +3,78 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
+}
+
+/**
+ * THE VIOLET SHELL.
+ *
+ * The signed-in app is dark violet with two soft radial washes behind it. The
+ * colour lives on a wrapper class rather than on `body` for one reason: three
+ * surfaces in this app must NOT inherit it — the receipt print pages (thermal
+ * paper is white), the public shop page (a customer arriving from Facebook is
+ * not in our app) and the auth pages get their own treatment. A theme on the
+ * body would have to be undone in each of those, and undoing a theme is how
+ * one of them ends up with white text on white paper.
+ */
+.app-shell {
+  --brand-from: #7c3aed; /* violet-600 */
+  --brand-to: #d946ef;   /* fuchsia-500 */
+
+  color: rgb(241 245 249);
+  background-color: #14111f;
+  background-image:
+    radial-gradient(1100px 600px at 8% -8%, rgba(139, 92, 246, 0.28), transparent 60%),
+    radial-gradient(900px 520px at 108% 6%, rgba(217, 70, 239, 0.2), transparent 55%);
+  background-attachment: fixed;
+}
+
+/**
+ * A native <select> paints its option popup with the CONTROL's background. On
+ * a translucent control that popup comes out white while the text stays light
+ * — invisible options, and no amount of Tailwind on the <select> fixes it.
+ * These two rules are the whole fix.
+ */
+.app-shell select option,
+.app-shell select optgroup {
+  background-color: #241d3a;
+  color: rgb(241 245 249);
+}
+
+/* A date input's calendar glyph is black by default and vanishes on violet. */
+.app-shell input[type="date"]::-webkit-calendar-picker-indicator,
+.app-shell input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.6);
+}
+
+/**
+ * FIELDS GET THEIR FILL HERE, not on a hundred inputs.
+ *
+ * With `color-scheme: dark` a bare input takes the browser's own dark grey,
+ * which is a slightly different grey from every card on the page — so fields
+ * looked like holes rather than parts of the design. One rule sets them all,
+ * and any input that wants something else still overrides it with a class.
+ */
+.app-shell input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.app-shell select,
+.app-shell textarea {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: rgb(241 245 249);
+}
+
+.app-shell input:disabled,
+.app-shell select:disabled,
+.app-shell textarea:disabled {
+  opacity: 0.5;
+}
+
+.app-shell ::placeholder {
+  color: rgb(148 163 184);
+}
+
+/** The gradient the active nav item and the primary buttons share. */
+.brand-gradient {
+  background-image: linear-gradient(to right, var(--brand-from), var(--brand-to));
 }
 
 /**
@@ -24,7 +95,24 @@
 
   html,
   body {
+    height: auto !important;
+    overflow: visible !important;
     background: #fff !important;
+  }
+
+  /**
+   * The shell is a full-height grid with a scrolling main column. Left as-is,
+   * Chrome clips the printable area to that one viewport and an inline receipt
+   * prints as a blank page — so the height, the overflow and the dark
+   * background are all neutralised before anything else.
+   */
+  .app-shell {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    background-image: none !important;
+    color: #000 !important;
   }
 
   [data-print-hide] {

@@ -30,10 +30,11 @@ export default async function LoginPage({
   if (staff) redirect(target);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6 py-12">
+    <main className="app-shell flex min-h-screen w-full flex-col items-center justify-center px-6 py-12">
+      <div className="w-full max-w-sm">
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight">Resceta</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-slate-300">
           Sign in to your pharmacy.
         </p>
       </header>
@@ -43,6 +44,7 @@ export default async function LoginPage({
       <p className="mt-8 text-xs text-slate-500">
         Accounts are created by your pharmacy&apos;s owner or manager, not here.
       </p>
+    </div>
     </main>
   );
 }

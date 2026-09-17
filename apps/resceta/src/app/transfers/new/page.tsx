@@ -33,7 +33,7 @@ export default async function NewTransferPage() {
             to leave somewhere real, and a transfer whose source the person
             guessed wrong is two wrong shelves.
           */}
-          From <span className="font-semibold text-slate-900">{from.name}</span>. Switch
+          From <span className="font-semibold text-white">{from.name}</span>. Switch
           branches in the header to send from somewhere else.
         </p>
         <TransferForm

@@ -35,7 +35,7 @@ export default async function BillingPage() {
     return (
       <AppShell staff={staff}>
         <main className="mx-auto max-w-lg px-6 py-16 text-center">
-          <p className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          <p className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6 text-sm text-slate-300">
             Only the owner can see what this pharmacy pays.
           </p>
         </main>
@@ -61,7 +61,7 @@ export default async function BillingPage() {
           // Honest rather than blank. A pharmacy with no subscription row is a
           // provisioning gap, not a free account, and saying so is how it gets
           // found.
-          <p className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
             No subscription is recorded for this pharmacy. Whoever set up your account can fix
             this from the CANVEXIA partner portal.
           </p>
@@ -77,10 +77,10 @@ export default async function BillingPage() {
               <section
                 className={`rounded-lg border p-5 ${
                   billing.daysLeft === 0
-                    ? "border-red-300 bg-red-50"
+                    ? "border-red-500/30 bg-red-500/10"
                     : (billing.daysLeft ?? 99) <= 14
-                      ? "border-amber-300 bg-amber-50"
-                      : "border-slate-200 bg-white"
+                      ? "border-amber-500/30 bg-amber-500/10"
+                      : "border-white/10 bg-white/[0.04] backdrop-blur-xl"
                 }`}
               >
                 <p className="font-semibold">
@@ -88,7 +88,7 @@ export default async function BillingPage() {
                     ? "Your plan has run out"
                     : `Paid until ${manilaDate(billing.paidUntil)}`}
                 </p>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-slate-300">
                   {billing.daysLeft === 0 ? (
                     <>
                       {/*
@@ -128,7 +128,7 @@ export default async function BillingPage() {
                 rejectedNote={billing.rejectedNote}
               />
             ) : (
-              <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+              <p className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
                 This account has no partner on file, so there is nobody to renew with yet.
               </p>
             )}
@@ -136,13 +136,13 @@ export default async function BillingPage() {
             <section>
               <h2 className="mb-2 font-semibold">Payment history</h2>
               {billing.invoices.length === 0 ? (
-                <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                <p className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
                   No payments recorded yet.
                 </p>
               ) : (
-                <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                <div className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <thead className="bg-white/[0.06] text-xs uppercase tracking-wide text-slate-500">
                       <tr>
                         <th className="px-4 py-2 font-medium">Date</th>
                         <th className="px-4 py-2 font-medium">Reference</th>
@@ -150,7 +150,7 @@ export default async function BillingPage() {
                         <th className="px-4 py-2 font-medium">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-white/10">
                       {billing.invoices.map((i) => (
                         <tr key={i.id}>
                           <td className="px-4 py-2">{manilaDate(i.createdAt)}</td>

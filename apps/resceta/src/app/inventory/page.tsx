@@ -66,27 +66,27 @@ export default async function InventoryPage({
         </div>
 
         <section className="mb-8 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Written off
             </p>
             <p className="mt-1 text-2xl font-semibold tabular-nums">{peso(total)}</p>
             <p className="mt-0.5 text-xs text-slate-500">at cost, in this window</p>
           </div>
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">
               Donated
             </p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-900">
+            <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-200">
               {peso(donated?.costCentavos ?? 0)}
             </p>
-            <p className="mt-0.5 text-xs text-emerald-800">
+            <p className="mt-0.5 text-xs text-emerald-300">
               {donated?.units ?? 0} units given away
             </p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">By reason</p>
-            <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+            <ul className="mt-1 space-y-0.5 text-xs text-slate-300">
               {summary.length === 0 && <li>Nothing in this window.</li>}
               {summary.map((s) => (
                 <li key={s.reason} className="flex justify-between">
@@ -139,13 +139,13 @@ export default async function InventoryPage({
           </div>
 
           {rows.length === 0 ? (
-            <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+            <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
               Nothing written off in this window.
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <table className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
+                <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-4 py-2 font-medium">When</th>
                     <th className="px-4 py-2 font-medium">Item</th>
@@ -155,7 +155,7 @@ export default async function InventoryPage({
                     <th className="px-4 py-2 text-right font-medium">At cost</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-white/10">
                   {rows.map((w) => (
                     <tr key={w.id}>
                       <td className="px-4 py-2 text-xs text-slate-500">
@@ -169,7 +169,7 @@ export default async function InventoryPage({
                       <td className="px-4 py-2">
                         {REASON_LABEL[w.reason as WriteoffReason] ?? w.reason}
                         {w.recipient && (
-                          <span className="ml-2 text-xs text-emerald-700">→ {w.recipient}</span>
+                          <span className="ml-2 text-xs text-emerald-300">→ {w.recipient}</span>
                         )}
                         {w.notes && <p className="text-xs text-slate-500">{w.notes}</p>}
                       </td>
@@ -184,7 +184,7 @@ export default async function InventoryPage({
           )}
         </section>
 
-        <p className="mt-6 text-xs text-slate-400">
+        <p className="mt-6 text-xs text-slate-500">
           Dates shown in Manila time. Expiry dates are the month printed on the
           pack — {manilaExpiry(now)} is this month, {manilaDate(now)} is today.
         </p>

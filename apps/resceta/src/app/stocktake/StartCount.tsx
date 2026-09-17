@@ -9,7 +9,7 @@ export function StartCount() {
   const [state, action, pending] = useActionState(startCount, IDLE);
 
   return (
-    <form action={action} className="rounded-xl border border-slate-200 bg-white p-5">
+    <form action={action} className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
       <p className="text-sm font-semibold">Start a count</p>
       <p className="mt-1 text-sm text-slate-500">
         Opens a sheet over the whole catalogue — including products the system
@@ -24,17 +24,17 @@ export function StartCount() {
             name="notes"
             maxLength={500}
             placeholder="Monthly count, October"
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-xl border border-white/10 px-3 py-2 text-sm"
           />
         </label>
         <button
           disabled={pending}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          className="rounded-lg brand-gradient px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
           {pending ? "Opening…" : "Open a count sheet"}
         </button>
       </div>
-      {state.status === "error" && <p className="mt-2 text-sm text-red-700">{state.message}</p>}
+      {state.status === "error" && <p className="mt-2 text-sm text-red-300">{state.message}</p>}
     </form>
   );
 }

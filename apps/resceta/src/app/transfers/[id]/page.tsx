@@ -43,8 +43,8 @@ export default async function TransferPage({ params }: { params: Promise<{ id: s
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <table className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
+            <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-2 font-medium">Item</th>
                 <th className="px-4 py-2 font-medium">Lot</th>
@@ -53,7 +53,7 @@ export default async function TransferPage({ params }: { params: Promise<{ id: s
                 <th className="px-4 py-2 text-right font-medium">At cost</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-white/10">
               {transfer.items.map((i) => (
                 <tr key={i.id}>
                   <td className="px-4 py-2">

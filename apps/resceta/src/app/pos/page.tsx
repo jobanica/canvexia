@@ -17,7 +17,7 @@ export default async function PosPage() {
     return (
       <AppShell staff={staff}>
         <main className="mx-auto max-w-lg px-6 py-16 text-center">
-          <p className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          <p className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6 text-sm text-slate-300">
             This account cannot ring up sales.
           </p>
         </main>
@@ -32,7 +32,7 @@ export default async function PosPage() {
       <main className="mx-auto max-w-5xl px-6 py-10">
         <h1 className="mb-8 text-2xl font-semibold tracking-tight">Counter</h1>
         {staff.pharmacyStatus !== "active" ? (
-          <p className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
             This pharmacy cannot dispense yet.
           </p>
         ) : (

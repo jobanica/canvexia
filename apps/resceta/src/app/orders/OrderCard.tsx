@@ -9,16 +9,16 @@ const IDLE: OrderState = { status: "idle" };
 /** What a given status may become. Mirrors the server, which is authoritative. */
 const NEXT: Record<string, { to: string; label: string; tone: string }[]> = {
   placed: [
-    { to: "confirmed", label: "Confirm", tone: "bg-slate-900 text-white" },
-    { to: "cancelled", label: "Cancel", tone: "border border-slate-300" },
+    { to: "confirmed", label: "Confirm", tone: "brand-gradient text-white" },
+    { to: "cancelled", label: "Cancel", tone: "border border-white/15" },
   ],
   confirmed: [
-    { to: "ready", label: "Ready for collection", tone: "bg-slate-900 text-white" },
-    { to: "cancelled", label: "Cancel", tone: "border border-slate-300" },
+    { to: "ready", label: "Ready for collection", tone: "brand-gradient text-white" },
+    { to: "cancelled", label: "Cancel", tone: "border border-white/15" },
   ],
   ready: [
     { to: "completed", label: "Collected and rung up", tone: "bg-emerald-600 text-white" },
-    { to: "cancelled", label: "Cancel", tone: "border border-slate-300" },
+    { to: "cancelled", label: "Cancel", tone: "border border-white/15" },
   ],
   completed: [],
   cancelled: [],
@@ -43,7 +43,7 @@ export function OrderCard({ order, canHandle }: { order: OrderView; canHandle: b
   const next = NEXT[order.status] ?? [];
 
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5">
+    <article className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-mono font-semibold">{order.orderNumber}</h2>
         <span className="text-xs text-slate-500">{manilaDateTime(order.createdAt)}</span>
@@ -54,17 +54,17 @@ export function OrderCard({ order, canHandle }: { order: OrderView; canHandle: b
         <a href={`tel:${order.customerPhone}`} className="underline">
           {order.customerPhone}
         </a>
-        <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+        <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-xs">
           {order.fulfilment === "delivery" ? "delivery" : "pick-up"}
         </span>
-        <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs">{order.status}</span>
+        <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-xs">{order.status}</span>
       </p>
       {order.customerAddress && (
-        <p className="mt-1 text-sm text-slate-600">{order.customerAddress}</p>
+        <p className="mt-1 text-sm text-slate-300">{order.customerAddress}</p>
       )}
-      {order.notes && <p className="mt-1 text-sm text-slate-600">{order.notes}</p>}
+      {order.notes && <p className="mt-1 text-sm text-slate-300">{order.notes}</p>}
 
-      <ul className="mt-3 divide-y divide-slate-100 text-sm">
+      <ul className="mt-3 divide-y divide-white/10 text-sm">
         {order.items.map((i) => (
           <li key={i.id} className="flex justify-between py-1">
             <span>
@@ -102,7 +102,7 @@ export function OrderCard({ order, canHandle }: { order: OrderView; canHandle: b
         </div>
       )}
 
-      {state.status === "error" && <p className="mt-2 text-sm text-red-700">{state.message}</p>}
+      {state.status === "error" && <p className="mt-2 text-sm text-red-300">{state.message}</p>}
     </article>
   );
 }

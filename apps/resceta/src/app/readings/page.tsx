@@ -31,13 +31,13 @@ export default async function ReadingsPage() {
         </p>
 
         {rows.length === 0 ? (
-          <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
             No Z-readings yet. One is cut each time a till is closed.
           </p>
         ) : (
           <div className="space-y-4">
             {rows.map((z) => (
-              <article key={z.id} className="rounded-xl border border-slate-200 bg-white p-5">
+              <article key={z.id} className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <h2 className="font-mono text-lg font-semibold">Z-{z.zCounter}</h2>
                   <p className="text-xs text-slate-500">
@@ -77,7 +77,7 @@ export default async function ReadingsPage() {
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className="flex justify-between border-b border-slate-100 py-1">
+    <div className="flex justify-between border-b border-white/10 py-1">
       <span className="text-slate-500">{label}</span>
       <span className={`tabular-nums ${strong ? "font-semibold" : ""}`}>{value}</span>
     </div>

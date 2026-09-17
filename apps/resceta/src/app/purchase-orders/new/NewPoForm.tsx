@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { raisePurchaseOrder, type PoState } from "../actions";
 
 const IDLE: PoState = { status: "idle" };
-const FIELD = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
+const FIELD = "w-full rounded-xl border border-white/10 px-3 py-2 text-sm";
 
 export interface PoProduct {
   id: string;
@@ -65,7 +65,7 @@ export function NewPoForm({
         </label>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4">
         <div className="mb-3 flex items-center justify-between">
           <p className="text-sm font-semibold">Lines</p>
           {low.length > 0 && (
@@ -122,7 +122,7 @@ export function NewPoForm({
                 <button
                   type="button"
                   onClick={() => setRows((r) => r.filter((k) => k !== rowKey))}
-                  className="text-slate-400 hover:text-red-700"
+                  className="text-slate-500 hover:text-red-300"
                   aria-label="Remove line"
                 >
                   ×
@@ -135,7 +135,7 @@ export function NewPoForm({
         <button
           type="button"
           onClick={() => setRows((r) => [...r, (r[r.length - 1] ?? 0) + 1])}
-          className="mt-3 text-sm text-slate-600 underline"
+          className="mt-3 text-sm text-slate-300 underline"
         >
           Add another line
         </button>
@@ -144,11 +144,11 @@ export function NewPoForm({
       <div className="flex items-center gap-3">
         <button
           disabled={pending || rows.length === 0}
-          className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+          className="rounded-lg brand-gradient px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
         >
           {pending ? "Raising…" : "Raise the order"}
         </button>
-        {state.status === "error" && <span className="text-sm text-red-700">{state.message}</span>}
+        {state.status === "error" && <span className="text-sm text-red-300">{state.message}</span>}
       </div>
     </form>
   );

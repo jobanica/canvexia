@@ -19,12 +19,12 @@ export function TransferControls({ transferId, status }: { transferId: string; s
 
   if (status !== "in_transit") {
     return received.status === "done" ? (
-      <p className="text-sm text-emerald-700">{received.message}</p>
+      <p className="text-sm text-emerald-300">{received.message}</p>
     ) : null;
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5">
+    <div className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
       <p className="text-sm font-semibold">These boxes are in transit</p>
       <p className="mt-1 text-sm text-slate-500">
         They have left the sending branch and are not on any shelf yet. Confirm
@@ -37,7 +37,7 @@ export function TransferControls({ transferId, status }: { transferId: string; s
           <input type="hidden" name="transferId" value={transferId} />
           <button
             disabled={receiving}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            className="rounded-lg brand-gradient px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
           >
             {receiving ? "Receiving…" : "They arrived"}
           </button>
@@ -47,22 +47,22 @@ export function TransferControls({ transferId, status }: { transferId: string; s
           <input type="hidden" name="transferId" value={transferId} />
           <button
             disabled={cancelling}
-            className="text-sm text-slate-500 underline hover:text-red-700 disabled:opacity-40"
+            className="text-sm text-slate-500 underline hover:text-red-300 disabled:opacity-40"
           >
             {cancelling ? "Cancelling…" : "Cancel and put the stock back"}
           </button>
         </form>
       </div>
 
-      {received.status === "error" && <p className="mt-2 text-sm text-red-700">{received.message}</p>}
+      {received.status === "error" && <p className="mt-2 text-sm text-red-300">{received.message}</p>}
       {received.status === "done" && (
-        <p className="mt-2 text-sm text-emerald-700">{received.message}</p>
+        <p className="mt-2 text-sm text-emerald-300">{received.message}</p>
       )}
       {cancelled.status === "error" && (
-        <p className="mt-2 text-sm text-red-700">{cancelled.message}</p>
+        <p className="mt-2 text-sm text-red-300">{cancelled.message}</p>
       )}
       {cancelled.status === "done" && (
-        <p className="mt-2 text-sm text-emerald-700">{cancelled.message}</p>
+        <p className="mt-2 text-sm text-emerald-300">{cancelled.message}</p>
       )}
     </div>
   );

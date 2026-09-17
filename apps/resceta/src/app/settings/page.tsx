@@ -17,7 +17,7 @@ export default async function SettingsPage() {
     return (
       <AppShell staff={staff}>
         <main className="mx-auto max-w-lg px-6 py-16 text-center">
-          <p className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          <p className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6 text-sm text-slate-300">
             Only the owner can change the pharmacy&apos;s details.
           </p>
         </main>

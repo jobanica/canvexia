@@ -6,7 +6,7 @@ import { LEAVE_LABEL, leaveDays } from "@/lib/pharmacy/hr";
 import { manilaDate } from "@/lib/money";
 
 const IDLE: HrState = { status: "idle" };
-const FIELD = "mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
+const FIELD = "mt-1 w-full rounded-xl border border-white/10 px-3 py-2 text-sm";
 const LABEL = "block text-xs font-semibold uppercase tracking-wide text-slate-500";
 
 const KINDS = ["vacation", "sick", "emergency", "unpaid", "maternity", "paternity"] as const;
@@ -19,7 +19,7 @@ export function LeaveForm({
   const [state, action, pending] = useActionState(fileLeave, IDLE);
 
   return (
-    <form action={action} className="rounded-xl border border-slate-200 bg-white p-5">
+    <form action={action} className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
       <p className="text-sm font-semibold">File a leave request</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className={LABEL}>
@@ -59,13 +59,13 @@ export function LeaveForm({
       <div className="mt-4 flex items-center gap-3">
         <button
           disabled={pending}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          className="rounded-lg brand-gradient px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
           {pending ? "Filing…" : "File it"}
         </button>
-        {state.status === "error" && <span className="text-sm text-red-700">{state.message}</span>}
+        {state.status === "error" && <span className="text-sm text-red-300">{state.message}</span>}
         {state.status === "done" && (
-          <span className="text-sm text-emerald-700">{state.message}</span>
+          <span className="text-sm text-emerald-300">{state.message}</span>
         )}
       </div>
     </form>
@@ -89,7 +89,7 @@ export function LeaveDecision({ requestId }: { requestId: string }) {
         name="reviewNote"
         maxLength={300}
         placeholder="Note (optional)"
-        className="rounded-lg border border-slate-200 px-2 py-1 text-xs"
+        className="rounded-xl border border-white/10 px-2 py-1 text-xs"
       />
       <button
         name="decision"
@@ -103,11 +103,11 @@ export function LeaveDecision({ requestId }: { requestId: string }) {
         name="decision"
         value="rejected"
         disabled={pending}
-        className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold disabled:opacity-40"
+        className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold disabled:opacity-40"
       >
         Reject
       </button>
-      {state.status === "error" && <span className="text-xs text-red-700">{state.message}</span>}
+      {state.status === "error" && <span className="text-xs text-red-300">{state.message}</span>}
     </form>
   );
 }
@@ -131,10 +131,10 @@ export function LeaveRow({
   const days = leaveDays(request.startDate, request.endDate);
   const tone =
     request.status === "approved"
-      ? "bg-emerald-100 text-emerald-800"
+      ? "bg-emerald-500/15 text-emerald-300"
       : request.status === "rejected"
-        ? "bg-red-100 text-red-800"
-        : "bg-amber-100 text-amber-900";
+        ? "bg-red-500/15 text-red-300"
+        : "bg-amber-500/15 text-amber-200";
 
   return (
     <li className="px-4 py-3">
@@ -149,7 +149,7 @@ export function LeaveRow({
         </span>
         <span className={`rounded px-2 py-0.5 text-xs font-medium ${tone}`}>{request.status}</span>
       </div>
-      {request.reason && <p className="mt-1 text-sm text-slate-600">{request.reason}</p>}
+      {request.reason && <p className="mt-1 text-sm text-slate-300">{request.reason}</p>}
       {request.reviewNote && (
         <p className="mt-1 text-xs text-slate-500">Reviewer: {request.reviewNote}</p>
       )}

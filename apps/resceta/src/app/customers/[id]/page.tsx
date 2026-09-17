@@ -81,28 +81,28 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             Purchases
           </h2>
           {customer.sales.length === 0 ? (
-            <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+            <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
               Nothing bought yet.
             </p>
           ) : (
-            <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
+            <ul className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
               {customer.sales.map((s) => (
                 <li key={s.id} className="flex items-center justify-between px-4 py-2">
                   <Link href={`/receipts/${s.id}`} className="font-mono text-xs underline">
                     {s.receiptNumber}
                   </Link>
                   <span className="flex items-center gap-3">
-                    <span className="text-xs text-slate-400">{manilaDate(s.createdAt)}</span>
+                    <span className="text-xs text-slate-500">{manilaDate(s.createdAt)}</span>
                     {s.status === "voided" && (
-                      <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-800">
+                      <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-xs text-red-300">
                         voided
                       </span>
                     )}
                     {loyalty.on && s.pointsEarned > 0 && (
-                      <span className="text-xs text-emerald-700">+{s.pointsEarned} pts</span>
+                      <span className="text-xs text-emerald-300">+{s.pointsEarned} pts</span>
                     )}
                     <span
-                      className={`tabular-nums ${s.status === "voided" ? "text-slate-400 line-through" : ""}`}
+                      className={`tabular-nums ${s.status === "voided" ? "text-slate-500 line-through" : ""}`}
                     >
                       {peso(s.totalCentavos)}
                     </span>
@@ -118,13 +118,13 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
               Prescriptions on file
             </h2>
-            <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
+            <ul className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
               {customer.prescriptions.map((rx) => (
                 <li key={rx.id} className="flex items-center justify-between px-4 py-2">
                   <span>
                     {rx.doctorName}
                     {rx.doctorPrcNo && (
-                      <span className="ml-2 font-mono text-xs text-slate-400">
+                      <span className="ml-2 font-mono text-xs text-slate-500">
                         PRC {rx.doctorPrcNo}
                       </span>
                     )}
@@ -146,17 +146,17 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
               cache so the counter does not sum a thousand rows while somebody
               waits; this is what gets shown to a customer who disputes it.
             */}
-            <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
+            <ul className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
               {customer.loyaltyTxns.map((t) => (
                 <li key={t.id} className="flex items-center justify-between px-4 py-2">
                   <span>
-                    <span className="uppercase text-xs text-slate-400">{t.kind}</span>
-                    {t.note && <span className="ml-2 text-slate-600">{t.note}</span>}
+                    <span className="uppercase text-xs text-slate-500">{t.kind}</span>
+                    {t.note && <span className="ml-2 text-slate-300">{t.note}</span>}
                   </span>
                   <span className="flex items-center gap-3">
-                    <span className="text-xs text-slate-400">{manilaDateTime(t.createdAt)}</span>
+                    <span className="text-xs text-slate-500">{manilaDateTime(t.createdAt)}</span>
                     <span
-                      className={`tabular-nums font-semibold ${t.points < 0 ? "text-red-700" : "text-emerald-700"}`}
+                      className={`tabular-nums font-semibold ${t.points < 0 ? "text-red-300" : "text-emerald-300"}`}
                     >
                       {t.points > 0 ? "+" : ""}
                       {t.points}

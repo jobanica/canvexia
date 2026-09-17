@@ -71,7 +71,8 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6 py-12">
+    <main className="app-shell flex min-h-screen w-full flex-col items-center justify-center px-6 py-12">
+      <div className="w-full max-w-sm">
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight">Set a new password</h1>
       </header>
@@ -79,7 +80,7 @@ export default function ResetPasswordPage() {
       {ready === "checking" && <p className="text-sm text-slate-500">Checking your link…</p>}
 
       {ready === "no-session" && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
           This link has expired or has already been used.
           <p className="mt-3">
             <Link href="/forgot-password" className="font-medium underline">
@@ -113,19 +114,20 @@ export default function ResetPasswordPage() {
               minLength={8}
             />
             {error && (
-              <p role="alert" className="rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-900">
+              <p role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-200">
                 {error}
               </p>
             )}
             <button
               type="submit"
               disabled={pending}
-              className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+              className="w-full rounded-md brand-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
             >
               {pending ? "Saving…" : "Update password"}
             </button>
           </form>
         ))}
+    </div>
     </main>
   );
 }

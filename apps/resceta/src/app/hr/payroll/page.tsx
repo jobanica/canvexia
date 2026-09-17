@@ -55,7 +55,7 @@ export default async function PayrollPage({
           statutory deductions and calls the result "net" is worse than one that
           does not try.
         */}
-        <p className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+        <p className="mb-6 rounded-xl border border-white/10 bg-white/[0.06] p-4 text-sm text-slate-200">
           <strong>Gross pay only.</strong> SSS, PhilHealth, Pag-IBIG and
           withholding tax are not computed here — their tables change, and a
           half-built version would be wrong in a way nobody notices. Use this to
@@ -63,7 +63,7 @@ export default async function PayrollPage({
         </p>
 
         {problems.length > 0 && (
-          <p className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
             {problems.length} employee{problems.length === 1 ? " has" : "s have"} days clocked in
             and never clocked out. Those count as zero hours — fix them on the
             timesheet before paying anybody hourly.
@@ -71,13 +71,13 @@ export default async function PayrollPage({
         )}
 
         {rows.length === 0 ? (
-          <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
             Nobody on the payroll.
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <table className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
+              <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-2 font-medium">Employee</th>
                   <th className="px-4 py-2 font-medium">Basis</th>
@@ -87,24 +87,24 @@ export default async function PayrollPage({
                   <th className="px-4 py-2 text-right font-medium">Gross</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-white/10">
                 {rows.map((r) => (
                   <tr key={r.employee.id}>
                     <td className="px-4 py-2">
                       {r.employee.fullName}
                       {r.unpairedDays > 0 && (
-                        <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">
+                        <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-200">
                           {r.unpairedDays} unclosed
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-slate-600">
+                    <td className="px-4 py-2 text-slate-300">
                       {PAY_TYPE_LABEL[r.employee.payType]} ·{" "}
                       {peso(r.employee.payRateCentavos)}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">{r.daysPresent}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{r.totalHours}</td>
-                    <td className="px-4 py-2 text-right tabular-nums text-amber-700">
+                    <td className="px-4 py-2 text-right tabular-nums text-amber-300">
                       {r.lateMinutes > 0 ? `${r.lateMinutes}m` : "—"}
                     </td>
                     <td className="px-4 py-2 text-right font-semibold tabular-nums">
@@ -114,7 +114,7 @@ export default async function PayrollPage({
                 ))}
               </tbody>
               <tfoot>
-                <tr className="bg-slate-50 font-semibold">
+                <tr className="bg-white/[0.06] font-semibold">
                   <td className="px-4 py-2" colSpan={5}>
                     Total gross for the period
                   </td>

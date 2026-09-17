@@ -38,14 +38,14 @@ export function SupplierBook({ rows, canEdit }: { rows: SupplierRow[]; canEdit: 
       )}
 
       {rows.length === 0 ? (
-        <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+        <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
           No suppliers yet. Add the distributor you buy from, and it will be
           offered when you receive a delivery.
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <table className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
+            <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-2 font-medium">Supplier</th>
                 <th className="px-4 py-2 font-medium">Contact</th>
@@ -55,15 +55,15 @@ export function SupplierBook({ rows, canEdit }: { rows: SupplierRow[]; canEdit: 
                 {canEdit && <th className="px-4 py-2" />}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-white/10">
               {rows.map((s) => (
-                <tr key={s.id} className={editing?.id === s.id ? "bg-slate-50" : undefined}>
+                <tr key={s.id} className={editing?.id === s.id ? "bg-white/[0.06]" : undefined}>
                   <td className="px-4 py-2">
                     <span className="font-medium">{s.name}</span>
-                    {s.address && <p className="text-xs text-slate-400">{s.address}</p>}
+                    {s.address && <p className="text-xs text-slate-500">{s.address}</p>}
                     {s.notes && <p className="mt-0.5 text-xs text-slate-500">{s.notes}</p>}
                   </td>
-                  <td className="px-4 py-2 text-slate-600">
+                  <td className="px-4 py-2 text-slate-300">
                     {s.contactPerson ?? "—"}
                     {/*
                       A tel: link, because the whole reason this screen exists
@@ -77,7 +77,7 @@ export function SupplierBook({ rows, canEdit }: { rows: SupplierRow[]; canEdit: 
                         </a>
                       </p>
                     )}
-                    {s.email && <p className="text-xs text-slate-400">{s.email}</p>}
+                    {s.email && <p className="text-xs text-slate-500">{s.email}</p>}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">{s.deliveries}</td>
                   <td className="px-4 py-2 text-slate-500">

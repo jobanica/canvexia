@@ -26,14 +26,14 @@ function Field({
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "defaultValue">) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 flex flex-wrap items-center gap-2 font-medium text-slate-700">
+      <span className="mb-1 flex flex-wrap items-center gap-2 font-medium text-slate-200">
         {label}
         {required && <span className="text-red-600">*</span>}
         {/* Not a red star: this does not block saving. A pharmacy chasing its
             LTO still needs to record its address today, and a form that
             refuses is a form people work around. */}
         {forReceipt && (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-normal text-slate-600">
+          <span className="rounded bg-white/10 px-1.5 py-0.5 text-xs font-normal text-slate-300">
             needed on a receipt
           </span>
         )}
@@ -41,7 +41,7 @@ function Field({
       <input
         name={name}
         defaultValue={defaultValue ?? ""}
-        className="w-full rounded border border-slate-300 px-2 py-1.5"
+        className="w-full rounded border border-white/15 px-2 py-1.5"
         {...rest}
       />
       {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
@@ -68,10 +68,10 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
 
   return (
     <form action={action} className="space-y-8">
-      <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+      <section className="space-y-4 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
         <div>
           <h2 className="font-semibold">On the receipt</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-300">
             Registered as <strong>{settings.name}</strong>. These appear at the
             head of every receipt printed from now on; receipts already printed
             are unchanged.
@@ -105,10 +105,10 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+      <section className="space-y-4 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
         <div>
           <h2 className="font-semibold">Licences and registration</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-300">
             Leave any of these blank and it saves — but the receipt then
             prints marked <strong>NOT AN OFFICIAL RECEIPT</strong>, because a
             blank space where a licence number belongs still looks official to
@@ -144,10 +144,10 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
         />
       </section>
 
-      <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+      <section className="space-y-4 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
         <div>
           <h2 className="font-semibold">VAT</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-300">
             This drives the VAT box on every receipt <em>and</em> the Senior
             Citizen and PWD arithmetic — the 20% is taken on the VAT-exclusive
             price, so the rate is part of a statutory calculation. Change it only
@@ -167,10 +167,10 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
         />
       </section>
 
-      <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+      <section className="space-y-4 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
         <div>
           <h2 className="font-semibold">Receipts and the printer</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-300">
             A receipt laid out for an 80mm roll and printed on a 58mm one wraps
             every line, so the width is set here rather than guessed. The BIR
             permit number and machine serial are what a registered POS has to
@@ -182,7 +182,7 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
           <select
             name="receiptPaperMm"
             defaultValue={String(settings.receiptPaperMm ?? 58)}
-            className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="mt-1 block w-full rounded-md border border-white/15 px-3 py-2 text-sm"
           >
             <option value="58">58mm (most thermal printers)</option>
             <option value="80">80mm (wide roll)</option>
@@ -218,7 +218,7 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+      <section className="space-y-4 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
         <div>
           <h2 className="font-semibold">Loyalty points</h2>
           {/*
@@ -226,7 +226,7 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
             than no points at all — so the programme is only on when an earn
             rate AND a redemption value are set, and zero in either means off.
           */}
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-300">
             Off unless both numbers are set. Points that can be earned and never
             spent are worse than none — so a redemption value of zero switches
             the whole thing off, whatever the earn rate says.
@@ -254,10 +254,10 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+      <section className="space-y-4 rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
         <div>
           <h2 className="font-semibold">Public shop page</h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-300">
             A page customers can open to see what you stock and send an order
             request. It is <strong>off</strong> until you turn it on — a public
             page listing medicine is a decision, not something to discover you
@@ -268,7 +268,7 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
             Dispensing one without a prescription is an offence, and a public
             page that takes an order for one is an invitation to commit it.
           */}
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-300">
             Prescription-only items are never shown or orderable on it, whatever
             else is set. Nothing on the page moves stock — an order is a request
             you confirm and ring up at the counter.
@@ -299,7 +299,7 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
           Offer delivery as well as pick-up
         </label>
         {settings.storefrontOn && (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-slate-300">
             Your page is at{" "}
             <a href={`/shop/${settings.slug}`} className="font-medium underline" target="_blank" rel="noreferrer">
               /shop/{settings.slug}
@@ -310,12 +310,12 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
       </section>
 
       {state.status === "error" && (
-        <p role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-900">
+        <p role="alert" className="rounded border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
           {state.message}
         </p>
       )}
       {state.status === "done" && (
-        <p className="rounded border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
+        <p className="rounded border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">
           {state.message}
         </p>
       )}
@@ -323,7 +323,7 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+        className="rounded-md brand-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
       >
         {pending ? "Saving…" : "Save"}
       </button>

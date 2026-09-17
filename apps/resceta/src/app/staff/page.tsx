@@ -15,7 +15,7 @@ export default async function StaffPage() {
     return (
       <AppShell staff={staff}>
         <main className="mx-auto max-w-lg px-6 py-16 text-center">
-          <p className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          <p className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6 text-sm text-slate-300">
             This account cannot manage staff.
           </p>
         </main>
@@ -31,7 +31,7 @@ export default async function StaffPage() {
         <h1 className="mb-8 text-2xl font-semibold tracking-tight">Staff</h1>
 
         <section className="mb-10">
-          <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
+          <ul className="divide-y divide-white/10 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
             {people.map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-4 px-4 py-3">
                 <span className="min-w-0">
@@ -46,7 +46,7 @@ export default async function StaffPage() {
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-3">
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+                  <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-slate-200">
                     {ROLE_LABEL[p.role as PharmacyRole]}
                   </span>
                   {p.id !== staff.staffId && <RemoveStaffButton staffId={p.id} />}

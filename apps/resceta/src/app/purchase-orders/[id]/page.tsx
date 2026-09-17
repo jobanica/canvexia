@@ -48,18 +48,18 @@ export default async function PoPage({ params }: { params: Promise<{ id: string 
               {po.expectedDate && ` · expected ${manilaDate(po.expectedDate)}`}
             </p>
           </div>
-          <span className="rounded bg-slate-100 px-3 py-1 text-sm font-medium">{po.status}</span>
+          <span className="rounded bg-white/10 px-3 py-1 text-sm font-medium">{po.status}</span>
         </div>
 
-        {po.notes && <p className="mt-4 text-sm text-slate-600">{po.notes}</p>}
+        {po.notes && <p className="mt-4 text-sm text-slate-300">{po.notes}</p>}
 
         <section className="mt-8">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
             Lines
           </h2>
           <div className="overflow-x-auto">
-            <table className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <table className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
+              <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-2 font-medium">Item</th>
                   <th className="px-4 py-2 text-right font-medium">Ordered</th>
@@ -69,7 +69,7 @@ export default async function PoPage({ params }: { params: Promise<{ id: string 
                   <th className="px-4 py-2 text-right font-medium">Line</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-white/10">
                 {po.items.map((i) => (
                   <tr key={i.id}>
                     <td className="px-4 py-2">
@@ -82,7 +82,7 @@ export default async function PoPage({ params }: { params: Promise<{ id: string 
                     <td className="px-4 py-2 text-right tabular-nums">{i.quantityReceived}</td>
                     <td
                       className={`px-4 py-2 text-right tabular-nums ${
-                        outstanding(i) > 0 ? "font-semibold text-amber-700" : "text-slate-400"
+                        outstanding(i) > 0 ? "font-semibold text-amber-300" : "text-slate-500"
                       }`}
                     >
                       {outstanding(i)}
@@ -97,7 +97,7 @@ export default async function PoPage({ params }: { params: Promise<{ id: string 
                 ))}
               </tbody>
               <tfoot>
-                <tr className="bg-slate-50 font-semibold">
+                <tr className="bg-white/[0.06] font-semibold">
                   <td className="px-4 py-2" colSpan={5}>
                     Ordered value
                   </td>

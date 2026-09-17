@@ -53,7 +53,7 @@ export default async function ShiftPage() {
                 what the drawer should hold; being unable to ask without ending
                 the day is how a discrepancy gets found twelve hours late.
               */}
-              <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5">
+              <section className="mb-6 rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
                 <p className="text-sm font-semibold">X-reading, so far</p>
                 <div className="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
                   <Line label="Sales" value={String(x.totals.salesCount)} />
@@ -89,13 +89,13 @@ export default async function ShiftPage() {
             Past shifts
           </h2>
           {shifts.length === 0 ? (
-            <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+            <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
               No shifts yet.
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
-                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <table className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
+                <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-4 py-2 font-medium">Opened</th>
                     <th className="px-4 py-2 font-medium">Cashier</th>
@@ -104,19 +104,19 @@ export default async function ShiftPage() {
                     <th className="px-4 py-2 text-right font-medium">Drawer</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-white/10">
                   {shifts.map((s) => (
                     <tr key={s.id}>
                       <td className="px-4 py-2">
                         {manilaDateTime(s.openedAt)}
                         {s.status === "open" && (
-                          <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-800">
+                          <span className="ml-2 rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs text-emerald-300">
                             open
                           </span>
                         )}
                         {s.notes && <p className="text-xs text-slate-500">{s.notes}</p>}
                       </td>
-                      <td className="px-4 py-2 text-slate-600">{s.staffName ?? "—"}</td>
+                      <td className="px-4 py-2 text-slate-300">{s.staffName ?? "—"}</td>
                       <td className="px-4 py-2 text-right tabular-nums">{s.salesCount ?? "—"}</td>
                       <td className="px-4 py-2 text-right tabular-nums">
                         {s.netCentavos === null ? "—" : peso(s.netCentavos)}
@@ -125,9 +125,9 @@ export default async function ShiftPage() {
                         {s.overShortCentavos === null ? (
                           "—"
                         ) : s.overShortCentavos === 0 ? (
-                          <span className="text-emerald-700">balanced</span>
+                          <span className="text-emerald-300">balanced</span>
                         ) : (
-                          <span className={s.overShortCentavos < 0 ? "text-red-700" : "text-amber-700"}>
+                          <span className={s.overShortCentavos < 0 ? "text-red-300" : "text-amber-300"}>
                             {peso(Math.abs(s.overShortCentavos))}{" "}
                             {s.overShortCentavos < 0 ? "short" : "over"}
                           </span>
@@ -147,7 +147,7 @@ export default async function ShiftPage() {
 
 function Line({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className="flex justify-between border-b border-slate-100 py-1 text-sm">
+    <div className="flex justify-between border-b border-white/10 py-1 text-sm">
       <span className="text-slate-500">{label}</span>
       <span className={`tabular-nums ${strong ? "font-semibold" : ""}`}>{value}</span>
     </div>

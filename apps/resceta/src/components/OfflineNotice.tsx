@@ -28,7 +28,7 @@ export function OfflineNotice() {
   return (
     <div
       role="status"
-      className="border-b border-amber-300 bg-amber-100 px-6 py-2 text-center text-sm font-medium text-amber-900"
+      className="border-b border-amber-300 bg-amber-500/15 px-6 py-2 text-center text-sm font-medium text-amber-200"
     >
       No connection. You can still look things up, but a sale cannot be completed until this
       comes back.

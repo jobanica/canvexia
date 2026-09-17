@@ -37,7 +37,7 @@ export function BranchSwitcher({
         // Submitting on change: a Go button beside a dropdown is a button
         // people forget to press, and then wonder why the figures are wrong.
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
+        className="rounded-xl border border-white/10 px-2 py-1 text-sm"
         aria-label="Branch"
       >
         {branches.map((b) => (
@@ -53,7 +53,7 @@ export function BranchSwitcher({
         {canSeeAll && <option value="all">All branches</option>}
       </select>
       <noscript>
-        <button className="rounded-lg border border-slate-200 px-2 py-1 text-xs">Go</button>
+        <button className="rounded-xl border border-white/10 px-2 py-1 text-xs">Go</button>
       </noscript>
     </form>
   );

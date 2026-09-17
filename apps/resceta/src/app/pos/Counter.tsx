@@ -83,7 +83,7 @@ export function Counter({
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
           Catalogue
         </h2>
-        <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <ul className="divide-y divide-white/10 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl">
           {products.map((p) => {
             const qty = cart[p.id] ?? 0;
             const out = p.onHand === 0;
@@ -98,7 +98,7 @@ export function Counter({
                   <p className="truncate font-medium">
                     {p.name}
                     {p.requiresPrescription && (
-                      <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-xs text-violet-800">
+                      <span className="ml-2 rounded bg-violet-500/15 px-1.5 py-0.5 text-xs text-violet-300">
                         Rx
                       </span>
                     )}
@@ -113,7 +113,7 @@ export function Counter({
                     type="button"
                     onClick={() => add(p.id, -1)}
                     disabled={qty === 0}
-                    className="h-8 w-8 rounded border border-slate-300 disabled:opacity-30"
+                    className="h-8 w-8 rounded border border-white/15 disabled:opacity-30"
                     aria-label={`Remove one ${p.name}`}
                   >
                     −
@@ -123,7 +123,7 @@ export function Counter({
                     type="button"
                     onClick={() => add(p.id, 1)}
                     disabled={out || qty >= p.onHand}
-                    className="h-8 w-8 rounded border border-slate-300 disabled:opacity-30"
+                    className="h-8 w-8 rounded border border-white/15 disabled:opacity-30"
                     aria-label={`Add one ${p.name}`}
                   >
                     +
@@ -135,17 +135,17 @@ export function Counter({
         </ul>
       </div>
 
-      <aside className="h-fit rounded-lg border border-slate-200 bg-white p-4">
+      <aside className="h-fit rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
           Sale
         </h2>
 
         <label className="mb-3 block text-sm">
-          <span className="mb-1 block text-slate-600">Discount</span>
+          <span className="mb-1 block text-slate-300">Discount</span>
           <select
             value={discountType}
             onChange={(e) => setDiscountType(e.target.value as DiscountType)}
-            className="w-full rounded border border-slate-300 px-2 py-1.5"
+            className="w-full rounded border border-white/15 px-2 py-1.5"
           >
             <option value="none">None</option>
             <option value="sc">Senior Citizen (20%, VAT-exempt)</option>
@@ -154,9 +154,9 @@ export function Counter({
         </label>
 
         {statutory && (
-          <div className="mb-3 space-y-2 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm">
+          <div className="mb-3 space-y-2 rounded border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
             <label className="block">
-              <span className="mb-1 block text-emerald-900">ID number</span>
+              <span className="mb-1 block text-emerald-200">ID number</span>
               <input
                 name="beneficiaryIdNo"
                 required
@@ -164,13 +164,13 @@ export function Counter({
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-emerald-900">Name</span>
+              <span className="mb-1 block text-emerald-200">Name</span>
               <input
                 name="beneficiaryName"
                 className="w-full rounded border border-emerald-300 px-2 py-1.5"
               />
             </label>
-            <p className="text-xs text-emerald-800">
+            <p className="text-xs text-emerald-300">
               The discount is taken off the VAT-exclusive price and the sale is
               VAT-exempt. The ID goes on the receipt and in the logbook.
             </p>
@@ -200,10 +200,10 @@ export function Counter({
         )}
 
         <label className="mb-3 block text-sm">
-          <span className="mb-1 block text-slate-600">Payment</span>
+          <span className="mb-1 block text-slate-300">Payment</span>
           <select
             name="paymentMethod"
-            className="w-full rounded border border-slate-300 px-2 py-1.5"
+            className="w-full rounded border border-white/15 px-2 py-1.5"
           >
             <option value="cash">Cash</option>
             <option value="gcash">GCash</option>
@@ -212,13 +212,13 @@ export function Counter({
           </select>
         </label>
 
-        <dl className="mb-4 space-y-1 border-t border-slate-200 pt-3 text-sm">
+        <dl className="mb-4 space-y-1 border-t border-white/10 pt-3 text-sm">
           <div className="flex justify-between">
-            <dt className="text-slate-600">Subtotal</dt>
+            <dt className="text-slate-300">Subtotal</dt>
             <dd className="tabular-nums">{peso(totals.subtotalCentavos)}</dd>
           </div>
           {totals.discountCentavos > 0 && (
-            <div className="flex justify-between text-emerald-700">
+            <div className="flex justify-between text-emerald-300">
               <dt>Discount</dt>
               <dd className="tabular-nums">−{peso(totals.discountCentavos)}</dd>
             </div>
@@ -238,7 +238,7 @@ export function Counter({
         <button
           type="submit"
           disabled={pending || lines.length === 0 || blockedOnRx || !online}
-          className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+          className="w-full rounded-md brand-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
         >
           {pending ? "Recording…" : "Complete sale"}
         </button>
@@ -256,18 +256,18 @@ export function Counter({
           out loud, instead of hanging with a customer waiting.
         */}
         {!online && lines.length > 0 && (
-          <p className="mt-2 text-center text-sm text-amber-800">
+          <p className="mt-2 text-center text-sm text-amber-300">
             No connection — a sale cannot be recorded until it comes back.
           </p>
         )}
 
         {state.status === "error" && (
-          <p className="mt-3 rounded border border-red-300 bg-red-50 p-2 text-sm text-red-900">
+          <p className="mt-3 rounded border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-200">
             {state.message}
           </p>
         )}
         {state.status === "done" && (
-          <div className="mt-3 space-y-2 rounded border border-emerald-300 bg-emerald-50 p-2 text-sm text-emerald-900">
+          <div className="mt-3 space-y-2 rounded border border-emerald-500/30 bg-emerald-500/10 p-2 text-sm text-emerald-200">
             <p>
               Receipt <span className="font-mono">{state.receiptNumber}</span> ·{" "}
               {peso(state.totalCentavos)}

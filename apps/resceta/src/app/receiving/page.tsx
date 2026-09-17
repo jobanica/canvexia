@@ -18,7 +18,7 @@ export default async function ReceivingPage() {
     return (
       <AppShell staff={staff}>
         <main className="mx-auto max-w-lg px-6 py-16 text-center">
-          <p className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          <p className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-6 text-sm text-slate-300">
             This account cannot receive stock.
           </p>
         </main>
@@ -36,14 +36,14 @@ export default async function ReceivingPage() {
     <AppShell staff={staff}>
       <main className="mx-auto max-w-5xl px-6 py-10">
         <h1 className="mb-2 text-2xl font-semibold tracking-tight">Receive stock</h1>
-        <p className="mb-8 text-sm text-slate-600">
+        <p className="mb-8 text-sm text-slate-300">
           Every line becomes its own batch, with its own lot number, expiry and
           cost — two deliveries of the same drug are two batches, because they
           expire on different days and cost different money.
         </p>
 
         {!canCreateProducts && (
-          <p className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+          <p className="mb-6 rounded-xl border border-white/10 bg-white/[0.06] p-3 text-sm text-slate-300">
             You can receive stock into products that already exist. Adding a new
             product needs a manager or the owner — the selling price is what the
             till will charge.
@@ -61,18 +61,18 @@ export default async function ReceivingPage() {
             Recent deliveries
           </h2>
           {deliveries.length === 0 ? (
-            <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+            <p className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
               Nothing received yet.
             </p>
           ) : (
             <ul className="space-y-3">
               {deliveries.map((d) => (
-                <li key={d.ref} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2 text-sm">
-                    <span className="text-slate-700">{d.reason ?? "Delivery received"}</span>
+                <li key={d.ref} className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/[0.06] px-4 py-2 text-sm">
+                    <span className="text-slate-200">{d.reason ?? "Delivery received"}</span>
                     <span className="text-xs text-slate-500">{manilaDate(d.at)}</span>
                   </div>
-                  <ul className="divide-y divide-slate-100 text-sm">
+                  <ul className="divide-y divide-white/10 text-sm">
                     {d.lines.map((l, i) => (
                       <li key={i} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
                         <span className="font-medium">{l.product}</span>

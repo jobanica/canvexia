@@ -42,7 +42,7 @@ export default async function OrdersPage() {
         </p>
 
         {!settings?.storefrontOn && (
-          <p className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
             Your shop page is switched off, so no new orders can arrive. Turn it
             on under{" "}
             <Link href="/settings" className="font-medium underline">
@@ -53,7 +53,7 @@ export default async function OrdersPage() {
         )}
 
         {open.length === 0 && closed.length === 0 ? (
-          <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
             No orders yet.
           </p>
         ) : (

@@ -54,7 +54,7 @@ export default async function ReceiptPage({
         <h1 className="mt-1 flex flex-wrap items-center gap-3 text-2xl font-semibold tracking-tight">
           <span className="font-mono">{sale.receiptNumber}</span>
           {sale.status === "voided" && (
-            <span className="rounded bg-red-100 px-2 py-0.5 text-sm font-medium text-red-800">
+            <span className="rounded bg-red-500/15 px-2 py-0.5 text-sm font-medium text-red-300">
               voided
             </span>
           )}
@@ -63,14 +63,14 @@ export default async function ReceiptPage({
           {manilaDate(sale.createdAt)}
           <Link
             href={`/receipts/${sale.id}/print`}
-            className="font-medium text-slate-700 underline"
+            className="font-medium text-slate-200 underline"
           >
             Print receipt
           </Link>
         </p>
 
-        <section className="mb-8 overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <ul className="divide-y divide-slate-100 text-sm">
+        <section className="mb-8 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl">
+          <ul className="divide-y divide-white/10 text-sm">
             {sale.items.map((i) => (
               <li key={i.id} className="flex flex-wrap items-center gap-x-4 px-4 py-2">
                 <span className="font-medium">{i.nameAtTime}</span>
@@ -91,7 +91,7 @@ export default async function ReceiptPage({
               price states a 28.6% discount — the other ₱12 is VAT that came off
               before it. Two screens disagreeing about a statutory figure is
               worse than either of them being wrong alone. */}
-          <dl className="space-y-1 border-t border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+          <dl className="space-y-1 border-t border-white/10 bg-white/[0.06] px-4 py-3 text-sm">
             {summaryRows(
               {
                 subtotalCentavos: sale.subtotalCentavos,
@@ -104,7 +104,7 @@ export default async function ReceiptPage({
               <div
                 key={i}
                 className={`flex justify-between ${
-                  row.kind === "due" ? "font-semibold" : "text-slate-600"
+                  row.kind === "due" ? "font-semibold" : "text-slate-300"
                 }`}
               >
                 <dt>{row.label}</dt>
@@ -121,7 +121,7 @@ export default async function ReceiptPage({
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
               Credit notes
             </h2>
-            <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
+            <ul className="divide-y divide-white/10 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
               {sale.returns.map((r) => {
                 const restocked = r.items
                   .filter((i) => i.disposition === "restocked")
@@ -133,12 +133,12 @@ export default async function ReceiptPage({
                   <li key={r.id} className="flex flex-wrap items-center gap-x-3 px-4 py-2">
                     <Link
                       href={`/returns/${r.id}/print?from=${sale.id}`}
-                      className="font-mono text-xs text-slate-700 underline"
+                      className="font-mono text-xs text-slate-200 underline"
                     >
                       {r.returnNumber}
                     </Link>
                     <span className="text-slate-500">{manilaDate(r.createdAt)}</span>
-                    {r.reason && <span className="text-slate-600">{r.reason}</span>}
+                    {r.reason && <span className="text-slate-300">{r.reason}</span>}
                     <span className="text-xs text-slate-500">
                       {restocked > 0 && `${restocked} restocked`}
                       {restocked > 0 && destroyed > 0 && " · "}
@@ -153,7 +153,7 @@ export default async function ReceiptPage({
         )}
 
         {sale.status === "voided" ? (
-          <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          <p className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
             This receipt was voided. The stock went back to the batches it came
             from and the figures above are kept as they were printed.
           </p>
@@ -178,7 +178,7 @@ export default async function ReceiptPage({
                 {voidable.ok ? (
                   <VoidForm saleId={sale.id} receiptNumber={sale.receiptNumber} />
                 ) : (
-                  <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                  <p className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
                     {voidable.message}
                   </p>
                 )}

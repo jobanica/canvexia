@@ -93,9 +93,9 @@ export function InstallApp({ className = "" }: { className?: string }) {
   if (hidden || (!prompt && !ios)) return null;
 
   return (
-    <div className={`rounded-lg border border-slate-200 bg-white p-4 text-sm ${className}`}>
-      <p className="font-semibold text-slate-900">Install Resceta</p>
-      <p className="mt-0.5 text-slate-600">
+    <div className={`rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm ${className}`}>
+      <p className="font-semibold text-white">Install Resceta</p>
+      <p className="mt-0.5 text-slate-300">
         Opens from the home screen without the browser bar, and keeps working long enough to read
         a screen when the signal drops.
       </p>
@@ -116,7 +116,7 @@ export function InstallApp({ className = "" }: { className?: string }) {
               setHidden(true);
             }
           }}
-          className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+          className="mt-3 rounded-lg brand-gradient px-4 py-2 text-sm font-medium text-white"
         >
           Install
         </button>
@@ -125,12 +125,12 @@ export function InstallApp({ className = "" }: { className?: string }) {
           <button
             type="button"
             onClick={() => setShowSteps((v) => !v)}
-            className="mt-3 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+            className="mt-3 rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-slate-200"
           >
             {showSteps ? "Hide steps" : "How"}
           </button>
           {showSteps && (
-            <ol className="mt-3 list-decimal space-y-1 pl-5 text-slate-600">
+            <ol className="mt-3 list-decimal space-y-1 pl-5 text-slate-300">
               <li>
                 Tap <span className="font-semibold">Share</span> — the square with an arrow, at
                 the bottom of Safari.
@@ -149,7 +149,7 @@ export function InstallApp({ className = "" }: { className?: string }) {
       <button
         type="button"
         onClick={dismiss}
-        className="mt-2 block text-xs text-slate-400 underline"
+        className="mt-2 block text-xs text-slate-500 underline"
       >
         Not now
       </button>

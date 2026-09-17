@@ -48,9 +48,9 @@ export default async function PrescriptionsPage({
             name="q"
             defaultValue={q ?? ""}
             placeholder="Patient, prescriber, PRC number or Rx number"
-            className="w-full max-w-md rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className="w-full max-w-md rounded-xl border border-white/10 px-3 py-2 text-sm"
           />
-          <button className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium">
+          <button className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl px-4 py-2 text-sm font-medium">
             Search
           </button>
           {q && (
@@ -73,13 +73,13 @@ export default async function PrescriptionsPage({
         )}
 
         {rows.length === 0 ? (
-          <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
             {q ? "Nothing matches that search." : "No prescriptions recorded yet."}
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <table className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
+              <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-2 font-medium">Patient</th>
                   <th className="px-4 py-2 font-medium">Prescriber</th>
@@ -88,7 +88,7 @@ export default async function PrescriptionsPage({
                   <th className="px-4 py-2 text-right font-medium">Dispensed</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-white/10">
                 {rows.map((rx) => {
                   const age = ageInDays(rx.dateIssued, now);
                   return (
@@ -102,16 +102,16 @@ export default async function PrescriptionsPage({
                           <span className="font-medium">{rx.patientName}</span>
                         )}
                         {rx.customerName && rx.customerName !== rx.patientName && (
-                          <p className="text-xs text-slate-400">on {rx.customerName}&rsquo;s record</p>
+                          <p className="text-xs text-slate-500">on {rx.customerName}&rsquo;s record</p>
                         )}
                         {rx.notes && <p className="text-xs text-slate-500">{rx.notes}</p>}
                       </td>
-                      <td className="px-4 py-2 text-slate-600">
+                      <td className="px-4 py-2 text-slate-300">
                         {rx.doctorName}
                         {rx.doctorPrcNo ? (
-                          <p className="font-mono text-xs text-slate-400">PRC {rx.doctorPrcNo}</p>
+                          <p className="font-mono text-xs text-slate-500">PRC {rx.doctorPrcNo}</p>
                         ) : (
-                          <p className="text-xs text-amber-700">No PRC number recorded</p>
+                          <p className="text-xs text-amber-300">No PRC number recorded</p>
                         )}
                       </td>
                       <td className="px-4 py-2 text-slate-500">
@@ -122,7 +122,7 @@ export default async function PrescriptionsPage({
                           shows the number so the pharmacist can decide, which
                           is the difference between a tool and a liability.
                         */}
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-slate-500">
                           {age === 0 ? "today" : `${age} day${age === 1 ? "" : "s"} old`}
                         </p>
                       </td>

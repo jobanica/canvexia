@@ -23,8 +23,8 @@ export function RangeFilter({ range, path = "/" }: { range: DateRange; path?: st
               href={`${path}?from=${r.from}&to=${r.to}`}
               className={`rounded-lg border px-3 py-1.5 text-sm ${
                 active
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-400"
+                  ? "border-transparent brand-gradient text-white"
+                  : "border-white/10 bg-white/[0.04] backdrop-blur-xl text-slate-200 hover:border-white/30"
               }`}
             >
               {p.label}
@@ -40,7 +40,7 @@ export function RangeFilter({ range, path = "/" }: { range: DateRange; path?: st
             type="date"
             name="from"
             defaultValue={range.from}
-            className="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+            className="mt-1 block rounded-xl border border-white/10 px-2 py-1.5 text-sm"
           />
         </label>
         <label className="text-xs font-medium text-slate-500">
@@ -49,10 +49,10 @@ export function RangeFilter({ range, path = "/" }: { range: DateRange; path?: st
             type="date"
             name="to"
             defaultValue={range.to}
-            className="mt-1 block rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+            className="mt-1 block rounded-xl border border-white/10 px-2 py-1.5 text-sm"
           />
         </label>
-        <button className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium hover:border-slate-400">
+        <button className="rounded-lg border border-white/10 bg-white/[0.04] backdrop-blur-xl px-3 py-1.5 text-sm font-medium hover:border-white/30">
           Apply
         </button>
       </form>

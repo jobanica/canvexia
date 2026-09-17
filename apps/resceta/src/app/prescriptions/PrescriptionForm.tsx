@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { savePrescription, type RxState } from "./actions";
 
 const IDLE: RxState = { status: "idle" };
-const FIELD = "mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
+const FIELD = "mt-1 w-full rounded-xl border border-white/10 px-3 py-2 text-sm";
 const LABEL = "block text-xs font-semibold uppercase tracking-wide text-slate-500";
 
 /**
@@ -25,7 +25,7 @@ export function PrescriptionForm({
   const [state, action, pending] = useActionState(savePrescription, IDLE);
 
   return (
-    <form action={action} className="rounded-xl border border-slate-200 bg-white p-5">
+    <form action={action} className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
       <p className="text-sm font-semibold">Record a prescription</p>
       <p className="mt-1 text-sm text-slate-500">
         The paper stays the legal document. This is the index into it — so a
@@ -79,13 +79,13 @@ export function PrescriptionForm({
       <div className="mt-4 flex items-center gap-3">
         <button
           disabled={pending}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          className="rounded-lg brand-gradient px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
           {pending ? "Saving…" : "Record it"}
         </button>
-        {state.status === "error" && <span className="text-sm text-red-700">{state.message}</span>}
+        {state.status === "error" && <span className="text-sm text-red-300">{state.message}</span>}
         {state.status === "done" && (
-          <span className="text-sm text-emerald-700">{state.message}</span>
+          <span className="text-sm text-emerald-300">{state.message}</span>
         )}
       </div>
     </form>

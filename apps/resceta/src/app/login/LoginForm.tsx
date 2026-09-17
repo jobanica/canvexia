@@ -52,7 +52,7 @@ export function LoginForm({ next }: { next: string }) {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <label className="block text-sm">
-        <span className="mb-1 block font-medium text-slate-700">Email</span>
+        <span className="mb-1 block font-medium text-slate-200">Email</span>
         <input
           type="email"
           value={email}
@@ -60,7 +60,7 @@ export function LoginForm({ next }: { next: string }) {
           required
           autoComplete="username"
           autoFocus
-          className="w-full rounded-md border border-slate-300 px-3 py-2"
+          className="w-full rounded-md border border-white/15 px-3 py-2"
         />
       </label>
 
@@ -72,7 +72,7 @@ export function LoginForm({ next }: { next: string }) {
           service-role key and running the staff CLI.
         */}
         <p className="mt-1 text-right">
-          <Link href="/forgot-password" className="text-xs font-medium text-slate-600 underline">
+          <Link href="/forgot-password" className="text-xs font-medium text-slate-300 underline">
             Forgot password?
           </Link>
         </p>
@@ -81,7 +81,7 @@ export function LoginForm({ next }: { next: string }) {
       {error && (
         <p
           role="alert"
-          className="rounded-md border border-red-300 bg-red-50 p-2 text-sm text-red-900"
+          className="rounded-md border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-200"
         >
           {error}
         </p>
@@ -90,7 +90,7 @@ export function LoginForm({ next }: { next: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+        className="w-full rounded-md brand-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
       >
         {pending ? "Signing in…" : "Sign in"}
       </button>

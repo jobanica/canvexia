@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { sendTransfer, type TransferState } from "../actions";
 
 const IDLE: TransferState = { status: "idle" };
-const FIELD = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
+const FIELD = "w-full rounded-xl border border-white/10 px-3 py-2 text-sm";
 
 export interface TransferBatch {
   id: string;
@@ -36,7 +36,7 @@ export function TransferForm({
 
   if (destinations.length === 0) {
     return (
-      <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+      <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
         There is only one branch, so there is nowhere to transfer to. Open
         another under Branches first.
       </p>
@@ -45,7 +45,7 @@ export function TransferForm({
 
   if (batches.length === 0) {
     return (
-      <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+      <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
         Nothing on the shelf at this branch to send.
       </p>
     );
@@ -79,16 +79,16 @@ export function TransferForm({
         </label>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-2 font-medium">Batch</th>
               <th className="px-4 py-2 text-right font-medium">On hand</th>
               <th className="px-4 py-2 text-right font-medium">Send</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-white/10">
             {batches.map((b) => (
               <tr key={b.id}>
                 <td className="px-4 py-2">
@@ -104,7 +104,7 @@ export function TransferForm({
                     max={b.quantity}
                     step={1}
                     placeholder="—"
-                    className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm"
+                    className="w-24 rounded-xl border border-white/10 px-2 py-1 text-right text-sm"
                   />
                 </td>
               </tr>
@@ -116,7 +116,7 @@ export function TransferForm({
       <div className="flex items-center gap-3">
         <button
           disabled={pending || !to}
-          className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+          className="rounded-lg brand-gradient px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
         >
           {pending ? "Sending…" : "Send the stock"}
         </button>
@@ -125,7 +125,7 @@ export function TransferForm({
           confirms it.
         </span>
       </div>
-      {state.status === "error" && <p className="text-sm text-red-700">{state.message}</p>}
+      {state.status === "error" && <p className="text-sm text-red-300">{state.message}</p>}
     </form>
   );
 }

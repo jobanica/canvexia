@@ -10,9 +10,9 @@ import { peso, manilaDate } from "@/lib/money";
 export const dynamic = "force-dynamic";
 
 const TONE: Record<string, string> = {
-  in_transit: "bg-amber-100 text-amber-900",
-  received: "bg-emerald-100 text-emerald-800",
-  cancelled: "bg-slate-100 text-slate-600",
+  in_transit: "bg-amber-500/15 text-amber-200",
+  received: "bg-emerald-500/15 text-emerald-300",
+  cancelled: "bg-white/10 text-slate-300",
 };
 
 /**
@@ -49,7 +49,7 @@ export default async function TransfersPage() {
           {canMove && branch.branches.length > 1 && (
             <Link
               href="/transfers/new"
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+              className="rounded-lg brand-gradient px-4 py-2 text-sm font-semibold text-white"
             >
               Send stock
             </Link>
@@ -57,7 +57,7 @@ export default async function TransfersPage() {
         </div>
 
         {branch.branches.length < 2 && (
-          <p className="mb-6 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          <p className="mb-6 rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
             There is only one branch, so there is nowhere to transfer to.{" "}
             <Link href="/branches" className="font-medium underline">
               Open another
@@ -67,13 +67,13 @@ export default async function TransfersPage() {
         )}
 
         {rows.length === 0 ? (
-          <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
             No transfers yet.
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <table className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
+              <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-2 font-medium">Sent</th>
                   <th className="px-4 py-2 font-medium">From → to</th>
@@ -82,7 +82,7 @@ export default async function TransfersPage() {
                   <th className="px-4 py-2 font-medium">State</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-white/10">
                 {rows.map((t) => (
                   <tr key={t.id}>
                     <td className="px-4 py-2">
@@ -91,7 +91,7 @@ export default async function TransfersPage() {
                       </Link>
                       {t.notes && <p className="text-xs text-slate-500">{t.notes}</p>}
                     </td>
-                    <td className="px-4 py-2 text-slate-600">
+                    <td className="px-4 py-2 text-slate-300">
                       {t.fromBranchName} → {t.toBranchName}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">{t.units}</td>

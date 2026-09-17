@@ -27,7 +27,7 @@ export default async function StocktakeSheet({ params }: { params: Promise<{ id:
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">
           Count sheet
-          <span className="ml-3 rounded bg-slate-100 px-2 py-1 align-middle text-sm font-medium">
+          <span className="ml-3 rounded bg-white/10 px-2 py-1 align-middle text-sm font-medium">
             {sheet.status}
           </span>
         </h1>

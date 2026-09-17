@@ -64,8 +64,8 @@ export function CountSheet({
       <form action={saveAction}>
         <input type="hidden" name="stocktakeId" value={stocktakeId} />
         <div className="overflow-x-auto">
-          <table className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <table className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
+            <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-2 font-medium">Item</th>
                 <th className="px-4 py-2 text-right font-medium">System says</th>
@@ -73,7 +73,7 @@ export function CountSheet({
                 <th className="px-4 py-2 text-right font-medium">Difference</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-white/10">
               {lines.map((l) => {
                 const diff = l.countedQty === null ? null : l.countedQty - l.systemQty;
                 return (
@@ -97,7 +97,7 @@ export function CountSheet({
                         disabled={closed}
                         defaultValue={l.countedQty ?? ""}
                         placeholder="—"
-                        className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm disabled:bg-slate-50"
+                        className="w-24 rounded-xl border border-white/10 px-2 py-1 text-right text-sm disabled:bg-white/[0.06]"
                       />
                     </td>
                     <td
@@ -105,10 +105,10 @@ export function CountSheet({
                         diff === null
                           ? "text-slate-300"
                           : diff < 0
-                            ? "font-semibold text-red-700"
+                            ? "font-semibold text-red-300"
                             : diff > 0
-                              ? "font-semibold text-amber-700"
-                              : "text-slate-400"
+                              ? "font-semibold text-amber-300"
+                              : "text-slate-500"
                       }`}
                     >
                       {diff === null ? "not counted" : diff > 0 ? `+${diff}` : diff}
@@ -124,20 +124,20 @@ export function CountSheet({
           <div className="mt-4 flex items-center gap-3">
             <button
               disabled={saving}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-40"
+              className="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold disabled:opacity-40"
             >
               {saving ? "Saving…" : "Save counts"}
             </button>
-            {saved.status === "error" && <span className="text-sm text-red-700">{saved.message}</span>}
+            {saved.status === "error" && <span className="text-sm text-red-300">{saved.message}</span>}
             {saved.status === "done" && (
-              <span className="text-sm text-emerald-700">{saved.message}</span>
+              <span className="text-sm text-emerald-300">{saved.message}</span>
             )}
           </div>
         )}
       </form>
 
       {!closed && (
-        <div className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
+        <div className="mt-8 rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
           <p className="text-sm font-semibold">Approve this count</p>
           <p className="mt-1 text-sm text-slate-500">
             This is where stock moves. Lines you have not counted are left alone.
@@ -151,7 +151,7 @@ export function CountSheet({
                 <input type="hidden" name="stocktakeId" value={stocktakeId} />
                 <button
                   disabled={approving || counted.length === 0}
-                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                  className="rounded-lg brand-gradient px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
                 >
                   {approving ? "Approving…" : `Approve and adjust ${short + over} products`}
                 </button>
@@ -167,7 +167,7 @@ export function CountSheet({
               <input type="hidden" name="stocktakeId" value={stocktakeId} />
               <button
                 disabled={abandoning}
-                className="text-sm text-slate-500 underline hover:text-red-700 disabled:opacity-40"
+                className="text-sm text-slate-500 underline hover:text-red-300 disabled:opacity-40"
               >
                 {abandoning ? "Cancelling…" : "Cancel this count"}
               </button>
@@ -175,13 +175,13 @@ export function CountSheet({
           </div>
 
           {approved.status === "error" && (
-            <p className="mt-2 text-sm text-red-700">{approved.message}</p>
+            <p className="mt-2 text-sm text-red-300">{approved.message}</p>
           )}
           {approved.status === "done" && (
-            <p className="mt-2 text-sm text-emerald-700">{approved.message}</p>
+            <p className="mt-2 text-sm text-emerald-300">{approved.message}</p>
           )}
           {abandoned.status === "error" && (
-            <p className="mt-2 text-sm text-red-700">{abandoned.message}</p>
+            <p className="mt-2 text-sm text-red-300">{abandoned.message}</p>
           )}
         </div>
       )}
@@ -192,10 +192,10 @@ export function CountSheet({
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "red" | "amber" }) {
   const cls =
     tone === "red"
-      ? "border-red-200 bg-red-50 text-red-900"
+      ? "border-red-500/30 bg-red-500/10 text-red-200"
       : tone === "amber"
-        ? "border-amber-200 bg-amber-50 text-amber-900"
-        : "border-slate-200 bg-white text-slate-900";
+        ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+        : "border-white/10 bg-white/[0.04] backdrop-blur-xl text-white";
   return (
     <div className={`rounded-xl border p-4 ${cls}`}>
       <p className="text-xs font-semibold uppercase tracking-wide opacity-70">{label}</p>

@@ -37,7 +37,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#14111f",
   width: "device-width",
   initialScale: 1,
   /*
@@ -51,7 +51,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
+            {/*
+        A SOLID DARK BASE, not the shell's gradient. The gradient lives on
+        `.app-shell` so the three surfaces that must stay light — the receipt
+        print pages and the public shop page — can paint over a plain colour
+        instead of having to undo a background image.
+      */}
+      <body className="min-h-screen bg-[#14111f] text-slate-100 antialiased">
         {/*
           A manifest alone makes nothing installable — the browser also wants a
           service worker with a fetch handler controlling the start_url. It is

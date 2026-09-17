@@ -40,7 +40,7 @@ export function PasswordField({
 
   return (
     <div className="text-sm">
-      <label htmlFor={id} className="mb-1 block font-medium text-slate-700">
+      <label htmlFor={id} className="mb-1 block font-medium text-slate-200">
         {label}
       </label>
       <div className="relative">
@@ -53,14 +53,14 @@ export function PasswordField({
           minLength={minLength}
           autoComplete={autoComplete}
           autoFocus={autoFocus}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 pr-16"
+          className="w-full rounded-md border border-white/15 px-3 py-2 pr-16"
         />
         <button
           type="button"
           onClick={() => setShow((s) => !s)}
           aria-pressed={show}
           aria-label={show ? "Hide password" : "Show password"}
-          className="absolute inset-y-0 right-0 flex items-center px-3 text-xs font-semibold text-slate-500 hover:text-slate-900"
+          className="absolute inset-y-0 right-0 flex items-center px-3 text-xs font-semibold text-slate-500 hover:text-white"
         >
           {show ? "Hide" : "Show"}
         </button>

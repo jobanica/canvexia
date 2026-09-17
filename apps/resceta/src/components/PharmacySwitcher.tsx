@@ -35,7 +35,7 @@ export function PharmacySwitcher({
         });
       }}
       aria-label="Pharmacy"
-      className="rounded border border-slate-300 bg-white px-2 py-1 text-sm disabled:opacity-50"
+      className="rounded border border-white/15 bg-white/[0.04] px-2 py-1 text-sm disabled:opacity-50"
     >
       {memberships.map((m) => (
         <option key={m.pharmacyId} value={m.pharmacyId}>

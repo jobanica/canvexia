@@ -59,7 +59,7 @@ export default async function AlertsPage() {
         </p>
 
         {nothing && (
-          <p className="mt-8 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+          <p className="mt-8 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
             Nothing to chase. No expired stock, nothing expiring within 90 days,
             and nothing at or below its reorder point.
           </p>
@@ -104,7 +104,7 @@ export default async function AlertsPage() {
           between a quiet screen and a working one.
         */}
         {noReorderPoint > 0 && can(staff.role, "manageCatalogue") && (
-          <p className="mt-8 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          <p className="mt-8 rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
             {noReorderPoint} product{noReorderPoint === 1 ? " has" : "s have"} no reorder
             point set, so {noReorderPoint === 1 ? "it" : "they"} can never show as low —
             only as out. Set one in the{" "}
@@ -130,7 +130,7 @@ function Section({
   tone: "red" | "amber";
   children: React.ReactNode;
 }) {
-  const dot = tone === "red" ? "bg-red-500" : "bg-amber-500";
+  const dot = tone === "red" ? "bg-red-500/100" : "bg-amber-500/100";
   return (
     <section className="mt-8">
       <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -162,8 +162,8 @@ function BatchTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
-        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+      <table className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
+        <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
           <tr>
             <th className="px-4 py-2 font-medium">Item</th>
             {/* The lot number, not the product, is what a recall names. */}
@@ -173,16 +173,16 @@ function BatchTable({
             {showCost && <th className="px-4 py-2 text-right font-medium">At cost</th>}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-white/10">
           {rows.map((b) => (
-            <tr key={b.batchId} className={b.expired ? "bg-red-50" : undefined}>
+            <tr key={b.batchId} className={b.expired ? "bg-red-500/10" : undefined}>
               <td className="px-4 py-2">{b.productName}</td>
               <td className="px-4 py-2 font-mono text-xs text-slate-500">
                 {b.lotNumber ?? "—"}
               </td>
               <td className="px-4 py-2">
                 {manilaExpiry(b.expiryDate)}
-                <span className="ml-2 text-xs text-slate-400">{manilaDate(b.expiryDate)}</span>
+                <span className="ml-2 text-xs text-slate-500">{manilaDate(b.expiryDate)}</span>
               </td>
               <td className="px-4 py-2 text-right tabular-nums">{b.quantity}</td>
               {showCost && (
@@ -211,8 +211,8 @@ function ProductTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
-        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+      <table className="w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl text-sm">
+        <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
           <tr>
             <th className="px-4 py-2 font-medium">Item</th>
             <th className="px-4 py-2 font-medium">Generic</th>
@@ -220,13 +220,13 @@ function ProductTable({
             <th className="px-4 py-2 text-right font-medium">Reorder at</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-white/10">
           {rows.map((p) => (
             <tr key={p.id}>
               <td className="px-4 py-2">
                 {p.name}
                 {p.requiresPrescription && (
-                  <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-xs text-violet-800">
+                  <span className="ml-2 rounded bg-violet-500/15 px-1.5 py-0.5 text-xs text-violet-300">
                     Rx
                   </span>
                 )}
@@ -234,7 +234,7 @@ function ProductTable({
               <td className="px-4 py-2 text-slate-500">{p.genericName ?? "—"}</td>
               <td
                 className={`px-4 py-2 text-right tabular-nums ${
-                  p.onHand === 0 ? "font-semibold text-red-700" : "font-semibold text-amber-700"
+                  p.onHand === 0 ? "font-semibold text-red-300" : "font-semibold text-amber-300"
                 }`}
               >
                 {p.onHand} {p.unit}

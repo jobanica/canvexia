@@ -27,7 +27,7 @@ export function ClockPanel({ rows }: { rows: ClockRow[] }) {
 
   if (rows.length === 0) {
     return (
-      <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+      <p className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4 text-sm text-slate-300">
         Nobody on the payroll yet. Add employees first.
       </p>
     );
@@ -36,10 +36,10 @@ export function ClockPanel({ rows }: { rows: ClockRow[] }) {
   return (
     <>
       {state.status === "error" && (
-        <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{state.message}</p>
+        <p className="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-300">{state.message}</p>
       )}
       {state.status === "done" && (
-        <p className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{state.message}</p>
+        <p className="mb-4 rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-300">{state.message}</p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -47,7 +47,7 @@ export function ClockPanel({ rows }: { rows: ClockRow[] }) {
           <form
             key={r.id}
             action={action}
-            className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4"
+            className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-4"
           >
             <input type="hidden" name="employeeId" value={r.id} />
             <div>
@@ -60,7 +60,7 @@ export function ClockPanel({ rows }: { rows: ClockRow[] }) {
             <button
               disabled={pending}
               className={`rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 ${
-                r.isIn ? "bg-slate-600" : "bg-emerald-600"
+                r.isIn ? "bg-white/15" : "bg-emerald-600"
               }`}
             >
               {r.isIn ? "Clock out" : "Clock in"}

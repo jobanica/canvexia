@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { saveCustomer, type CustomerState } from "./actions";
 
 const IDLE: CustomerState = { status: "idle" };
-const FIELD = "mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm";
+const FIELD = "mt-1 w-full rounded-xl border border-white/10 px-3 py-2 text-sm";
 const LABEL = "block text-xs font-semibold uppercase tracking-wide text-slate-500";
 
 export interface CustomerDefaults {
@@ -34,7 +34,7 @@ export function CustomerForm({
   const editing = Boolean(defaults?.id);
 
   return (
-    <form action={action} className="rounded-xl border border-slate-200 bg-white p-5">
+    <form action={action} className="rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5">
       {defaults?.id && <input type="hidden" name="customerId" value={defaults.id} />}
       <p className="text-sm font-semibold">
         {editing ? `Edit ${defaults?.name}` : "Add a customer"}
@@ -74,7 +74,7 @@ export function CustomerForm({
       <div className="mt-4 flex items-center gap-3">
         <button
           disabled={pending}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          className="rounded-lg brand-gradient px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
         >
           {pending ? "Saving…" : editing ? "Save changes" : "Add customer"}
         </button>
@@ -83,9 +83,9 @@ export function CustomerForm({
             Cancel
           </button>
         )}
-        {state.status === "error" && <span className="text-sm text-red-700">{state.message}</span>}
+        {state.status === "error" && <span className="text-sm text-red-300">{state.message}</span>}
         {state.status === "done" && (
-          <span className="text-sm text-emerald-700">{state.message}</span>
+          <span className="text-sm text-emerald-300">{state.message}</span>
         )}
       </div>
     </form>
