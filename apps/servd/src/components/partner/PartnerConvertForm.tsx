@@ -56,8 +56,8 @@ export function PartnerConvertForm({
           </div>
         </div>
         <p className="mt-2 text-xs text-brand-ink/50">
-          On the ₱0 Free plan — Servd bills them nothing. What they pay you is between you and
-          them.
+          On Standard — everything except the content scheduler, which is its own ₱499/mo.
+          What they pay you is between you and them, at ₱999/mo or above.
         </p>
       </div>
     );
@@ -72,7 +72,8 @@ export function PartnerConvertForm({
       <p className="font-heading font-bold text-brand-ink">Convert to a real account</p>
       <p className="text-xs text-brand-ink/55">
         They said yes? Pick their login username and this demo becomes their account — same menu,
-        same link, same QR codes. Starts on the ₱0 Free plan; you bill them yourself.
+        same link, same QR codes, and everything unlocked except the content scheduler. You bill
+        them yourself, at ₱999/mo or above.
       </p>
       {/*
         STACKED, AND THE BUTTON IS FULL WIDTH. Laid out as a wrapping row, the

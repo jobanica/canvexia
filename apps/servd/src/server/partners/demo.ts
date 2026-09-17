@@ -198,9 +198,15 @@ export type PartnerConvertState =
  * hands them a login to the exact storefront they've been looking at. The menu,
  * the slug and the QR codes all carry over, so nothing has to be rebuilt.
  *
- * It goes onto the ₱0 Free plan, not a trial: Servd doesn't bill a restaurant a
- * partner set up. The partner charges that restaurant directly, at whatever
- * price they agreed, and paid features stay locked until somebody buys them.
+ * It goes onto STANDARD, active from day one — not a trial, and no longer the
+ * ₱0 Free plan. Servd still does not bill a restaurant a partner set up: the
+ * partner charges it directly, and `Plan.priceFloor` is the ₱999 they may not
+ * price under, because CANVEXIA's share is a cut of what was actually charged.
+ *
+ * Free was what this did before, and it meant a shop somebody had just sold
+ * landed with almost every feature locked, to be bought back one at a time off
+ * a shelf that no longer exists. Everything except the content scheduler is
+ * unlocked now; that one keeps its own ₱499/mo subscription.
  *
  * No approval step. A partner's whole advantage is that they can open accounts
  * as fast as they can sell them.
@@ -222,7 +228,10 @@ export async function convertPartnerDemo(
     return { error: "Storefront not found." };
   }
 
-  const res = await convertDemo(restaurantId, formData.get("username"), "free");
+  // Standard, not Free. A partner has just SOLD this shop — landing it on ₱0
+  // with every paid feature locked was the old model, where the owner then had
+  // to buy them one at a time off a shelf that no longer exists.
+  const res = await convertDemo(restaurantId, formData.get("username"), "standard");
   if (!res.ok) return { error: res.error };
 
   revalidatePath(PATH);

@@ -110,30 +110,33 @@ export function sanitizeFeatures(list: readonly string[]): Feature[] {
  * Once a plan is saved from the editor, its stored features are authoritative.
  */
 export const FEATURE_TIERS: Record<Feature, Tier[]> = {
-  onlineOrdering: ["Free", "Growth", "Business"],
-  onlinePayments: ["Growth", "Business"],
-  loyalty: ["Growth", "Business"],
-  promotions: ["Growth", "Business"],
-  customers: ["Growth", "Business"],
-  sms: ["Growth", "Business"],
-  aiMenuImport: ["Growth", "Business"],
-  floorPlan: ["Growth", "Business"],
-  giftCards: ["Growth", "Business"],
-  reservations: ["Growth", "Business"],
-  dataExport: ["Growth", "Business"],
-  customDomain: ["Growth", "Business"],
-  auditLog: ["Business"],
-  offline: ["Business"],
-  accounting: ["Business"],
-  inventory: ["Business"],
-  hr: ["Business"],
-  whiteLabel: ["Business"],
-  // Sold separately as a monthly subscription — no plan includes it.
+  onlineOrdering: ["Free", "Growth", "Standard", "Business"],
+  onlinePayments: ["Growth", "Standard", "Business"],
+  loyalty: ["Growth", "Standard", "Business"],
+  promotions: ["Growth", "Standard", "Business"],
+  customers: ["Growth", "Standard", "Business"],
+  sms: ["Growth", "Standard", "Business"],
+  aiMenuImport: ["Growth", "Standard", "Business"],
+  floorPlan: ["Growth", "Standard", "Business"],
+  giftCards: ["Growth", "Standard", "Business"],
+  reservations: ["Growth", "Standard", "Business"],
+  dataExport: ["Growth", "Standard", "Business"],
+  customDomain: ["Growth", "Standard", "Business"],
+  auditLog: ["Standard", "Business"],
+  offline: ["Standard", "Business"],
+  accounting: ["Standard", "Business"],
+  inventory: ["Standard", "Business"],
+  hr: ["Standard", "Business"],
+  whiteLabel: ["Standard", "Business"],
+  // NEVER a plan feature, on any tier. It is billed as its own ₱499/mo
+  // subscription, and `getEntitledFeatures` strips it from whatever a plan or a
+  // trial hands out unless that subscription is live. This empty list is the
+  // first of those two guards; that strip is the second.
   contentScheduler: [],
-  // Sold as a one-time ₱500 unlock, not with a plan. Every account gets its
-  // counter QR and one table QR free; more is a purchase. Accounts that
-  // predate the change are grandfathered on the restaurant row instead.
-  unlimitedTables: [],
+  // In Standard, and in nothing below it. It used to be a ₱500 one-time unlock
+  // on top of Free; "everything except the content scheduler" includes it, and
+  // the shelf that sold it is retired.
+  unlimitedTables: ["Standard"],
 };
 
 /** Map a plan name to a known tier, if it is one. */

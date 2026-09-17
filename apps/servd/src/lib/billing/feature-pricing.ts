@@ -16,12 +16,24 @@ export interface FeaturePrice {
 export type FeaturePriceMap = Record<Feature, FeaturePrice>;
 
 /**
- * One-time unlock prices. These ARE the product's pricing — there is no
- * monthly plan to compare them against any more; ₱499 activates the ordering
- * page and everything else is bought once from here.
+ * THE ONE-TIME UNLOCK SHELF IS RETIRED.
  *
- * Editable per-feature under Super-admin → Feature pricing; these are the
- * fallback a fresh install starts from.
+ * Servd sells one plan now — Standard, ₱999/mo, everything except the content
+ * scheduler — so there is nothing left for this to sell: every feature it used
+ * to price individually is in the plan.
+ *
+ * WHAT IS ALREADY OWNED STAYS OWNED. These rows are not deleted and
+ * `owned-features` is untouched: a shop that paid ₱1,200 for loyalty keeps
+ * loyalty for good, on Free, without ever being billed monthly. Taking that
+ * away — or migrating those accounts onto a subscription — would break the
+ * exact bargain the one-time price was.
+ *
+ * The prices below are kept as the historical record of what was charged, and
+ * `retireOneTimeStore()` is what makes them unsellable. It is applied in
+ * `normalizeFeaturePrices`, NOT just written into the defaults, because
+ * `getFeaturePrices()` reads a super-admin-editable row out of the database —
+ * and a stale `enabled: true` sitting in that JSON would otherwise put the shelf
+ * back up on its own.
  */
 export const DEFAULT_FEATURE_PRICES: FeaturePriceMap = {
   onlineOrdering: { price: 250_000, enabled: true },
@@ -53,9 +65,23 @@ export const DEFAULT_FEATURE_PRICES: FeaturePriceMap = {
 };
 
 /** Coerce whatever is stored into a complete, safe price map. */
+/**
+ * The switch that took the shelf down. Nothing is sellable as a one-time unlock
+ * any more; the plan includes it.
+ *
+ * Applied to whatever comes out of the database rather than only to the
+ * defaults, so an `enabled: true` left in that JSON from before cannot put a
+ * price back in front of a customer.
+ */
+export function retireOneTimeStore(map: FeaturePriceMap): FeaturePriceMap {
+  const out = { ...map };
+  for (const key of ALL_FEATURES) out[key] = { ...out[key], enabled: false };
+  return out;
+}
+
 export function normalizeFeaturePrices(raw: unknown): FeaturePriceMap {
   const out = { ...DEFAULT_FEATURE_PRICES };
-  if (!raw || typeof raw !== "object") return out;
+  if (!raw || typeof raw !== "object") return retireOneTimeStore(out);
   const r = raw as Record<string, unknown>;
   for (const key of ALL_FEATURES) {
     const v = r[key];
@@ -67,5 +93,5 @@ export function normalizeFeaturePrices(raw: unknown): FeaturePriceMap {
       enabled: typeof row.enabled === "boolean" ? row.enabled : out[key].enabled,
     };
   }
-  return out;
+  return retireOneTimeStore(out);
 }

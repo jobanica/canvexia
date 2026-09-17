@@ -22,12 +22,18 @@ import { internalLoginDomain } from "@/lib/branding/app-domain";
  * Both the super-admin and a partner can do this, and they land on different
  * billing, which is the only thing that differs between them:
  *
- *   "trial30" — super-admin sells the account, so it starts a fresh 30-day
- *               Business trial and then bills normally.
- *   "free"    — a partner sets the restaurant up and bills that restaurant
- *               directly, at whatever price they agree. Servd charges the
- *               restaurant nothing, so the account lands on the ₱0 Free plan
- *               with paid features locked until somebody buys them.
+ *   "trial30"  — super-admin sells the account, so it starts a fresh 30-day
+ *                trial on the paid plan and then bills normally.
+ *   "standard" — a partner sold it. The account lands on Standard (₱999/mo),
+ *                active from day one, with everything except the content
+ *                scheduler unlocked. The partner bills the restaurant directly
+ *                at their own price; `Plan.priceFloor` is the ₱999 they may not
+ *                go under, because CANVEXIA's share is a cut of what was
+ *                actually charged.
+ *   "free"     — kept for the grandfathered path only. It used to be what
+ *                partners got, which meant a shop somebody had just sold landed
+ *                on ₱0 with almost every feature locked and no way to unlock
+ *                them but the one-time shelf that is now retired.
  *
  * Shared so the two callers can't drift on the parts that MUST match: the
  * username rules, the "already has a login" check, and rolling the auth user
@@ -70,7 +76,7 @@ async function countRealLogins(restaurantId: string): Promise<number> {
   }
 }
 
-export type ConvertBilling = "trial30" | "free";
+export type ConvertBilling = "trial30" | "standard" | "free";
 
 export interface ConvertCredentials {
   username: string;
@@ -93,6 +99,9 @@ async function applyBilling(
   restaurantId: string,
   billing: ConvertBilling,
 ) {
+  // `getTopPlan` is the highest-priced ACTIVE plan, which is Standard now that
+  // Growth and Business are deactivated. Resolved by price rather than by name
+  // so renaming the plan does not silently put everyone on Free.
   const plan =
     billing === "free"
       ? ((await getFreePlan(tx)) ?? (await getDefaultPlan(tx)))
@@ -116,10 +125,13 @@ async function applyBilling(
     orderBy: { createdAt: "desc" },
     select: { id: true },
   });
-  // Free is `active` and never expires; a trial is `trialing` and does.
+  // `active` and never expiring for both Free and Standard — a partner-sold
+  // shop is being billed by its partner from day one, so there is no trial to
+  // lapse and nothing for the billing cron to downgrade. Only "trial30" is
+  // `trialing`, and only that one expires.
   const data = {
     planId: plan.id,
-    status: billing === "free" ? ("active" as const) : ("trialing" as const),
+    status: billing === "trial30" ? ("trialing" as const) : ("active" as const),
     trialEndsAt,
     currentPeriodEnd: trialEndsAt,
   };

@@ -78,7 +78,8 @@ export default async function BillingPage({
         <Link href="/admin" className="text-sm text-plum-ink/50">← Dashboard</Link>
         <h1 className="font-heading text-2xl font-bold">Billing &amp; features</h1>
         <p className="text-sm text-plum-ink/50">
-          Buy a feature once and keep it forever — no monthly subscription.
+          Everything except the content scheduler is included in Servd, ₱999/mo. Anything you
+          bought outright before that stays yours, for good.
         </p>
       </div>
 
@@ -91,8 +92,8 @@ export default async function BillingPage({
 
       {upgrade && FEATURE_LABEL[upgrade] && (
         <div className="rounded-tile border border-mango/40 bg-mango/10 p-4 text-sm text-plum-ink">
-          🔒 <span className="font-semibold">{FEATURE_LABEL[upgrade]}</span> is locked. Unlock it once
-          below and it&apos;s yours for good.
+          🔒 <span className="font-semibold">{FEATURE_LABEL[upgrade]}</span> is locked on your
+          account. It is included in Servd — ask whoever set you up to move you onto it.
         </div>
       )}
 
@@ -102,10 +103,9 @@ export default async function BillingPage({
             ✨ {trialDays} day{trialDays === 1 ? "" : "s"} left in your free trial
           </p>
           <p className="mt-1 text-sm text-plum-ink/70">
-            <strong>Every feature is unlocked</strong> until your trial ends. After that you keep QR
-            ordering, the POS, kitchen display and your ordering page for free — anything else needs
-            a one-time unlock. Buy what you want to keep now and it stays yours; there&apos;s no
-            monthly subscription either way.
+            <strong>Every feature is unlocked</strong> until your trial ends — except the content
+            scheduler, which is its own ₱499/mo. After that it is ₱999/mo for all of it, and
+            anything you already own outright stays yours whatever you decide.
           </p>
         </div>
       )}
