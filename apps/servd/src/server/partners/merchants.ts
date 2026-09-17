@@ -13,11 +13,21 @@ import { partnerDb, systemDb } from "@/server/tenancy/scoped-db";
  * Reads through partnerDb(), never systemDb(): the policy is what scopes these
  * rows, so a missing `where` clause returns nothing instead of everything.
  *
- * ONE HONEST GAP. Only restaurants have subscriptions — `Subscription` keys on
- * restaurantId, and the pharmacy vertical has no billing yet. A pharmacy
- * therefore reports `plan: null`, which the UI renders as "not billed yet"
- * rather than as ₱0. Showing zero would quietly understate a partner's MRR and
- * look like a number rather than a gap.
+ * BOTH AXES BILL NOW. `subscriptions` carries `productId`, so a pharmacy's plan
+ * is read here the same way a restaurant's is — through a second query rather
+ * than a relation, because `subscriptions.restaurantId` holds a pharmacies.id
+ * for those rows and that is a join Prisma cannot express.
+ *
+ * This comment used to say the pharmacy vertical had no billing and that
+ * `plan: null` was an honest gap. It stopped being either the day Resceta got
+ * a ₱999 plan, and the merchant page went on reporting "Not billed yet" and
+ * "Not paying yet, so it is not earning either of you anything" about a shop
+ * that was earning its partner ₱699 a month.
+ *
+ * Null survives for a merchant with no subscription row at all — a pharmacy
+ * provisioned before billing existed. Null renders as "not billed yet", which
+ * is true of it; zero would look like a price and would understate a partner's
+ * MRR as a number rather than a gap.
  */
 export interface PartnerMerchant {
   /** `${productId}:${id}` — unique across products, which the bare id is not. */
@@ -134,6 +144,46 @@ export async function listPartnerMerchants(partnerId: string): Promise<PartnerMe
       }),
     ]);
 
+    /**
+     * THE PHARMACIES' PLANS.
+     *
+     * A separate query rather than a relation, because there is no relation to
+     * follow: `subscriptions.restaurantId` means "the merchant id within
+     * productId", and for a pharmacy row that id is a pharmacies.id — a join
+     * Prisma cannot express and the database no longer enforces. See
+     * billing-by-product.sql.
+     *
+     * ONE QUERY FOR ALL OF THEM, then matched in memory. The alternative is one
+     * per pharmacy, which is the shape that turns a list into a timeout.
+     *
+     * Until this existed the three billing fields below were hard-coded null
+     * with a comment saying the pharmacy vertical did not bill yet. It does
+     * now, so the merchant page read "Not billed yet", "—" and "Not paying yet,
+     * so it is not earning either of you anything" about a shop on ₱999 that
+     * was earning them ₱699 a month.
+     */
+    const pharmacyIds = pharmacies.map((p) => p.id);
+    const pharmacySubs = pharmacyIds.length
+      ? await tx.subscription
+          .findMany({
+            where: { productId: "pharmacy", restaurantId: { in: pharmacyIds } },
+            orderBy: { createdAt: "desc" },
+            select: {
+              restaurantId: true,
+              status: true,
+              trialEndsAt: true,
+              plan: { select: { name: true, priceMonthly: true } },
+            },
+          })
+          .catch(() => [])
+      : [];
+    // First wins, and the order above is newest first — the current
+    // subscription is the latest row, same rule the rest of billing uses.
+    const subFor = new Map<string, (typeof pharmacySubs)[number]>();
+    for (const sub of pharmacySubs) {
+      if (!subFor.has(sub.restaurantId)) subFor.set(sub.restaurantId, sub);
+    }
+
     // Counted per merchant rather than per row: groupBy keeps this one query
     // instead of one per restaurant, which on a partner with fifty shops is the
     // difference between a page and a timeout.
@@ -179,7 +229,9 @@ export async function listPartnerMerchants(partnerId: string): Promise<PartnerMe
           hasLogin: null,
         };
       }),
-      ...pharmacies.map((p) => ({
+      ...pharmacies.map((p) => {
+        const sub = subFor.get(p.id);
+        return {
         key: `pharmacy:${p.id}`,
         id: p.id,
         productId: "pharmacy" as ProductId,
@@ -188,19 +240,21 @@ export async function listPartnerMerchants(partnerId: string): Promise<PartnerMe
         slug: p.slug,
         status: String(p.status),
         city: p.address ?? null,
-        // Not zero — see the note at the top. The pharmacy vertical does not
-        // bill yet, and a 0 here would look like a price.
-        planName: null,
-        priceMonthly: null,
-        subscriptionStatus: null,
-        trialEndsAt: null,
+        // Null, not zero, when there is no subscription row: a 0 here would
+        // look like a price. A pharmacy provisioned before billing existed is
+        // the only case, and "Not billed yet" is true of it.
+        planName: sub?.plan.name ?? null,
+        priceMonthly: sub?.plan.priceMonthly ?? null,
+        subscriptionStatus: (sub?.status ?? null) as PartnerMerchant["subscriptionStatus"],
+        trialEndsAt: sub?.trialEndsAt ?? null,
         ordersLast30d: 0,
         lastOrderAt: null,
         createdAt: p.createdAt,
         // The pharmacy vertical has no convert flow, so the question does not
         // apply rather than answering "no".
         hasLogin: null,
-      })),
+        };
+      }),
     ];
 
     return rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

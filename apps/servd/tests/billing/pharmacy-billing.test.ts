@@ -104,6 +104,40 @@ describe("the partner's queue names pharmacies correctly", () => {
   });
 });
 
+describe("the partner sees what the pharmacy pays", () => {
+  const list = codeAt("src/server/partners/merchants.ts");
+
+  it("reads the pharmacy's subscription instead of hard-coding null", () => {
+    // It reported "Not billed yet", "—" and "Not paying yet, so it is not
+    // earning either of you anything" about a shop on ₱999 that was earning
+    // its partner ₱699 a month.
+    expect(list).toContain('where: { productId: "pharmacy", restaurantId: { in: pharmacyIds } }');
+    expect(list).toContain("planName: sub?.plan.name ?? null");
+    expect(list).toContain("priceMonthly: sub?.plan.priceMonthly ?? null");
+  });
+
+  it("asks once for all of them, not once per pharmacy", () => {
+    // One query per row is the shape that turns a list into a timeout.
+    expect(list).toContain("const subFor = new Map<string,");
+    expect(list).toContain("pharmacyIds.length");
+  });
+
+  it("takes the latest row as the current subscription", () => {
+    // The same rule the rest of billing uses.
+    expect(list).toContain('orderBy: { createdAt: "desc" }');
+    expect(list).toContain("if (!subFor.has(sub.restaurantId)) subFor.set(sub.restaurantId, sub);");
+  });
+
+  it("keeps null for a merchant with no subscription at all", () => {
+    // Zero would look like a price and would understate a partner's MRR as a
+    // number rather than a gap. Asserted on the code rather than on the comment
+    // explaining it — `codeAt` strips comments, so a test written against one
+    // is a test that cannot fail.
+    expect(list).toContain("?? null");
+    expect(list).not.toContain("priceMonthly: sub?.plan.priceMonthly ?? 0");
+  });
+});
+
 describe("a new pharmacy is born with a plan", () => {
   const provision = codeAt("../../packages/db/src/provisioning/pharmacy.ts");
 
