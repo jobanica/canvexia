@@ -4,6 +4,8 @@ import { partnerAllows, partnerCan, requirePartnerPageWith } from "@/server/part
 import { getPartnerMerchant, merchantAssignees, isPaying } from "@/server/partners/merchants";
 import { pharmacyActivation } from "@/server/partners/pharmacies";
 import { PharmacyActivate } from "@/components/partner/PharmacyActivate";
+import { PharmacyOwnerForm } from "@/components/partner/PharmacyOwnerForm";
+import { pharmacyOwnerState } from "@/server/partners/pharmacy-owner";
 import { demoLogin } from "@/server/partners/demo-queries";
 import { PortalShell } from "@/components/partner/PortalShell";
 import { PartnerConvertForm } from "@/components/partner/PartnerConvertForm";
@@ -39,6 +41,12 @@ export default async function PartnerMerchantPage({
   const pharmacy =
     merchant.productId === "pharmacy"
       ? await pharmacyActivation(partner.id, merchant.id)
+      : null;
+  // Who, if anyone, can sign in to it. Only asked for a pharmacy; Servd's
+  // equivalent is `login` above.
+  const pharmacyOwner =
+    merchant.productId === "pharmacy"
+      ? await pharmacyOwnerState(partner.id, merchant.id)
       : null;
 
   /**
@@ -194,6 +202,28 @@ export default async function PartnerMerchantPage({
           merchant, because "this cannot dispense yet" is a fact about the
           account, not a capability to hide.
         */}
+        {/*
+          THE LOGIN, on the account it belongs to.
+
+          REPORTED — "I activated it, but I cannot see the login details of the
+          account." There were none, and no way to make any: the first account
+          at a pharmacy came from `staff:create`, a CLI run by whoever holds the
+          service-role key. So this portal could sign a pharmacy, open it and
+          switch it on, and then stop one step short of anybody being able to
+          use it.
+
+          Gated on `merchants.create`, the same key as Servd's own handover —
+          the seat that signed the shop is the one standing in it on the day the
+          owner needs their password read out.
+        */}
+        {pharmacyOwner && canConvert && (
+          <PharmacyOwnerForm
+            pharmacyId={merchant.id}
+            hasStaff={pharmacyOwner.hasStaff}
+            ownerEmail={pharmacyOwner.ownerEmail}
+          />
+        )}
+
         {pharmacy && (
           <PharmacyActivate
             merchantId={merchant.id}
