@@ -40,6 +40,12 @@ export async function listPharmacies() {
 export interface CatalogueRow {
   id: string;
   name: string;
+  /**
+   * The counter searches and SCANS on these, so they travel with the row. A
+   * barcode the till cannot match is a barcode the cashier types by hand.
+   */
+  sku: string | null;
+  barcode: string | null;
   genericName: string | null;
   form: string | null;
   strength: string | null;
@@ -77,6 +83,8 @@ export async function catalogue(
       select: {
         id: true,
         name: true,
+        sku: true,
+        barcode: true,
         genericName: true,
         form: true,
         strength: true,
@@ -107,6 +115,8 @@ export async function catalogue(
     return {
       id: p.id,
       name: p.name,
+      sku: p.sku,
+      barcode: p.barcode,
       genericName: p.genericName,
       form: p.form,
       strength: p.strength,

@@ -39,6 +39,28 @@ const Sale = z.object({
   paymentMethod: z.enum(["cash", "gcash", "card", "maya"]).default("cash"),
   tenderedCentavos: z.coerce.number().int().min(0).optional(),
   prescriptionRef: z.string().trim().max(120).optional(),
+  /*
+    SPLIT TENDERS. Bounded at eight because a bill settled eight ways is a
+    typo, not a customer, and an unbounded array here is an unbounded number of
+    inserts inside the sale transaction.
+  */
+  payments: z
+    .array(
+      z.object({
+        method: z.enum(["cash", "gcash", "card", "maya"]),
+        amountCentavos: z.coerce.number().int().positive().max(100_000_000),
+      }),
+    )
+    .max(8)
+    .optional(),
+  /*
+    The loyalty member, and what they want to spend. BOTH ARE CHECKED AGAIN
+    SERVER-SIDE: `completeSale` reads the balance and the rate from the
+    database and caps the redemption itself, so a browser claiming a customer
+    it does not own, or points they have not earned, changes nothing.
+  */
+  customerId: z.string().uuid().optional(),
+  pointsToRedeem: z.coerce.number().int().min(0).max(10_000_000).optional(),
 });
 
 export type SaleState =
@@ -83,6 +105,9 @@ export async function recordSale(
       paymentMethod: String(formData.get("paymentMethod") ?? "cash"),
       tenderedCentavos: formData.get("tenderedCentavos") || undefined,
       prescriptionRef: formData.get("prescriptionRef") || undefined,
+      payments: JSON.parse(String(formData.get("payments") ?? "[]")),
+      customerId: formData.get("customerId") || undefined,
+      pointsToRedeem: formData.get("pointsToRedeem") || undefined,
     };
   } catch {
     return { status: "error", message: "That sale didn't come through — try again." };
@@ -125,6 +150,9 @@ export async function recordSale(
     beneficiaryName: input.beneficiaryName,
     paymentMethod: input.paymentMethod,
     tenderedCentavos: input.tenderedCentavos,
+    payments: input.payments,
+    customerId: input.customerId ?? null,
+    pointsToRedeem: input.pointsToRedeem,
     prescriptionRef: input.prescriptionRef,
     soldByStaffId: staff.staffId,
   });

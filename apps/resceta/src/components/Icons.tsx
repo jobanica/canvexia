@@ -248,3 +248,18 @@ export const IconWarning = (p: P) => (
     <path d="M12 10v4M12 17h.01" />
   </Svg>
 );
+
+export const IconSearch = (p: P) => (
+  <Svg {...p}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m16 16 4.5 4.5" />
+  </Svg>
+);
+
+export const IconUserPlus = (p: P) => (
+  <Svg {...p}>
+    <circle cx="9.5" cy="8" r="3.5" />
+    <path d="M3.5 19.5c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" />
+    <path d="M18 8.5v5M15.5 11h5" />
+  </Svg>
+);

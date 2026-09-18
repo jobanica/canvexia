@@ -3750,6 +3750,7 @@ model PharmacySale {
   loyaltyTxns  PharmacyLoyaltyTxn[]
   orders       PharmacyOrder[]
   shift        PharmacyShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  payments     PharmacySalePayment[]
   branch       PharmacyBranch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@unique([pharmacyId, receiptNumber])
@@ -3767,6 +3768,32 @@ model PharmacySale {
 /// A quantity that spans two batches becomes two lines, because which batch a
 /// unit came from is the recall trail. Names and prices are snapshotted for the
 /// same reason Servd's order items snapshot them.
+/// One tender against a sale.
+///
+/// `pharmacy_sales.paymentMethod` is a single string, which assumes a bill is
+/// settled by exactly one instrument. In a Philippine pharmacy that is
+/// routinely false — ₱500 cash and the rest on GCash is an ordinary Tuesday.
+///
+/// The sale's own `paymentMethod` is KEPT and now means "the largest tender",
+/// so every report and receipt written against it keeps working unchanged.
+model PharmacySalePayment {
+  id         String @id @default(uuid())
+  pharmacyId String
+  saleId     String
+
+  method         String
+  amountCentavos Int
+  /// A GCash or card reference, when the cashier has one to type.
+  reference      String?
+  createdAt      DateTime @default(now())
+
+  sale PharmacySale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@index([pharmacyId, createdAt])
+  @@map("pharmacy_sale_payments")
+}
+
 model PharmacySaleItem {
   id         String  @id @default(uuid())
   pharmacyId String
