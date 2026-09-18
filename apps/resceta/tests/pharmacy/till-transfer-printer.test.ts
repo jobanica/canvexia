@@ -98,23 +98,31 @@ describe("sending stock", () => {
 });
 
 describe("the printer settings", () => {
-  const settings = src("app/settings/SettingsForm.tsx");
+  const panel = src("app/settings/PrinterPanel.tsx");
   const test = src("app/settings/test-print/page.tsx");
 
-  it("says how printing actually works rather than asking for an IP", () => {
-    // Resceta prints through the browser to the device's own printer. A box
-    // asking for an address would be a box that does nothing.
-    expect(settings).toMatch(/Receipts print through this device/);
-    expect(settings).not.toMatch(/name="printerIp"/);
+  /**
+   * These moved from a static paragraph in SettingsForm into PrinterPanel when
+   * the USB and Bluetooth paths were added. THE RULES ARE UNCHANGED — the
+   * dialog is still one of the options, and there is still no box asking for a
+   * printer's address, because neither browser API takes one: they pick a
+   * DEVICE, through a chooser the person answers.
+   */
+  it("explains the dialog path rather than asking for an IP", () => {
+    expect(panel).toMatch(/whichever printer this device already has/);
+    expect(panel).not.toMatch(/name="printerIp"/);
+    expect(panel).not.toMatch(/placeholder="192\.168/);
   });
 
-  it("offers a test print", () => {
-    expect(settings).toMatch(/\/settings\/test-print\?auto=1/);
-    expect(settings).toMatch(/Send a test print/);
+  it("offers a test print on every path", () => {
+    expect(panel).toMatch(/\/settings\/test-print\?auto=1/);
+    expect(panel).toMatch(/Send a test print/);
+    // And a direct one for Bluetooth and USB, which never opens a dialog.
+    expect(panel).toMatch(/Choose the \$\{method === "usb" \? "USB" : "Bluetooth"\} printer and test/);
   });
 
   it("tells somebody what to change in the print dialog", () => {
-    expect(settings).toMatch(/headers and footers off/);
+    expect(panel).toMatch(/turn headers and\s*\n?\s*footers off/);
     expect(test).toMatch(/Turn OFF headers and footers/);
   });
 

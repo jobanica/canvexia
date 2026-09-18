@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { connect, savedMethod } from "@/lib/pharmacy/printer-link";
 
 /**
  * PRINT THE RECEIPT WHEN THE SALE SETTLES.
@@ -43,6 +44,7 @@ export function ReceiptPrinter({
   const frame = useRef<HTMLIFrameElement>(null);
   const printed = useRef<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [direct, setDirect] = useState(false);
 
   useEffect(() => {
     // One print per sale. Without this, a re-render after the sale — a totals
@@ -51,6 +53,23 @@ export function ReceiptPrinter({
     printed.current = jobId;
     setFailed(false);
 
+    /*
+      A TILL SET TO A DIRECT PRINTER MUST NOT ALSO OPEN THE DIALOG.
+
+      The frame below is the dialog path. When this device is wired straight to
+      a Bluetooth or USB printer, loading it would put a print dialog in front
+      of the cashier on every single sale — on top of the receipt that already
+      came out.
+
+      The direct send cannot happen here: Web Bluetooth and WebUSB require a
+      user gesture, and a completed sale is not one. So the frame is suppressed
+      and the button below is offered instead, which IS a gesture.
+    */
+    if (savedMethod() !== "dialog") {
+      setDirect(true);
+      return;
+    }
+
     // If the frame has not printed within ten seconds the roll is not coming,
     // and the cashier needs the button rather than a silent nothing.
     const giveUp = window.setTimeout(() => setFailed(true), 10_000);
@@ -58,6 +77,12 @@ export function ReceiptPrinter({
   }, [jobId]);
 
   if (!jobId) return null;
+
+  if (direct) {
+    return (
+      <DirectPrintButton jobId={jobId} src={src} label={label} />
+    );
+  }
 
   return (
     <>
@@ -92,5 +117,71 @@ export function ReceiptPrinter({
         </button>
       )}
     </>
+  );
+}
+
+/**
+ * The direct path's button.
+ *
+ * IT HAS TO BE A BUTTON. Web Bluetooth and WebUSB both refuse outside a user
+ * gesture, and a completed sale is not one — the browser cannot tell it from a
+ * page deciding to reach for the hardware on its own. So a till wired straight
+ * to a printer gets one tap per sale rather than a print dialog per sale, which
+ * is still one fewer thing than the dialog asks for.
+ */
+function DirectPrintButton({
+  jobId,
+  src,
+  label,
+}: {
+  jobId: string;
+  src: string;
+  label: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [bad, setBad] = useState<string | null>(null);
+
+  async function send() {
+    setBusy(true);
+    setBad(null);
+    try {
+      // The server renders the document; this only pushes the bytes. The URL
+      // carries the same id the dialog path would have loaded.
+      const url = new URL(src, window.location.origin);
+      const type = url.pathname.includes("/readings/") ? "reading" : "receipt";
+      const res = await fetch(`/api/escpos?type=${type}&id=${encodeURIComponent(jobId)}`);
+      if (!res.ok) throw new Error(await res.text());
+      const bytes = new Uint8Array(await res.arrayBuffer());
+
+      const link = await connect(savedMethod());
+      await link.send(bytes);
+      setSent(true);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      setBad(
+        /cancel|No device selected|chooser/i.test(msg)
+          ? "No printer was chosen."
+          : msg || "Could not reach the printer.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (sent) return <p className="mt-2 text-xs text-emerald-300">Sent to the printer.</p>;
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={send}
+        className="w-full rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-xs text-slate-100 disabled:opacity-40"
+      >
+        {busy ? "Sending…" : label}
+      </button>
+      {bad && <p className="mt-1 text-xs text-rose-300">{bad}</p>}
+    </div>
   );
 }
