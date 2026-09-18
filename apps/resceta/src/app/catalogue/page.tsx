@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
   file is a dozen statements — but the ceiling is stated rather than inherited,
   because the default cut a long import off mid-way and called it a crash.
 */
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * THE CATALOGUE.

@@ -70,6 +70,9 @@ const CHUNK = 400;
 /** Generous, because a chunk is doing a few set-shaped statements, not 1,200. */
 const CHUNK_TIMEOUT_MS = 20_000;
 
+/** One row, on the fallback path. Short: if a single row needs longer, it is broken. */
+const ROW_TIMEOUT_MS = 10_000;
+
 function lower(v: string | null | undefined): string {
   return (v ?? "").trim().toLowerCase();
 }
@@ -90,7 +93,20 @@ function reasonFor(e: unknown): string {
   if (/connection|ECONNRESET|terminat/i.test(msg)) {
     return "the database connection dropped";
   }
-  return msg ? msg.split("\n")[0]!.slice(0, 140) : "an unexpected database error";
+  /*
+    THE FIRST NON-EMPTY LINE, not the first line.
+
+    Prisma error messages BEGIN with a newline — "\nInvalid `prisma.x()`
+    invocation:\n\n…" — so taking `split("\n")[0]` produced an empty string,
+    and a real import reported "then it stopped after 400 of 1886 rows,
+    because ." A diagnostic that renders as a full stop is worse than none: it
+    looks like the code knows and will not say.
+  */
+  const line = msg
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => l.length > 0 && !/^invalid `/i.test(l));
+  return line ? line.slice(0, 160) : "an unexpected database error";
 }
 
 interface PlannedCreate {
@@ -217,6 +233,22 @@ export async function importCatalogue(input: {
   }
 
   // ── PHASE 3: write, in chunks that each commit on their own.
+  //
+  // A FAILED CHUNK IS RETRIED ROW BY ROW, AND THE IMPORT CARRIES ON.
+  //
+  // REPORTED — the second chunk of a 1,886-row file failed and the import
+  // stopped with 400 in. The other 1,486 rows were fine and never got a chance.
+  //
+  // That was a regression I introduced: the row-at-a-time version this replaced
+  // caught per row, so one unimportable row cost one row. Going set-shaped made
+  // a chunk atomic, which is right for speed and wrong for blame — a single bad
+  // value took four hundred good rows down with it, and then the rest of the
+  // file.
+  //
+  // So bulk is the FAST PATH, not the only path. When a chunk rolls back, every
+  // row in it is retried on its own, the ones that genuinely cannot be written
+  // are named with their line number, and the next chunk still runs. A file with
+  // three bad rows imports 1,883 products and tells you which three.
   let done = 0;
   const total = creates.length + (input.updateExisting ? updates.length : 0);
 
@@ -250,77 +282,168 @@ export async function importCatalogue(input: {
     return { batches, movements };
   };
 
-  try {
-    for (let i = 0; i < creates.length; i += CHUNK) {
-      const chunk = creates.slice(i, i + CHUNK);
-      await systemDb(async (tx) => {
-        await tx.pharmacyProduct.createMany({
-          data: chunk.map((c) => ({
-            id: c.productId,
-            pharmacyId: input.pharmacyId,
-            name: c.row.name,
-            genericName: c.row.genericName,
-            form: c.row.form,
-            strength: c.row.strength,
-            sku: c.row.sku,
-            barcode: c.row.barcode,
-            unit: c.row.unit,
-            categoryId: c.categoryId,
-            priceCentavos: c.row.priceCentavos,
-            reorderPoint: c.row.reorderPoint,
-            requiresPrescription: c.row.requiresPrescription,
-          })),
-        });
-        const { batches, movements } = stockFor(chunk);
-        if (batches.length > 0) {
-          await tx.pharmacyBatch.createMany({ data: batches });
-          await tx.pharmacyStockMovement.createMany({ data: movements });
-        }
-        outcome.created += chunk.length;
-        outcome.batches += batches.length;
-        outcome.units += batches.reduce((s, b) => s + (b.quantity ?? 0), 0);
-      }, { timeout: CHUNK_TIMEOUT_MS });
-      done += chunk.length;
-    }
+  const productData = (c: PlannedCreate) => ({
+    id: c.productId,
+    pharmacyId: input.pharmacyId,
+    name: c.row.name,
+    genericName: c.row.genericName,
+    form: c.row.form,
+    strength: c.row.strength,
+    sku: c.row.sku,
+    barcode: c.row.barcode,
+    unit: c.row.unit,
+    categoryId: c.categoryId,
+    priceCentavos: c.row.priceCentavos,
+    reorderPoint: c.row.reorderPoint,
+    requiresPrescription: c.row.requiresPrescription,
+  });
 
-    if (input.updateExisting) {
-      for (let i = 0; i < updates.length; i += CHUNK) {
-        const chunk = updates.slice(i, i + CHUNK);
+  const updateData = (u: PlannedUpdate) => ({
+    genericName: u.row.genericName,
+    form: u.row.form,
+    strength: u.row.strength,
+    unit: u.row.unit,
+    // A price of zero in the file means "not given", not "free".
+    ...(u.row.priceCentavos > 0 ? { priceCentavos: u.row.priceCentavos } : {}),
+    ...(u.row.reorderPoint > 0 ? { reorderPoint: u.row.reorderPoint } : {}),
+    requiresPrescription: u.row.requiresPrescription,
+    ...(u.categoryId ? { categoryId: u.categoryId } : {}),
+  });
+
+  /*
+    A GUARD AGAINST A DEAD DATABASE, not a cap on the file.
+
+    Without it, a database that has gone away turns into two thousand individual
+    failing transactions before anybody is told. Consecutive means consecutive:
+    it resets on the first row that works, so a file with hundreds of bad rows
+    scattered through it still imports every good one.
+  */
+  const GIVE_UP_AFTER_CONSECUTIVE_FAILURES = 50;
+  let consecutiveFailures = 0;
+  let abandoned: string | null = null;
+
+  const noteFailure = (row: ImportRow, e: unknown) => {
+    outcome.failures.push({ line: row.line, name: row.name, reason: reasonFor(e) });
+    consecutiveFailures += 1;
+    if (consecutiveFailures >= GIVE_UP_AFTER_CONSECUTIVE_FAILURES) {
+      abandoned = reasonFor(e);
+    }
+  };
+
+  // Retry a rolled-back chunk one row at a time. Each row is its OWN
+  // transaction: Postgres aborts a transaction at the first error, so a failing
+  // row inside a shared one would take every row after it with it.
+  const perRowCreates = async (chunk: PlannedCreate[]) => {
+    for (const c of chunk) {
+      if (abandoned) return;
+      try {
         await systemDb(async (tx) => {
-          // Distinct data per row, so these stay individual. They are cheap
-          // statements inside one transaction rather than one transaction each.
-          for (const u of chunk) {
-            await tx.pharmacyProduct.updateMany({
-              where: { id: u.productId, pharmacyId: input.pharmacyId },
-              data: {
-                genericName: u.row.genericName,
-                form: u.row.form,
-                strength: u.row.strength,
-                unit: u.row.unit,
-                // A price of zero in the file means "not given", not "free".
-                ...(u.row.priceCentavos > 0 ? { priceCentavos: u.row.priceCentavos } : {}),
-                ...(u.row.reorderPoint > 0 ? { reorderPoint: u.row.reorderPoint } : {}),
-                requiresPrescription: u.row.requiresPrescription,
-                ...(u.categoryId ? { categoryId: u.categoryId } : {}),
-              },
-            });
-          }
-          const { batches, movements } = stockFor(chunk);
+          await tx.pharmacyProduct.create({ data: productData(c), select: { id: true } });
+          const { batches, movements } = stockFor([c]);
           if (batches.length > 0) {
             await tx.pharmacyBatch.createMany({ data: batches });
             await tx.pharmacyStockMovement.createMany({ data: movements });
           }
-          outcome.updated += chunk.length;
+          return batches;
+        }, { timeout: ROW_TIMEOUT_MS }).then((batches) => {
+          outcome.created += 1;
           outcome.batches += batches.length;
           outcome.units += batches.reduce((s, b) => s + (b.quantity ?? 0), 0);
+          consecutiveFailures = 0;
+        });
+      } catch (e) {
+        noteFailure(c.row, e);
+      }
+      done += 1;
+    }
+  };
+
+  const perRowUpdates = async (chunk: PlannedUpdate[]) => {
+    for (const u of chunk) {
+      if (abandoned) return;
+      try {
+        await systemDb(async (tx) => {
+          await tx.pharmacyProduct.updateMany({
+            where: { id: u.productId, pharmacyId: input.pharmacyId },
+            data: updateData(u),
+          });
+          const { batches, movements } = stockFor([u]);
+          if (batches.length > 0) {
+            await tx.pharmacyBatch.createMany({ data: batches });
+            await tx.pharmacyStockMovement.createMany({ data: movements });
+          }
+          return batches;
+        }, { timeout: ROW_TIMEOUT_MS }).then((batches) => {
+          outcome.updated += 1;
+          outcome.batches += batches.length;
+          outcome.units += batches.reduce((s, b) => s + (b.quantity ?? 0), 0);
+          consecutiveFailures = 0;
+        });
+      } catch (e) {
+        noteFailure(u.row, e);
+      }
+      done += 1;
+    }
+  };
+
+  for (let i = 0; i < creates.length && !abandoned; i += CHUNK) {
+    const chunk = creates.slice(i, i + CHUNK);
+    try {
+      const batches = await systemDb(async (tx) => {
+        await tx.pharmacyProduct.createMany({ data: chunk.map(productData) });
+        const stock = stockFor(chunk);
+        if (stock.batches.length > 0) {
+          await tx.pharmacyBatch.createMany({ data: stock.batches });
+          await tx.pharmacyStockMovement.createMany({ data: stock.movements });
+        }
+        return stock.batches;
+      }, { timeout: CHUNK_TIMEOUT_MS });
+      // Counted AFTER the transaction returns. Incrementing inside the callback
+      // would credit rows that a later statement in the same transaction rolled
+      // back.
+      outcome.created += chunk.length;
+      outcome.batches += batches.length;
+      outcome.units += batches.reduce((s, b) => s + (b.quantity ?? 0), 0);
+      consecutiveFailures = 0;
+      done += chunk.length;
+    } catch {
+      await perRowCreates(chunk);
+    }
+  }
+
+  if (input.updateExisting) {
+    for (let i = 0; i < updates.length && !abandoned; i += CHUNK) {
+      const chunk = updates.slice(i, i + CHUNK);
+      try {
+        const batches = await systemDb(async (tx) => {
+          // Distinct data per row, so these stay individual statements — cheap
+          // ones inside one transaction rather than one transaction each.
+          for (const u of chunk) {
+            await tx.pharmacyProduct.updateMany({
+              where: { id: u.productId, pharmacyId: input.pharmacyId },
+              data: updateData(u),
+            });
+          }
+          const stock = stockFor(chunk);
+          if (stock.batches.length > 0) {
+            await tx.pharmacyBatch.createMany({ data: stock.batches });
+            await tx.pharmacyStockMovement.createMany({ data: stock.movements });
+          }
+          return stock.batches;
         }, { timeout: CHUNK_TIMEOUT_MS });
+        outcome.updated += chunk.length;
+        outcome.batches += batches.length;
+        outcome.units += batches.reduce((s, b) => s + (b.quantity ?? 0), 0);
+        consecutiveFailures = 0;
         done += chunk.length;
+      } catch {
+        await perRowUpdates(chunk);
       }
     }
-  } catch (e) {
-    // Earlier chunks COMMITTED. Saying "nothing was changed" here would be a
-    // lie that sends somebody to import the file again expecting a clean slate.
-    outcome.stoppedEarly = { afterRows: done, ofRows: total, reason: reasonFor(e) };
+  }
+
+  if (abandoned) {
+    outcome.stoppedEarly = { afterRows: done, ofRows: total, reason: abandoned };
   }
 
   // The audit row records what landed, so it is written even after a stop.
@@ -351,10 +474,14 @@ export async function importCatalogue(input: {
     /* the products are in either way; a missing audit row must not undo them */
   }
 
-  if (outcome.stoppedEarly && outcome.created === 0 && outcome.updated === 0) {
+  if (outcome.created === 0 && outcome.updated === 0) {
+    const why =
+      outcome.stoppedEarly?.reason ??
+      outcome.failures[0]?.reason ??
+      "no row could be written";
     return {
       ok: false,
-      error: `The import could not be started — ${outcome.stoppedEarly.reason}. Nothing was changed.`,
+      error: `Nothing could be imported — ${why}. Nothing was changed.`,
     };
   }
   return { ok: true, outcome };

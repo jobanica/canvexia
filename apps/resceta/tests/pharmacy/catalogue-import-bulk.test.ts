@@ -19,6 +19,10 @@ import type { ImportRow } from "@/lib/pharmacy/csv";
 const calls: { model: string; op: string; count: number }[] = [];
 let failOnProductCreateManyCall: number | null = null;
 let productCreateManyCalls = 0;
+/** Row names whose INDIVIDUAL create should fail, as a genuinely bad row would. */
+let poisonNames = new Set<string>();
+/** Make every createMany fail, so the per-row fallback is what does the work. */
+let failEveryCreateMany = false;
 
 function fakeTx() {
   const rec = (model: string, op: string) => (args: { data?: unknown }) => {
@@ -27,10 +31,18 @@ function fakeTx() {
     calls.push({ model, op, count });
     if (model === "pharmacyProduct" && op === "createMany") {
       productCreateManyCalls += 1;
-      if (failOnProductCreateManyCall === productCreateManyCalls) {
+      if (failEveryCreateMany || failOnProductCreateManyCall === productCreateManyCalls) {
         const e = new Error("Transaction already closed") as Error & { code?: string };
         e.code = "P2028";
         throw e;
+      }
+    }
+    if (model === "pharmacyProduct" && op === "create") {
+      const name = (data as { name?: string } | undefined)?.name ?? "";
+      if (poisonNames.has(name)) {
+        // Prisma error messages START with a newline. That is the whole reason
+        // the reported reason came back as an empty string.
+        throw new Error("\nInvalid `prisma.pharmacyProduct.create()` invocation:\n\nvalue too long for type character varying(120)");
       }
     }
     return Promise.resolve({ count });
@@ -41,6 +53,7 @@ function fakeTx() {
         calls.push({ model: "pharmacyProduct", op: "findMany", count: 1 });
         return Promise.resolve([]);
       },
+      create: rec("pharmacyProduct", "create"),
       createMany: rec("pharmacyProduct", "createMany"),
       updateMany: rec("pharmacyProduct", "updateMany"),
     },
@@ -108,6 +121,8 @@ beforeEach(() => {
   timeouts.length = 0;
   productCreateManyCalls = 0;
   failOnProductCreateManyCall = null;
+  poisonNames = new Set();
+  failEveryCreateMany = false;
 });
 
 describe("a 1,886-row import — the one that failed", () => {
@@ -203,41 +218,91 @@ describe("a file that names the same product twice", () => {
 });
 
 describe("when a chunk fails half way", () => {
-  const rows = Array.from({ length: 900 }, (_, i) => row(i));
+  const rows = Array.from({ length: 1886 }, (_, i) => row(i));
 
-  it("never claims nothing was changed once a chunk has committed", async () => {
+  it("retries the chunk row by row and still imports everything else", async () => {
+    // REPORTED — "400 added … then it stopped after 400 of 1886 rows". The
+    // other 1,486 rows were fine and never got a chance. A chunk is a unit of
+    // SPEED, never a unit of blame.
     failOnProductCreateManyCall = 2;
     const res = await run(rows);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.outcome.created).toBe(400);
-    expect(res.outcome.stoppedEarly).toBeDefined();
-    expect(res.outcome.stoppedEarly!.afterRows).toBe(400);
-    expect(res.outcome.stoppedEarly!.ofRows).toBe(900);
+    expect(res.outcome.created).toBe(1886);
+    expect(res.outcome.failures).toHaveLength(0);
+    expect(res.outcome.stoppedEarly).toBeUndefined();
   });
 
-  it("names the timeout in words rather than printing P2028", async () => {
+  it("costs only the rows that are genuinely bad", async () => {
     failOnProductCreateManyCall = 2;
+    poisonNames = new Set(["Product 500", "Product 501"]);
     const res = await run(rows);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.outcome.stoppedEarly!.reason).toMatch(/ran out of time/);
+    expect(res.outcome.created).toBe(1884);
+    expect(res.outcome.failures.map((f) => f.name).sort()).toEqual([
+      "Product 500",
+      "Product 501",
+    ]);
+  });
+
+  it("names the bad rows by line number", async () => {
+    failOnProductCreateManyCall = 2;
+    poisonNames = new Set(["Product 500"]);
+    const res = await run(rows);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.outcome.failures[0]!.line).toBe(502);
+  });
+
+  it("reports the database's reason instead of an empty string", async () => {
+    failOnProductCreateManyCall = 2;
+    poisonNames = new Set(["Product 500"]);
+    const res = await run(rows);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // A Prisma message begins with a newline, so the first LINE is empty and
+    // the old code rendered "because ." — a diagnostic that looks like the
+    // code knows and will not say.
+    const reason = res.outcome.failures[0]!.reason;
+    expect(reason).not.toBe("");
+    expect(reason).toMatch(/value too long/);
   });
 
   it("still records what landed in the audit log", async () => {
     failOnProductCreateManyCall = 2;
     await run(rows);
-    // The products are in. An import with no audit row is stock nobody can
-    // trace back to a decision.
     expect(calls.some((c) => c.model === "auditLog")).toBe(true);
   });
+});
 
-  it("reports a true failure as a failure when nothing committed", async () => {
-    failOnProductCreateManyCall = 1;
+describe("a database that has gone away", () => {
+  it("gives up rather than failing two thousand rows one at a time", async () => {
+    failEveryCreateMany = true;
+    const rows = Array.from({ length: 1886 }, (_, i) => row(i, { name: `Bad ${i}` }));
+    poisonNames = new Set(rows.map((r) => r.name));
     const res = await run(rows);
     expect(res.ok).toBe(false);
     if (res.ok) return;
     expect(res.error).toMatch(/Nothing was changed/);
+    // Fifty consecutive failures, not 1,886 attempts.
+    const attempts = calls.filter(
+      (c) => c.model === "pharmacyProduct" && c.op === "create",
+    ).length;
+    expect(attempts).toBeLessThanOrEqual(50);
+  });
+
+  it("does not give up on a file with bad rows scattered through it", async () => {
+    failEveryCreateMany = true;
+    const rows = Array.from({ length: 600 }, (_, i) => row(i));
+    // 120 bad rows, never 50 in a row — the counter resets on every good one.
+    poisonNames = new Set(rows.filter((_, i) => i % 5 === 0).map((r) => r.name));
+    const res = await run(rows);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.outcome.created).toBe(480);
+    expect(res.outcome.failures).toHaveLength(120);
+    expect(res.outcome.stoppedEarly).toBeUndefined();
   });
 });
 

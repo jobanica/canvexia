@@ -71,10 +71,18 @@ export async function importProducts(_prev: ToolState, formData: FormData): Prom
   const bits = [`${o.created} added`, `${o.updated} updated`];
   if (o.batches > 0) bits.push(`${o.units} units in ${o.batches} batches`);
   if (o.skipped > 0) bits.push(`${o.skipped} skipped`);
+  /*
+    FAILED ROWS ARE NAMED, WITH THE REASON THE DATABASE GAVE.
+
+    "3 failed (line 12, 44, 907)" tells somebody where to look but not what to
+    change, and the file is two thousand rows long. The distinct reasons are
+    listed because they are nearly always the same one or two problems repeated.
+  */
   if (o.failures.length > 0) {
-    bits.push(
-      `${o.failures.length} failed (line ${o.failures.map((f) => f.line).slice(0, 5).join(", ")})`,
-    );
+    const lines = o.failures.map((f) => f.line).slice(0, 8).join(", ");
+    const more = o.failures.length > 8 ? ` and ${o.failures.length - 8} more` : "";
+    const why = [...new Set(o.failures.map((f) => f.reason))].slice(0, 2).join("; ");
+    bits.push(`${o.failures.length} could not be saved (line ${lines}${more} — ${why})`);
   }
 
   /*
@@ -87,13 +95,13 @@ export async function importProducts(_prev: ToolState, formData: FormData): Prom
     catalogues.
   */
   if (o.stoppedEarly) {
-    const s = o.stoppedEarly;
+    const st = o.stoppedEarly;
     return {
       status: "error",
       message:
-        `${bits.join(" · ")} — then it stopped after ${s.afterRows} of ${s.ofRows} rows, ` +
-        `because ${s.reason}. What you see above IS saved. ` +
-        `Import the same file again to finish: rows already in are matched, not duplicated.`,
+        `${bits.join(" · ")} — then it gave up after ${st.afterRows} of ${st.ofRows} rows, ` +
+        `because ${st.reason} kept happening. What you see above IS saved. ` +
+        `Import the same file again to carry on: rows already in are matched, not duplicated.`,
     };
   }
   return { status: "done", message: `${bits.join(" · ")}.` };
