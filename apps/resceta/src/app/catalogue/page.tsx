@@ -4,6 +4,9 @@ import { AppShell } from "@/components/AppShell";
 import { listCatalogue, listCategories } from "@/server/pharmacy/catalogue";
 import { can } from "@/lib/pharmacy/roles";
 import { CatalogueTable } from "./CatalogueTable";
+import { CatalogueTools } from "./CatalogueTools";
+import { duplicateGroups } from "@/server/pharmacy/merge-products";
+import { receiptScanEnabled } from "@/server/pharmacy/receipt-scan";
 
 export const dynamic = "force-dynamic";
 
@@ -46,18 +49,27 @@ export default async function CataloguePage() {
     );
   }
 
-  const [products, categories] = await Promise.all([
+  const [products, categories, duplicates] = await Promise.all([
     listCatalogue(staff.pharmacyId),
     listCategories(staff.pharmacyId),
+    // Computed on every load rather than behind the button: the count is the
+    // reason anybody presses it, and a button that says nothing gets ignored.
+    duplicateGroups(staff.pharmacyId),
   ]);
 
   return (
     <AppShell staff={staff}>
       <main className="mx-auto max-w-5xl px-6 py-10">
         <h1 className="mb-2 text-2xl font-semibold tracking-tight">Catalogue</h1>
-        <p className="mb-8 text-sm text-slate-500">
+        <p className="mb-6 text-sm text-slate-400">
           What the counter can sell, what it costs, and which items need a pharmacist.
         </p>
+
+        <CatalogueTools
+          duplicates={duplicates}
+          scanEnabled={receiptScanEnabled()}
+          canScan={can(staff.role, "manageStock")}
+        />
         <CatalogueTable products={products} categories={categories} />
       </main>
     </AppShell>

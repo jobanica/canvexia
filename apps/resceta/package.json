@@ -2,7 +2,7 @@
   "name": "resceta",
   "version": "0.1.0",
   "private": true,
-  "description": "Resceta \u2014 pharmacy POS, batch inventory and expiry tracking. A CANVEXIA vertical.",
+  "description": "Resceta — pharmacy POS, batch inventory and expiry tracking. A CANVEXIA vertical.",
   "engines": {
     "node": "22.x"
   },
@@ -19,6 +19,7 @@
     "staff:create": "node scripts/create-staff.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.2",
     "@prisma/client": "^6.2.1",
     "@servd/core": "workspace:*",
     "@servd/db": "workspace:*",
