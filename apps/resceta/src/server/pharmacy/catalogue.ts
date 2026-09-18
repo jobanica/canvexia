@@ -52,6 +52,29 @@ export interface CatalogueEditRow {
   isActive: boolean;
   /** Live stock, so nobody archives something with boxes on the shelf. */
   onHand: number;
+  /**
+   * THE BATCHES THIS PRODUCT'S STOCK IS ACTUALLY IN.
+   *
+   * REPORTED — "when i check the details of the item, there is no expiration
+   * date." There is not one, and there cannot be: a product does not expire,
+   * a DELIVERY does. Two boxes of the same drug bought a month apart expire on
+   * different days and cost different money, which is the whole reason FEFO
+   * exists and the reason a recall names a lot rather than a product.
+   *
+   * So the answer is not an expiry field on the product — it is showing the
+   * dates that DO exist, on the row where somebody went looking for them.
+   */
+  batches: ProductBatchRow[];
+}
+
+export interface ProductBatchRow {
+  id: string;
+  lotNumber: string | null;
+  expiryDate: Date | null;
+  quantity: number;
+  costCentavos: number;
+  receivedAt: Date;
+  branchName: string | null;
 }
 
 export interface CategoryRow {
@@ -86,7 +109,24 @@ export async function listCatalogue(pharmacyId: string): Promise<CatalogueEditRo
   const rows = await pharmacyDb(pharmacyId, (tx) =>
     tx.pharmacyProduct.findMany({
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
-      select: { ...FIELDS, batches: { where: { quantity: { gt: 0 } }, select: { quantity: true } } },
+      select: {
+        ...FIELDS,
+        batches: {
+          where: { quantity: { gt: 0 } },
+          // FEFO order: the box that has to go first is the one listed first,
+          // and an undated batch sorts last because it cannot be the urgent one.
+          orderBy: [{ expiryDate: "asc" }, { receivedAt: "asc" }],
+          select: {
+            id: true,
+            lotNumber: true,
+            expiryDate: true,
+            quantity: true,
+            costCentavos: true,
+            receivedAt: true,
+            branch: { select: { name: true } },
+          },
+        },
+      },
     }),
   );
   return rows.map(({ batches, ...p }) => ({
@@ -95,6 +135,15 @@ export async function listCatalogue(pharmacyId: string): Promise<CatalogueEditRo
     // "is there anything on the shelf with this name on it", and expired boxes
     // are very much still on the shelf until somebody writes them off.
     onHand: batches.reduce((n, b) => n + b.quantity, 0),
+    batches: batches.map((b) => ({
+      id: b.id,
+      lotNumber: b.lotNumber,
+      expiryDate: b.expiryDate,
+      quantity: b.quantity,
+      costCentavos: b.costCentavos,
+      receivedAt: b.receivedAt,
+      branchName: b.branch?.name ?? null,
+    })),
   }));
 }
 

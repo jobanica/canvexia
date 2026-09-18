@@ -81,7 +81,12 @@ export default async function CataloguePage() {
           scanEnabled={receiptScanEnabled()}
           canScan={can(staff.role, "manageStock")}
         />
-        <CatalogueTable products={products} categories={categories} />
+        <CatalogueTable
+          products={products}
+          categories={categories}
+          showCost={can(staff.role, "viewReports")}
+          canEditBatches={can(staff.role, "manageStock")}
+        />
       </main>
     </AppShell>
   );

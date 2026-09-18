@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ArchiveButton, ProductForm } from "./ProductForm";
+import { BatchPanel } from "./BatchPanel";
 import type { CatalogueEditRow, CategoryRow } from "@/server/pharmacy/catalogue";
 
 /**
@@ -19,9 +20,14 @@ import type { CatalogueEditRow, CategoryRow } from "@/server/pharmacy/catalogue"
 export function CatalogueTable({
   products,
   categories,
+  showCost,
+  canEditBatches,
 }: {
   products: CatalogueEditRow[];
   categories: CategoryRow[];
+  /** Batch costs are margin, so they follow the same gate as everywhere else. */
+  showCost: boolean;
+  canEditBatches: boolean;
 }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -125,6 +131,8 @@ export function CatalogueTable({
                   key={p.id}
                   p={p}
                   categories={categories}
+                  showCost={showCost}
+                  canEditBatches={canEditBatches}
                   open={editing === p.id}
                   onOpen={() => {
                     setEditing(editing === p.id ? null : p.id);
@@ -149,12 +157,16 @@ export function CatalogueTable({
 function FragmentRow({
   p,
   categories,
+  showCost,
+  canEditBatches,
   open,
   onOpen,
   onClose,
 }: {
   p: CatalogueEditRow;
   categories: CategoryRow[];
+  showCost: boolean;
+  canEditBatches: boolean;
   open: boolean;
   onOpen: () => void;
   onClose: () => void;
@@ -206,6 +218,17 @@ function FragmentRow({
         <tr>
           <td colSpan={5} className="bg-white/[0.06] px-4 py-4">
             <ProductForm product={p} categories={categories} onDone={onClose} />
+            {/*
+              THE EXPIRY DATES LIVE HERE, under the product, because this is
+              where somebody goes looking for them — and there is no expiry on
+              a product to show instead.
+            */}
+            <BatchPanel
+              batches={p.batches}
+              productName={p.name}
+              showCost={showCost}
+              canEdit={canEditBatches}
+            />
           </td>
         </tr>
       )}
