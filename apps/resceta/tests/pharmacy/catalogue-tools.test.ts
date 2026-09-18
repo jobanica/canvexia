@@ -255,7 +255,15 @@ describe("the receipt scanner", () => {
   it("validates the reply instead of trusting the schema it asked for", () => {
     // A malformed reply would otherwise reach the form as undefined and land
     // in the database as zero.
-    expect(scan).toContain("ReceiptExtraction.safeParse(JSON.parse(text))");
+    //
+    // THE RULE IS UNCHANGED; the mechanism is not. `messages.parse` checks the
+    // reply against the same zod object it generated the schema from and hands
+    // back `parsed_output: null` when it does not fit — which is stricter than
+    // the hand-rolled `safeParse(JSON.parse(text))` this replaced, because the
+    // schema and the validator can no longer drift apart.
+    expect(scan).toContain("client.messages.parse(");
+    expect(scan).toContain("const parsed = response.parsed_output;");
+    expect(scan).toContain("if (!parsed) {");
   });
 
   it("checks for a refusal before reading the content", () => {

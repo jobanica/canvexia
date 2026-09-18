@@ -1,6 +1,14 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import { z } from "zod";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+/*
+  zod/v4, NOT the project's default zod import.
+
+  `zodOutputFormat` is typed against zod v4 and generates the JSON Schema from
+  it. zod 3.25 ships v4 on this subpath, so the rest of the app keeps its v3
+  schemas and this one module speaks the version the SDK helper expects.
+*/
+import * as z from "zod/v4";
 
 /**
  * READING A DELIVERY RECEIPT FROM A PHOTO.
@@ -26,82 +34,52 @@ export function receiptScanEnabled(): boolean {
 }
 
 /**
- * The shape asked for, and the shape checked on the way back.
+ * ONE SCHEMA, and the SDK derives the JSON Schema from it.
  *
- * The same fields are sent to the model as a JSON Schema and validated here
- * with zod. Two copies of one shape is a smell, but the alternative — trusting
- * the response because the request said `json_schema` — means a malformed reply
- * reaches the form as `undefined` and lands in the database as zero.
+ * REPORTED — "i tried to read the receipt in receive stock, its not working."
+ *
+ * It was two schemas: this zod object, and a JSON Schema written out by hand
+ * beside it. The hand-written one spelled a nullable field
+ * `type: ["string", "null"]`. Structured outputs accept a restricted subset of
+ * JSON Schema in which a nullable is `anyOf: [{type:"string"},{type:"null"}]`,
+ * so the API rejected the request — and the catch-all below turned that 400
+ * into "The scan failed", which told nobody anything.
+ *
+ * Both halves of that are fixed. The schema is generated from this object by
+ * `zodOutputFormat`, so the wire shape cannot drift from the shape being
+ * validated; and the error now says what actually happened.
  */
 export const ReceiptLine = z.object({
-  productName: z.string(),
-  genericName: z.string().nullable(),
-  quantity: z.number(),
-  unitCostCentavos: z.number(),
-  expiryDate: z.string().nullable(),
-  lotNumber: z.string().nullable(),
+  productName: z
+    .string()
+    .describe("The product exactly as printed, including brand and strength."),
+  genericName: z.string().nullable().describe("Generic name if shown separately, else null."),
+  quantity: z.number().int().describe("Units received on this line. 0 if unreadable."),
+  unitCostCentavos: z
+    .number()
+    .int()
+    .describe(
+      "Cost PER UNIT in CENTAVOS (pesos x 100). If only a line total is printed, divide by the quantity first. 0 if unreadable.",
+    ),
+  expiryDate: z
+    .string()
+    .nullable()
+    .describe("Expiry as yyyy-mm-dd, or null if not printed on this line."),
+  lotNumber: z
+    .string()
+    .nullable()
+    .describe("Lot or batch number if printed (LOT, BATCH, B/N), else null."),
 });
 
 export const ReceiptExtraction = z.object({
-  supplierName: z.string().nullable(),
+  supplierName: z
+    .string()
+    .nullable()
+    .describe("Supplier or distributor name printed on the receipt, else null."),
   lines: z.array(ReceiptLine),
 });
 
 export type ReceiptExtractionValues = z.infer<typeof ReceiptExtraction>;
-
-const SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["supplierName", "lines"],
-  properties: {
-    supplierName: {
-      type: ["string", "null"],
-      description: "Supplier or distributor name printed on the receipt, else null.",
-    },
-    lines: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: [
-          "productName",
-          "genericName",
-          "quantity",
-          "unitCostCentavos",
-          "expiryDate",
-          "lotNumber",
-        ],
-        properties: {
-          productName: {
-            type: "string",
-            description: "The product exactly as printed, including brand and strength.",
-          },
-          genericName: {
-            type: ["string", "null"],
-            description: "Generic name if shown separately, else null.",
-          },
-          quantity: {
-            type: "integer",
-            description: "Units received on this line. 0 if unreadable.",
-          },
-          unitCostCentavos: {
-            type: "integer",
-            description:
-              "Cost PER UNIT in CENTAVOS (pesos x 100). If only a line total is printed, divide by the quantity first. 0 if unreadable.",
-          },
-          expiryDate: {
-            type: ["string", "null"],
-            description: "Expiry as yyyy-mm-dd, or null if not printed on this line.",
-          },
-          lotNumber: {
-            type: ["string", "null"],
-            description: "Lot or batch number if printed (LOT, BATCH, B/N), else null.",
-          },
-        },
-      },
-    },
-  },
-} as const;
 
 const SYSTEM = `You are a meticulous pharmacy receiving clerk in the Philippines reading a
 supplier delivery receipt, sales invoice or packing slip.
@@ -148,7 +126,7 @@ export async function scanReceipt(dataUrl: string): Promise<ScanOutcome> {
   const client = new Anthropic();
 
   try {
-    const response = await client.messages.create({
+    const response = await client.messages.parse({
       model: "claude-opus-5",
       max_tokens: 16000,
       system: SYSTEM,
@@ -156,7 +134,9 @@ export async function scanReceipt(dataUrl: string): Promise<ScanOutcome> {
       // counter is waiting. `medium` keeps it quick without getting sloppy.
       output_config: {
         effort: "medium",
-        format: { type: "json_schema", schema: SCHEMA as unknown as Record<string, unknown> },
+        // Generated from the zod object above, so the schema on the wire and
+        // the schema that validates the reply cannot disagree.
+        format: zodOutputFormat(ReceiptExtraction),
       },
       messages: [
         {
@@ -185,33 +165,51 @@ export async function scanReceipt(dataUrl: string): Promise<ScanOutcome> {
       return { ok: false, error: "That photo could not be read. Enter the delivery by hand." };
     }
 
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-    if (!text.trim()) {
-      return { ok: false, error: "Nothing could be read from that photo." };
-    }
-
-    const parsed = ReceiptExtraction.safeParse(JSON.parse(text));
-    if (!parsed.success) {
+    // `parse` validates against the same zod object it built the schema from.
+    // Null means the reply did not fit it — a sharper photo, not a bad request.
+    const parsed = response.parsed_output;
+    if (!parsed) {
       return { ok: false, error: "That receipt could not be read cleanly. Try a sharper photo." };
     }
 
     // Anything with no name is not a line somebody can check against the paper.
-    const lines = parsed.data.lines.filter((l) => l.productName.trim() !== "");
+    const lines = parsed.lines.filter((l) => l.productName.trim() !== "");
     if (lines.length === 0) {
       return { ok: false, error: "No product lines were found on that photo." };
     }
 
-    return { ok: true, data: { supplierName: parsed.data.supplierName, lines } };
+    return { ok: true, data: { supplierName: parsed.supplierName, lines } };
   } catch (e) {
+    /*
+      SAY WHAT WENT WRONG.
+
+      The previous version answered every failure with "The scan failed. Enter
+      the delivery by hand." A request the API rejected outright, an expired
+      key and a flat connection all read identically, so the one fault that was
+      actually here — a malformed schema — could not be told apart from a bad
+      photo. Reported, and fixed here as well as in the schema above.
+    */
     if (e instanceof Anthropic.RateLimitError) {
       return { ok: false, error: "Too many scans at once. Try again in a moment." };
     }
     if (e instanceof Anthropic.AuthenticationError) {
-      return { ok: false, error: "Receipt scanning is not configured correctly." };
+      return { ok: false, error: "The Anthropic API key is missing or not valid." };
     }
-    return { ok: false, error: "The scan failed. Enter the delivery by hand." };
+    if (e instanceof Anthropic.BadRequestError) {
+      // Ours, not the photographer's. Printed rather than hidden, because the
+      // person seeing it is the only one who can report it.
+      return { ok: false, error: `The scan request was rejected: ${e.message.slice(0, 200)}` };
+    }
+    if (e instanceof Anthropic.APIConnectionError) {
+      return { ok: false, error: "Could not reach the scanning service. Check the connection." };
+    }
+    if (e instanceof Anthropic.APIError) {
+      return { ok: false, error: `Scanning failed (${e.status}): ${e.message.slice(0, 200)}` };
+    }
+    const msg = e instanceof Error ? e.message.split("\n").find((l) => l.trim()) : "";
+    return {
+      ok: false,
+      error: msg ? `The scan failed — ${msg.slice(0, 200)}` : "The scan failed. Enter the delivery by hand.",
+    };
   }
 }

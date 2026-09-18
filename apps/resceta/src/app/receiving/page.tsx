@@ -9,6 +9,14 @@ import { receiptScanEnabled } from "@/server/pharmacy/receipt-scan";
 
 export const dynamic = "force-dynamic";
 
+/*
+  The receipt scan runs as a server action on THIS route, so the route's ceiling
+  is the scan's ceiling. Reading a photo of a forty-line delivery note is a
+  vision call that takes tens of seconds — comfortably past the default, which
+  would kill the request and report it as a failed scan.
+*/
+export const maxDuration = 300;
+
 export default async function ReceivingPage() {
   const staff = await getCurrentStaff();
   if (!staff) redirect("/login?next=%2Freceiving");
