@@ -89,11 +89,36 @@ export async function partnerDb<T>(
   });
 }
 
-export async function systemDb<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(
-      `select set_config('${GUC.superAdmin}', '${SUPER_ADMIN_ON}', true)`,
-    );
-    return fn(tx);
-  });
+/**
+ * `timeout` is in milliseconds and defaults to PRISMA'S OWN 5 SECONDS.
+ *
+ * It exists because bulk work — importing a two-thousand-row price list — is
+ * real work that cannot be done in five seconds, and the failure it produced
+ * was invisible: Prisma kills the transaction, Postgres rolls it back, and the
+ * caller sees a generic error with no hint that a CLOCK was the problem.
+ *
+ * Raising it is not a licence to do slow things in a transaction. A long
+ * transaction holds a pooled connection and blocks nothing else usefully, so
+ * the bulk paths CHUNK first and raise this second.
+ */
+export interface TxOptions {
+  timeout?: number;
+  maxWait?: number;
+}
+
+export async function systemDb<T>(
+  fn: (tx: Tx) => Promise<T>,
+  opts?: TxOptions,
+): Promise<T> {
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRawUnsafe(
+        `select set_config('${GUC.superAdmin}', '${SUPER_ADMIN_ON}', true)`,
+      );
+      return fn(tx);
+    },
+    opts?.timeout === undefined && opts?.maxWait === undefined
+      ? undefined
+      : { timeout: opts.timeout, maxWait: opts.maxWait },
+  );
 }

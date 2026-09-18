@@ -76,6 +76,26 @@ export async function importProducts(_prev: ToolState, formData: FormData): Prom
       `${o.failures.length} failed (line ${o.failures.map((f) => f.line).slice(0, 5).join(", ")})`,
     );
   }
+
+  /*
+    A PARTIAL IMPORT IS NOT A SUCCESS, and it is not a total failure either.
+    Rows committed before the stop are really in the catalogue, so the message
+    leads with what landed and then says plainly that it stopped — and that
+    running the same file again is safe, because re-import matches on barcode,
+    SKU and name rather than creating a second copy. Somebody told "nothing was
+    changed" about a half-finished import is somebody about to build two
+    catalogues.
+  */
+  if (o.stoppedEarly) {
+    const s = o.stoppedEarly;
+    return {
+      status: "error",
+      message:
+        `${bits.join(" · ")} — then it stopped after ${s.afterRows} of ${s.ofRows} rows, ` +
+        `because ${s.reason}. What you see above IS saved. ` +
+        `Import the same file again to finish: rows already in are matched, not duplicated.`,
+    };
+  }
   return { status: "done", message: `${bits.join(" · ")}.` };
 }
 

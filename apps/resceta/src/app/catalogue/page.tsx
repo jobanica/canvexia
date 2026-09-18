@@ -11,6 +11,14 @@ import { listCategoriesWithCounts } from "@/server/pharmacy/categories";
 
 export const dynamic = "force-dynamic";
 
+/*
+  The bulk import runs as a server action on THIS route, so the route's limit is
+  the import's limit. The work is chunked and set-shaped now — a two-thousand-row
+  file is a dozen statements — but the ceiling is stated rather than inherited,
+  because the default cut a long import off mid-way and called it a crash.
+*/
+export const maxDuration = 60;
+
 /**
  * THE CATALOGUE.
  *

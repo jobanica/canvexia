@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import type { ImportRow } from "@/lib/pharmacy/csv";
@@ -18,6 +19,30 @@ import type { ImportRow } from "@/lib/pharmacy/csv";
  * OPENING STOCK IS A REAL BATCH, with a real movement behind it. A quantity
  * written straight onto a product would be a number no ledger explains — and
  * this app has no such number anywhere else.
+ *
+ * ── WHY THIS IS WRITTEN IN BULK ───────────────────────────────────────────
+ *
+ * REPORTED — a real 1,886-row import failed with "The import could not be
+ * completed. Nothing was changed." and no way to find out why.
+ *
+ * The first version did roughly three sequential round trips per row inside
+ * ONE interactive transaction: create the product, create the batch, create the
+ * movement. That is ~5,600 round trips, and Prisma's default transaction
+ * timeout is FIVE SECONDS. It was never going to finish. Postgres rolled it
+ * back, Prisma raised P2028, and a bare `catch {}` flattened that into a
+ * sentence that told nobody anything.
+ *
+ * So the writes are now SET-SHAPED: the ids are generated here, which means
+ * products, batches and movements each go in with one statement per chunk
+ * instead of one per row. 1,886 rows is about a dozen statements.
+ *
+ * AND IT COMMITS IN CHUNKS, which is a real trade and worth naming. A single
+ * transaction over two thousand rows is not achievable at any timeout worth
+ * setting, so an interrupted import can now leave some rows in. That is safe
+ * ONLY because of the matching rule above: run it again and the rows that
+ * landed are matched, not duplicated. The failure message says so, because a
+ * half-finished import that looks total is how somebody ends up with two
+ * catalogues.
  */
 
 export interface ImportOutcome {
@@ -28,6 +53,55 @@ export interface ImportOutcome {
   skipped: number;
   /** Row-level failures, so nothing disappears silently. */
   failures: { line: number; name: string; reason: string }[];
+  /**
+   * Set when a chunk failed and the import stopped early. The counts above are
+   * what actually COMMITTED, never what was attempted.
+   */
+  stoppedEarly?: { afterRows: number; ofRows: number; reason: string };
+}
+
+/**
+ * Rows per committed transaction. Small enough that a chunk is a few
+ * statements and finishes well inside the timeout; large enough that a
+ * two-thousand-row file is a handful of round trips.
+ */
+const CHUNK = 400;
+
+/** Generous, because a chunk is doing a few set-shaped statements, not 1,200. */
+const CHUNK_TIMEOUT_MS = 20_000;
+
+function lower(v: string | null | undefined): string {
+  return (v ?? "").trim().toLowerCase();
+}
+
+/** What Prisma's failure actually was, in words a pharmacist can act on. */
+function reasonFor(e: unknown): string {
+  const msg = e instanceof Error ? e.message : "";
+  const code = (e as { code?: string })?.code ?? "";
+  if (code === "P2028" || /transaction.*(closed|not found)|timeout/i.test(msg)) {
+    return "the database ran out of time on a batch of rows";
+  }
+  if (code === "P2002" || /unique/i.test(msg)) {
+    return "two rows claim the same SKU or barcode";
+  }
+  if (code === "P2003" || /foreign key/i.test(msg)) {
+    return "a row pointed at something that no longer exists";
+  }
+  if (/connection|ECONNRESET|terminat/i.test(msg)) {
+    return "the database connection dropped";
+  }
+  return msg ? msg.split("\n")[0]!.slice(0, 140) : "an unexpected database error";
+}
+
+interface PlannedCreate {
+  row: ImportRow;
+  productId: string;
+  categoryId: string | null;
+}
+interface PlannedUpdate {
+  row: ImportRow;
+  productId: string;
+  categoryId: string | null;
 }
 
 export async function importCatalogue(input: {
@@ -50,144 +124,209 @@ export async function importCatalogue(input: {
     failures: [],
   };
 
+  // ── PHASE 1: read the catalogue, and make any categories the file names.
+  // One short transaction. Nothing here depends on row count.
+  let byBarcode: Map<string, string>;
+  let bySku: Map<string, string>;
+  let byName: Map<string, string>;
+  let categoryByName: Map<string, string>;
   try {
-    await systemDb(async (tx) => {
-      // The whole catalogue once, rather than a query per row. Four hundred
-      // rows against a four-hundred-product catalogue is 400 lookups otherwise,
-      // and this runs inside one transaction.
+    const prepared = await systemDb(async (tx) => {
       const existing = await tx.pharmacyProduct.findMany({
         where: { pharmacyId: input.pharmacyId },
         select: { id: true, name: true, sku: true, barcode: true },
       });
-      const byBarcode = new Map<string, string>();
-      const bySku = new Map<string, string>();
-      const byName = new Map<string, string>();
+      const barcodes = new Map<string, string>();
+      const skus = new Map<string, string>();
+      const names = new Map<string, string>();
       for (const p of existing) {
-        if (p.barcode) byBarcode.set(p.barcode.trim().toLowerCase(), p.id);
-        if (p.sku) bySku.set(p.sku.trim().toLowerCase(), p.id);
-        byName.set(p.name.trim().toLowerCase(), p.id);
+        if (p.barcode) barcodes.set(lower(p.barcode), p.id);
+        if (p.sku) skus.set(lower(p.sku), p.id);
+        names.set(lower(p.name), p.id);
       }
 
       const categories = await tx.pharmacyCategory.findMany({
         where: { pharmacyId: input.pharmacyId },
         select: { id: true, name: true },
       });
-      const categoryByName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c.id]));
+      const cats = new Map(categories.map((c) => [lower(c.name), c.id]));
 
+      // Every category the file names, in ONE insert rather than one per row.
+      // Created rather than dropped: a category column the importer ignores is
+      // a column people stop filling in.
+      const wanted = new Map<string, string>();
       for (const row of usable) {
-        try {
-          let categoryId: string | null = null;
-          if (row.category) {
-            const key = row.category.trim().toLowerCase();
-            categoryId = categoryByName.get(key) ?? null;
-            if (!categoryId) {
-              // Created rather than dropped: a category column the importer
-              // ignores is a column people stop filling in.
-              const made = await tx.pharmacyCategory.create({
-                data: { pharmacyId: input.pharmacyId, name: row.category.trim() },
-                select: { id: true },
-              });
-              categoryId = made.id;
-              categoryByName.set(key, made.id);
-            }
-          }
-
-          const match =
-            (row.barcode && byBarcode.get(row.barcode.trim().toLowerCase())) ||
-            (row.sku && bySku.get(row.sku.trim().toLowerCase())) ||
-            byName.get(row.name.trim().toLowerCase()) ||
-            null;
-
-          let productId: string;
-          if (match) {
-            productId = match;
-            if (input.updateExisting) {
-              await tx.pharmacyProduct.updateMany({
-                where: { id: match, pharmacyId: input.pharmacyId },
-                data: {
-                  genericName: row.genericName,
-                  form: row.form,
-                  strength: row.strength,
-                  unit: row.unit,
-                  // A price of zero in the file means "not given", not "free".
-                  ...(row.priceCentavos > 0 ? { priceCentavos: row.priceCentavos } : {}),
-                  ...(row.reorderPoint > 0 ? { reorderPoint: row.reorderPoint } : {}),
-                  requiresPrescription: row.requiresPrescription,
-                  ...(categoryId ? { categoryId } : {}),
-                },
-              });
-              outcome.updated += 1;
-            }
-          } else {
-            const made = await tx.pharmacyProduct.create({
-              data: {
-                pharmacyId: input.pharmacyId,
-                name: row.name,
-                genericName: row.genericName,
-                form: row.form,
-                strength: row.strength,
-                sku: row.sku,
-                barcode: row.barcode,
-                unit: row.unit,
-                categoryId,
-                priceCentavos: row.priceCentavos,
-                reorderPoint: row.reorderPoint,
-                requiresPrescription: row.requiresPrescription,
-              },
-              select: { id: true },
-            });
-            productId = made.id;
-            outcome.created += 1;
-            // So a file that lists the same product twice matches itself on
-            // the second pass rather than creating it again.
-            byName.set(row.name.trim().toLowerCase(), made.id);
-            if (row.sku) bySku.set(row.sku.trim().toLowerCase(), made.id);
-            if (row.barcode) byBarcode.set(row.barcode.trim().toLowerCase(), made.id);
-          }
-
-          if (row.quantity > 0) {
-            const batch = await tx.pharmacyBatch.create({
-              data: {
-                pharmacyId: input.pharmacyId,
-                productId,
-                branchId: input.branchId,
-                lotNumber: row.lotNumber,
-                expiryDate: row.expiry ? new Date(`${row.expiry}T00:00:00Z`) : null,
-                quantity: row.quantity,
-                costCentavos: row.costCentavos,
-              },
-              select: { id: true },
-            });
-            await tx.pharmacyStockMovement.create({
-              data: {
-                pharmacyId: input.pharmacyId,
-                productId,
-                batchId: batch.id,
-                branchId: input.branchId,
-                type: "receive",
-                quantityDelta: row.quantity,
-                reason: "Opening stock, imported",
-                actorStaffId: input.actorStaffId,
-              },
-            });
-            outcome.batches += 1;
-            outcome.units += row.quantity;
-          }
-        } catch (e) {
-          // One bad row does not lose the other 399. A unique-constraint clash
-          // on a duplicated SKU inside the file is the common case.
-          outcome.failures.push({
-            line: row.line,
-            name: row.name,
-            reason:
-              e instanceof Error && /unique/i.test(e.message)
-                ? "that SKU or barcode is already used by another product"
-                : "could not be saved",
-          });
-        }
+        if (!row.category) continue;
+        const key = lower(row.category);
+        if (key && !cats.has(key) && !wanted.has(key)) wanted.set(key, row.category.trim());
+      }
+      if (wanted.size > 0) {
+        const made = [...wanted].map(([key, name]) => ({
+          key,
+          id: randomUUID(),
+          name,
+        }));
+        await tx.pharmacyCategory.createMany({
+          data: made.map((m) => ({ id: m.id, pharmacyId: input.pharmacyId, name: m.name })),
+        });
+        for (const m of made) cats.set(m.key, m.id);
       }
 
-      await tx.auditLog.create({
+      return { barcodes, skus, names, cats };
+    }, { timeout: CHUNK_TIMEOUT_MS });
+    byBarcode = prepared.barcodes;
+    bySku = prepared.skus;
+    byName = prepared.names;
+    categoryByName = prepared.cats;
+  } catch (e) {
+    return {
+      ok: false,
+      error: `Could not read the catalogue to import against — ${reasonFor(e)}. Nothing was changed.`,
+    };
+  }
+
+  // ── PHASE 2: decide every row's fate in memory, before writing anything.
+  //
+  // Ids are generated HERE so the inserts below can be set-shaped: a createMany
+  // returns no ids, and relying on the order createManyAndReturn hands them
+  // back is a guess. Generating them makes the batch and its movement point at
+  // the right product by construction.
+  const creates: PlannedCreate[] = [];
+  const updates: PlannedUpdate[] = [];
+
+  for (const row of usable) {
+    const categoryId = row.category ? (categoryByName.get(lower(row.category)) ?? null) : null;
+    const match =
+      (row.barcode && byBarcode.get(lower(row.barcode))) ||
+      (row.sku && bySku.get(lower(row.sku))) ||
+      byName.get(lower(row.name)) ||
+      null;
+
+    if (match) {
+      updates.push({ row, productId: match, categoryId });
+      continue;
+    }
+    const productId = randomUUID();
+    creates.push({ row, productId, categoryId });
+    // So a file that lists the same product twice matches itself on the second
+    // pass rather than creating it again — and so the second occurrence cannot
+    // collide with the first on a unique SKU.
+    byName.set(lower(row.name), productId);
+    if (row.sku) bySku.set(lower(row.sku), productId);
+    if (row.barcode) byBarcode.set(lower(row.barcode), productId);
+  }
+
+  // ── PHASE 3: write, in chunks that each commit on their own.
+  let done = 0;
+  const total = creates.length + (input.updateExisting ? updates.length : 0);
+
+  const stockFor = (planned: { row: ImportRow; productId: string }[]) => {
+    const batches: Prisma.PharmacyBatchCreateManyInput[] = [];
+    const movements: Prisma.PharmacyStockMovementCreateManyInput[] = [];
+    for (const p of planned) {
+      if (p.row.quantity <= 0) continue;
+      const batchId = randomUUID();
+      batches.push({
+        id: batchId,
+        pharmacyId: input.pharmacyId,
+        productId: p.productId,
+        branchId: input.branchId,
+        lotNumber: p.row.lotNumber,
+        expiryDate: p.row.expiry ? new Date(`${p.row.expiry}T00:00:00Z`) : null,
+        quantity: p.row.quantity,
+        costCentavos: p.row.costCentavos,
+      });
+      movements.push({
+        pharmacyId: input.pharmacyId,
+        productId: p.productId,
+        batchId,
+        branchId: input.branchId,
+        type: "receive",
+        quantityDelta: p.row.quantity,
+        reason: "Opening stock, imported",
+        actorStaffId: input.actorStaffId,
+      });
+    }
+    return { batches, movements };
+  };
+
+  try {
+    for (let i = 0; i < creates.length; i += CHUNK) {
+      const chunk = creates.slice(i, i + CHUNK);
+      await systemDb(async (tx) => {
+        await tx.pharmacyProduct.createMany({
+          data: chunk.map((c) => ({
+            id: c.productId,
+            pharmacyId: input.pharmacyId,
+            name: c.row.name,
+            genericName: c.row.genericName,
+            form: c.row.form,
+            strength: c.row.strength,
+            sku: c.row.sku,
+            barcode: c.row.barcode,
+            unit: c.row.unit,
+            categoryId: c.categoryId,
+            priceCentavos: c.row.priceCentavos,
+            reorderPoint: c.row.reorderPoint,
+            requiresPrescription: c.row.requiresPrescription,
+          })),
+        });
+        const { batches, movements } = stockFor(chunk);
+        if (batches.length > 0) {
+          await tx.pharmacyBatch.createMany({ data: batches });
+          await tx.pharmacyStockMovement.createMany({ data: movements });
+        }
+        outcome.created += chunk.length;
+        outcome.batches += batches.length;
+        outcome.units += batches.reduce((s, b) => s + (b.quantity ?? 0), 0);
+      }, { timeout: CHUNK_TIMEOUT_MS });
+      done += chunk.length;
+    }
+
+    if (input.updateExisting) {
+      for (let i = 0; i < updates.length; i += CHUNK) {
+        const chunk = updates.slice(i, i + CHUNK);
+        await systemDb(async (tx) => {
+          // Distinct data per row, so these stay individual. They are cheap
+          // statements inside one transaction rather than one transaction each.
+          for (const u of chunk) {
+            await tx.pharmacyProduct.updateMany({
+              where: { id: u.productId, pharmacyId: input.pharmacyId },
+              data: {
+                genericName: u.row.genericName,
+                form: u.row.form,
+                strength: u.row.strength,
+                unit: u.row.unit,
+                // A price of zero in the file means "not given", not "free".
+                ...(u.row.priceCentavos > 0 ? { priceCentavos: u.row.priceCentavos } : {}),
+                ...(u.row.reorderPoint > 0 ? { reorderPoint: u.row.reorderPoint } : {}),
+                requiresPrescription: u.row.requiresPrescription,
+                ...(u.categoryId ? { categoryId: u.categoryId } : {}),
+              },
+            });
+          }
+          const { batches, movements } = stockFor(chunk);
+          if (batches.length > 0) {
+            await tx.pharmacyBatch.createMany({ data: batches });
+            await tx.pharmacyStockMovement.createMany({ data: movements });
+          }
+          outcome.updated += chunk.length;
+          outcome.batches += batches.length;
+          outcome.units += batches.reduce((s, b) => s + (b.quantity ?? 0), 0);
+        }, { timeout: CHUNK_TIMEOUT_MS });
+        done += chunk.length;
+      }
+    }
+  } catch (e) {
+    // Earlier chunks COMMITTED. Saying "nothing was changed" here would be a
+    // lie that sends somebody to import the file again expecting a clean slate.
+    outcome.stoppedEarly = { afterRows: done, ofRows: total, reason: reasonFor(e) };
+  }
+
+  // The audit row records what landed, so it is written even after a stop.
+  try {
+    await systemDb((tx) =>
+      tx.auditLog.create({
         data: {
           actorType: "merchant",
           actorStaffId: input.actorStaffId,
@@ -199,13 +338,24 @@ export async function importCatalogue(input: {
             updated: outcome.updated,
             batches: outcome.batches,
             units: outcome.units,
+            stoppedEarly: outcome.stoppedEarly ?? null,
           } as Prisma.InputJsonValue,
         },
-      });
-    });
-
-    return { ok: true, outcome };
+      }),
+      // One insert, so the default would do — but stated anyway, so the rule
+      // here is "every transaction this function opens says its own budget"
+      // rather than "every one except the last".
+      { timeout: CHUNK_TIMEOUT_MS },
+    );
   } catch {
-    return { ok: false, error: "The import could not be completed. Nothing was changed." };
+    /* the products are in either way; a missing audit row must not undo them */
   }
+
+  if (outcome.stoppedEarly && outcome.created === 0 && outcome.updated === 0) {
+    return {
+      ok: false,
+      error: `The import could not be started — ${outcome.stoppedEarly.reason}. Nothing was changed.`,
+    };
+  }
+  return { ok: true, outcome };
 }
