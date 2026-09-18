@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentStaff, requireStaff } from "@/server/tenancy/current-user";
 import { AppShell } from "@/components/AppShell";
 import { poProducts } from "@/server/pharmacy/purchase-order-options";
+import { branchContext } from "@/server/pharmacy/branches";
 import { listSuppliers } from "@/server/pharmacy/suppliers";
 import { NewPoForm } from "./NewPoForm";
 
@@ -20,8 +21,10 @@ export default async function NewPoPage({
   // the one that matters — this one is so the link is never a dead end.
   await requireStaff("manageStock");
 
+  const branch = await branchContext(staff.pharmacyId);
+
   const [products, suppliers] = await Promise.all([
-    poProducts(staff.pharmacyId),
+    poProducts(staff.pharmacyId, branch),
     listSuppliers(staff.pharmacyId),
   ]);
 

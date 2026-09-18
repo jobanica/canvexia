@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireStaff } from "@/server/tenancy/current-user";
+import { branchContext } from "@/server/pharmacy/branches";
 import {
   approveStocktake,
   cancelStocktake,
@@ -34,10 +35,17 @@ export async function startCount(_prev: StocktakeState, formData: FormData): Pro
     return denied(e);
   }
 
+  /*
+    THE SHELF BEING COUNTED, from the session's branch — never the form. A
+    count opened at Toril that snapshots every branch reports the company short
+    by whatever Main holds, and approving it moves that difference onto Toril.
+  */
+  const branch = await branchContext(staff.pharmacyId);
   const res = await openStocktake({
     pharmacyId: staff.pharmacyId,
     notes: String(formData.get("notes") ?? "").trim() || null,
     actorStaffId: staff.staffId,
+    branchId: branch.writeBranchId,
   });
   if (!res.ok) return { status: "error", message: res.error };
 

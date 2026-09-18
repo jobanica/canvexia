@@ -108,7 +108,9 @@ describe("the batches carried onto the edit row", () => {
   });
 
   it("carries only batches with stock in them", () => {
-    expect(catalogue).toMatch(/where: \{ quantity: \{ gt: 0 \} \}/);
+    // Now with the branch scope beside it, so a second branch's edit row shows
+    // that branch's batches rather than the whole company's.
+    expect(catalogue).toMatch(/where: \{ quantity: \{ gt: 0 \}, \.\.\.scope \}/);
   });
 });
 

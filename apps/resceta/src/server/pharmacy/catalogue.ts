@@ -1,6 +1,7 @@
 import "server-only";
 import type { Prisma } from "@prisma/client";
 import { pharmacyDb, systemDb } from "@/server/tenancy/scoped-db";
+import { branchWhere, type BranchContext } from "@/server/pharmacy/branches";
 import type { ProductInputValues } from "@/lib/pharmacy/product-input";
 
 /**
@@ -105,14 +106,23 @@ const FIELDS = {
  * a counter should offer. This screen is where archiving happens, so it has to
  * show what has been archived — otherwise the only way to undo it is SQL.
  */
-export async function listCatalogue(pharmacyId: string): Promise<CatalogueEditRow[]> {
+export async function listCatalogue(
+  pharmacyId: string,
+  /**
+   * WHICH BRANCH'S SHELF. Omitted means every branch, which is what a
+   * single-branch pharmacy always gets — but a branch that was SELECTED and
+   * ignored is how Toril came to show all of Main's stock.
+   */
+  branch?: BranchContext,
+): Promise<CatalogueEditRow[]> {
+  const scope = branch ? branchWhere(branch) : {};
   const rows = await pharmacyDb(pharmacyId, (tx) =>
     tx.pharmacyProduct.findMany({
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
       select: {
         ...FIELDS,
         batches: {
-          where: { quantity: { gt: 0 } },
+          where: { quantity: { gt: 0 }, ...scope },
           // FEFO order: the box that has to go first is the one listed first,
           // and an undated batch sorts last because it cannot be the urgent one.
           orderBy: [{ expiryDate: "asc" }, { receivedAt: "asc" }],

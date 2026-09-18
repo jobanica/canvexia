@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { pharmacyDb, systemDb } from "@/server/tenancy/scoped-db";
 import { onHand, type AllocatableBatch } from "@/lib/pharmacy/fefo";
+import { stockScope } from "@/lib/pharmacy/stock-scope";
 
 /**
  * STOCKTAKES — the count that makes the system agree with the shelf.
@@ -108,6 +109,12 @@ export async function openStocktake(input: {
   pharmacyId: string;
   notes: string | null;
   actorStaffId: string;
+  /**
+   * WHICH SHELF IS BEING COUNTED. A count opened at Toril that snapshots every
+   * branch's stock reports the whole company short by whatever Main holds, and
+   * approving it would move that difference onto Toril's shelf.
+   */
+  branchId?: string | null;
 }): Promise<{ ok: true; id: string; lines: number } | { ok: false; error: string }> {
   try {
     return await systemDb(async (tx) => {
@@ -124,12 +131,18 @@ export async function openStocktake(input: {
         };
       }
 
+      const main = await tx.pharmacyBranch.findFirst({
+        where: { pharmacyId: input.pharmacyId, isMain: true },
+        select: { id: true },
+      });
+      const shelf = stockScope(input.branchId ?? null, main?.id ?? null);
+
       const products = await tx.pharmacyProduct.findMany({
         where: { pharmacyId: input.pharmacyId, isActive: true },
         select: {
           id: true,
           batches: {
-            where: { quantity: { gt: 0 } },
+            where: { quantity: { gt: 0 }, ...shelf },
             select: {
               id: true,
               expiryDate: true,
@@ -152,6 +165,8 @@ export async function openStocktake(input: {
           status: "counting",
           notes: input.notes,
           actorStaffId: input.actorStaffId,
+          // Which shelf this count is of. Approving it adjusts THAT shelf.
+          branchId: input.branchId ?? null,
           items: {
             create: products.map((p) => {
               const batches = p.batches as AllocatableBatch[];
@@ -249,6 +264,7 @@ export async function approveStocktake(input: {
         select: {
           id: true,
           status: true,
+          branchId: true,
           items: {
             select: {
               id: true,
@@ -269,6 +285,19 @@ export async function approveStocktake(input: {
         (i) => i.countedQty !== null && i.countedQty !== i.systemQty,
       );
 
+      /*
+        THE SHELF THAT WAS COUNTED, not every shelf.
+
+        A shortfall used to be taken off the soonest-expiring batches ANYWHERE,
+        so approving Toril's count could decrement a box in Main — the same
+        cross-branch leak the sale path had, with nobody at the till to notice.
+      */
+      const mainForApproval = await tx.pharmacyBranch.findFirst({
+        where: { pharmacyId: input.pharmacyId, isMain: true },
+        select: { id: true },
+      });
+      const countedShelf = stockScope(sheet.branchId, mainForApproval?.id ?? null);
+
       let adjusted = 0;
       let varianceCentavos = 0;
 
@@ -280,7 +309,12 @@ export async function approveStocktake(input: {
           // Short. Take it off the soonest-expiring batches first.
           let remaining = -delta;
           const batches = await tx.pharmacyBatch.findMany({
-            where: { pharmacyId: input.pharmacyId, productId: line.productId, quantity: { gt: 0 } },
+            where: {
+              pharmacyId: input.pharmacyId,
+              productId: line.productId,
+              quantity: { gt: 0 },
+              ...countedShelf,
+            },
             orderBy: [{ expiryDate: "asc" }, { receivedAt: "asc" }],
             select: { id: true, quantity: true, branchId: true },
           });
@@ -313,6 +347,10 @@ export async function approveStocktake(input: {
             data: {
               pharmacyId: input.pharmacyId,
               productId: line.productId,
+              // ON THE SHELF THAT WAS COUNTED. Without this a surplus found at
+              // Toril is created with no branch, reads as Main's, and the
+              // count that found it still shows short.
+              branchId: sheet.branchId,
               quantity: delta,
               costCentavos: line.unitCostCentavos,
               lotNumber: null,

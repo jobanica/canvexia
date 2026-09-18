@@ -9,7 +9,16 @@ import { peso } from "@/lib/money";
 export type ShiftState =
   | { status: "idle" }
   | { status: "error"; message: string }
-  | { status: "done"; message: string };
+  | {
+      status: "done";
+      message: string;
+      /**
+       * The Z-reading this close produced, so the till can print it without
+       * anybody going to look for it. A drawer counted and a reading nobody
+       * printed is a shift that has to be reconstructed later.
+       */
+      readingId?: string;
+    };
 
 function denied(e: unknown): ShiftState {
   return {
@@ -102,6 +111,7 @@ export async function endShift(_prev: ShiftState, formData: FormData): Promise<S
   const diff = res.overShortCentavos;
   return {
     status: "done",
+    readingId: res.readingId,
     message:
       diff === 0
         ? `Closed. Z-reading ${res.zCounter}. The drawer balanced exactly.`

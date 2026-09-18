@@ -7,6 +7,7 @@ import { REASON_LABEL, type WriteoffReason } from "@/lib/pharmacy/writeoff-input
 import { parseRange } from "@/lib/pharmacy/range";
 import { RangeFilter } from "@/components/RangeFilter";
 import { can } from "@/lib/pharmacy/roles";
+import { branchContext } from "@/server/pharmacy/branches";
 import { peso, manilaDate, manilaDateTime, manilaExpiry } from "@/lib/money";
 import { WriteoffForm } from "./WriteoffForm";
 import { batchLabel } from "@/lib/pharmacy/batch-label";
@@ -37,9 +38,11 @@ export default async function InventoryPage({
   const range = parseRange(sp);
   const reason = sp.reason;
   const canWrite = can(staff.role, "manageStock");
+  // You cannot take a box off a shelf you are not standing at.
+  const branch = await branchContext(staff.pharmacyId);
 
   const [batches, rows, summary] = await Promise.all([
-    canWrite ? writeoffCandidates(staff.pharmacyId) : Promise.resolve([]),
+    canWrite ? writeoffCandidates(staff.pharmacyId, branch) : Promise.resolve([]),
     listWriteoffs(staff.pharmacyId, {
       reason,
       from: range.start,

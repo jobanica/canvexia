@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { pharmacyDb, systemDb } from "@/server/tenancy/scoped-db";
 import { movementTypeFor, type WriteoffInputValues } from "@/lib/pharmacy/writeoff-input";
+import { branchWhere, type BranchContext } from "@/server/pharmacy/branches";
 
 /**
  * STOCK THAT LEFT WITHOUT BEING SOLD.
@@ -61,10 +62,15 @@ export async function listWriteoffs(
 }
 
 /** Batches with stock left, for the form to pick from. Expiring first. */
-export async function writeoffCandidates(pharmacyId: string) {
+export async function writeoffCandidates(
+  pharmacyId: string,
+  /** You cannot take a box off a shelf you are not standing at. */
+  branch?: BranchContext,
+) {
+  const scope = branch ? branchWhere(branch) : {};
   const rows = await pharmacyDb(pharmacyId, (tx) =>
     tx.pharmacyBatch.findMany({
-      where: { quantity: { gt: 0 } },
+      where: { quantity: { gt: 0 }, ...scope },
       select: {
         id: true,
         lotNumber: true,

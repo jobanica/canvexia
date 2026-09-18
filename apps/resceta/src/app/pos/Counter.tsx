@@ -640,7 +640,11 @@ export function Counter({
               Open the receipt
             </Link>
             {autoPrint && (
-              <ReceiptPrinter saleId={state.saleId} paperMm={receiptPaperMm} />
+              <ReceiptPrinter
+                jobId={state.saleId}
+                src={`/receipts/${state.saleId}/print?auto=1`}
+                paperMm={receiptPaperMm}
+              />
             )}
           </div>
         )}

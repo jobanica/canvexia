@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
+import { ReceiptPrinter } from "@/app/pos/ReceiptPrinter";
 import { startShift, endShift, type ShiftState } from "./actions";
 import { peso, manilaDateTime } from "@/lib/money";
 
@@ -55,11 +57,16 @@ export function CloseShiftForm({
   openedAt,
   openingCashCentavos,
   cashSoFarCentavos,
+  autoPrint,
+  receiptPaperMm,
 }: {
   shiftId: string;
   openedAt: Date;
   openingCashCentavos: number;
   cashSoFarCentavos: number;
+  /** The pharmacy's print setting — the same one the receipt obeys. */
+  autoPrint: boolean;
+  receiptPaperMm: number;
 }) {
   const [state, action, pending] = useActionState(endShift, IDLE);
   const expected = openingCashCentavos + cashSoFarCentavos;
@@ -98,7 +105,33 @@ export function CloseShiftForm({
       </button>
       {state.status === "error" && <p className="mt-2 text-sm text-red-300">{state.message}</p>}
       {state.status === "done" && (
-        <p className="mt-2 text-sm font-medium text-emerald-300">{state.message}</p>
+        <div className="mt-2">
+          <p className="text-sm font-medium text-emerald-300">{state.message}</p>
+          {state.readingId && (
+            <>
+              {/*
+                THE Z-READING PRINTS ITSELF, like the receipt does. A drawer
+                counted and a reading nobody printed is a shift somebody has to
+                reconstruct later, and the slip belongs in the drawer beside
+                the money.
+              */}
+              {autoPrint && (
+                <ReceiptPrinter
+                  jobId={state.readingId}
+                  src={`/readings/${state.readingId}/print?auto=1`}
+                  paperMm={receiptPaperMm}
+                  label="Print the Z-reading"
+                />
+              )}
+              <Link
+                href={`/readings/${state.readingId}/print`}
+                className="mt-1 inline-block text-xs text-slate-300 underline"
+              >
+                Open the Z-reading
+              </Link>
+            </>
+          )}
+        </div>
       )}
     </form>
   );

@@ -24,12 +24,21 @@ import { useEffect, useRef, useState } from "react";
  * It keeps a real width and sits where nobody can see it.
  */
 export function ReceiptPrinter({
-  saleId,
+  jobId,
+  src,
   paperMm,
+  label = "Print the receipt",
 }: {
-  /** Changes with every completed sale, which is what re-arms the frame. */
-  saleId: string;
+  /**
+   * Changes with every document, which is what re-arms the frame. A sale id or
+   * a Z-reading id — this component does not care which, it cares that the
+   * value is different from the last one it printed.
+   */
+  jobId: string;
+  /** The print page to load. Already carries ?auto=1. */
+  src: string;
   paperMm: number;
+  label?: string;
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const printed = useRef<string | null>(null);
@@ -38,17 +47,17 @@ export function ReceiptPrinter({
   useEffect(() => {
     // One print per sale. Without this, a re-render after the sale — a totals
     // recount, a React double-invoke — sends a second copy through the printer.
-    if (printed.current === saleId) return;
-    printed.current = saleId;
+    if (printed.current === jobId) return;
+    printed.current = jobId;
     setFailed(false);
 
     // If the frame has not printed within ten seconds the roll is not coming,
     // and the cashier needs the button rather than a silent nothing.
     const giveUp = window.setTimeout(() => setFailed(true), 10_000);
     return () => window.clearTimeout(giveUp);
-  }, [saleId]);
+  }, [jobId]);
 
-  if (!saleId) return null;
+  if (!jobId) return null;
 
   return (
     <>
@@ -56,9 +65,9 @@ export function ReceiptPrinter({
         ref={frame}
         // Keyed so a second sale replaces the frame outright rather than
         // reusing one whose document has already been through the dialog.
-        key={saleId}
-        src={`/receipts/${saleId}/print?auto=1`}
-        title="Receipt"
+        key={jobId}
+        src={src}
+        title="Print"
         aria-hidden
         tabIndex={-1}
         onLoad={() => setFailed(false)}
@@ -79,7 +88,7 @@ export function ReceiptPrinter({
           onClick={() => frame.current?.contentWindow?.print()}
           className="mt-2 w-full rounded-xl border border-white/15 px-4 py-2 text-xs text-slate-200"
         >
-          Print the receipt
+          {label}
         </button>
       )}
     </>

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useActionState } from "react";
 import { saveSettings, type SettingsState } from "./actions";
 import type { PharmacySettings } from "@/server/pharmacy/settings";
@@ -175,6 +177,35 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
             every line, so the width is set here rather than guessed. The BIR
             permit number and machine serial are what a registered POS has to
             print on every receipt.
+          </p>
+        </div>
+
+        {/*
+          HOW PRINTING ACTUALLY WORKS HERE, said plainly rather than implied by
+          a form. Resceta prints through the browser's own print dialog to
+          whichever printer the device already has — there is no IP address or
+          port for this software to hold, and a settings box asking for one
+          would be a box that does nothing.
+        */}
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-sm font-semibold text-white">Connecting a printer</p>
+          <p className="mt-1 text-sm text-slate-300">
+            Receipts print through this device&rsquo;s own printer — the same one
+            the browser prints anything else to. Install the thermal printer on
+            the computer or tablet at the till (USB, Bluetooth or its network
+            driver), then send a test slip to check the width and alignment
+            before a customer is waiting.
+          </p>
+          <Link
+            href="/settings/test-print?auto=1"
+            target="_blank"
+            className="mt-3 inline-block rounded-xl brand-gradient px-4 py-2 text-sm font-semibold text-white"
+          >
+            Send a test print
+          </Link>
+          <p className="mt-2 text-xs text-slate-400">
+            In the print dialog: choose your roll size rather than A4, turn
+            headers and footers off, and set margins to none.
           </p>
         </div>
         {/*

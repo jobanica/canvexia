@@ -1,5 +1,6 @@
 import "server-only";
 import { pharmacyDb } from "@/server/tenancy/scoped-db";
+import { branchWhere, type BranchContext } from "@/server/pharmacy/branches";
 import { onHand, type AllocatableBatch } from "@/lib/pharmacy/fefo";
 
 /**
@@ -24,7 +25,12 @@ export interface PoProductOption {
   reorderPoint: number;
 }
 
-export async function poProducts(pharmacyId: string): Promise<PoProductOption[]> {
+export async function poProducts(
+  pharmacyId: string,
+  /** Ordering for Toril should read Toril's shelf, not the company's. */
+  branch?: BranchContext,
+): Promise<PoProductOption[]> {
+  const scope = branch ? branchWhere(branch) : {};
   const rows = await pharmacyDb(pharmacyId, (tx) =>
     tx.pharmacyProduct.findMany({
       where: { isActive: true },
@@ -38,6 +44,7 @@ export async function poProducts(pharmacyId: string): Promise<PoProductOption[]>
         unit: true,
         reorderPoint: true,
         batches: {
+          where: scope,
           orderBy: { receivedAt: "desc" },
           select: {
             id: true,

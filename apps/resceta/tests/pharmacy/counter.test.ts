@@ -298,8 +298,10 @@ describe("printing the receipt when the sale settles", () => {
    * codebase keeps repeating, so it is pinned rather than trusted.
    */
   it("actually drives the print page from the counter", () => {
+    // The printer now takes any document — a receipt or a Z-reading — so the
+    // URL it loads is the CALLER's, and this pins the caller.
     expect(counter).toMatch(/<ReceiptPrinter/);
-    expect(printer).toMatch(/\/receipts\/\$\{saleId\}\/print\?auto=1/);
+    expect(counter).toMatch(/src=\{`\/receipts\/\$\{state\.saleId\}\/print\?auto=1`\}/);
   });
 
   it("prints without taking the cashier off the counter", () => {
@@ -320,7 +322,7 @@ describe("printing the receipt when the sale settles", () => {
   it("prints once per sale, never twice", () => {
     // Two dialogs for one sale is two copies of the receipt, or a cashier
     // dismissing the second out of reflex.
-    expect(printer).toMatch(/if \(printed\.current === saleId\) return;/);
+    expect(printer).toMatch(/if \(printed\.current === jobId\) return;/);
     expect(autoPrint).toMatch(/if \(fired\.current\) return;/);
   });
 

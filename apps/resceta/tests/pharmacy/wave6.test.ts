@@ -163,7 +163,11 @@ describe("writes land at a real branch", () => {
     // A branch id in a request body is one somebody can change, and a sale
     // filed at the wrong branch takes its stock movement with it.
     const sale = src("server/pharmacy/sale.ts");
-    expect(sale).toContain("branchId: req.branchId ?? openShift?.branchId ?? null,");
+    // RESOLVED ONCE, then used everywhere — it used to be written out three
+    // times, and the batch query did not use it at all, which is how FEFO came
+    // to allocate across every branch.
+    expect(sale).toContain("const sellingBranchId = req.branchId ?? openShift?.branchId ?? null;");
+    expect(sale).toContain("branchId: sellingBranchId,");
     const actions = src("app/receiving/actions.ts");
     expect(actions).toContain("branchId: branch.writeBranchId,");
     expect(actions).not.toMatch(/formData\.get\("branchId"\)/);

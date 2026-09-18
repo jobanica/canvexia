@@ -12,6 +12,9 @@ export interface TransferBatch {
   quantity: number;
 }
 
+/** Everything in the label, lowercased once, so filtering is a substring test. */
+const haystack = (b: TransferBatch) => b.label.toLowerCase();
+
 /**
  * Sending stock to another branch.
  *
@@ -31,6 +34,25 @@ export function TransferForm({
 }) {
   const [state, action, pending] = useActionState(sendTransfer, IDLE);
   const [to, setTo] = useState("");
+  const [query, setQuery] = useState("");
+  /*
+    THE TYPED QUANTITIES LIVE IN STATE, not in the inputs.
+
+    Filtering unmounts rows. If the quantity lived in the DOM, searching for the
+    next item would silently discard what had already been typed for the last
+    one — a transfer that sends less than the person believes they sent, with
+    nothing on screen to say so.
+
+    It also keeps the submitted arrays aligned: the hidden pairs below are
+    written from THIS map, so batchId[i] and quantity[i] always describe the
+    same batch no matter what is filtered.
+  */
+  const [qty, setQty] = useState<Record<string, string>>({});
+
+  const needle = query.trim().toLowerCase();
+  const shown = needle ? batches.filter((b) => haystack(b).includes(needle)) : batches;
+  const chosen = batches.filter((b) => (Number(qty[b.id]) || 0) > 0);
+  const sending = chosen.reduce((n, b) => n + (Number(qty[b.id]) || 0), 0);
 
   const destinations = branches.filter((b) => b.id !== fromBranchId);
 
@@ -79,6 +101,34 @@ export function TransferForm({
         </label>
       </div>
 
+      {/*
+        WRITTEN FROM THE MAP, NOT FROM THE VISIBLE ROWS. A batch the search is
+        currently hiding is still being sent, and the two arrays stay aligned
+        because they are generated together.
+      */}
+      {chosen.map((b) => (
+        <div key={b.id}>
+          <input type="hidden" name="batchId" value={b.id} />
+          <input type="hidden" name="quantity" value={qty[b.id] ?? ""} />
+        </div>
+      ))}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search for an item, lot or expiry…"
+          aria-label="Search the stock on this shelf"
+          className={`${FIELD} min-w-0 flex-1`}
+        />
+        {chosen.length > 0 && (
+          <p className="text-sm text-violet-300">
+            {sending} unit{sending === 1 ? "" : "s"} across {chosen.length} batch
+            {chosen.length === 1 ? "" : "es"}
+          </p>
+        )}
+      </div>
+
       <div className="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-xl">
         <table className="w-full text-sm">
           <thead className="bg-white/[0.06] text-left text-xs uppercase tracking-wide text-slate-500">
@@ -89,28 +139,43 @@ export function TransferForm({
             </tr>
           </thead>
           <tbody className="divide-y divide-white/10">
-            {batches.map((b) => (
-              <tr key={b.id}>
-                <td className="px-4 py-2">
-                  <input type="hidden" name="batchId" value={b.id} />
-                  {b.label}
-                </td>
+            {shown.slice(0, 200).map((b) => (
+              <tr key={b.id} className={(Number(qty[b.id]) || 0) > 0 ? "bg-violet-500/10" : ""}>
+                <td className="px-4 py-2">{b.label}</td>
                 <td className="px-4 py-2 text-right tabular-nums text-slate-500">{b.quantity}</td>
                 <td className="px-4 py-2 text-right">
                   <input
-                    name="quantity"
-                    type="number"
-                    min={0}
-                    max={b.quantity}
-                    step={1}
+                    type="text"
+                    inputMode="numeric"
+                    value={qty[b.id] ?? ""}
+                    onChange={(e) =>
+                      setQty((q) => ({ ...q, [b.id]: e.target.value.replace(/[^0-9]/g, "") }))
+                    }
                     placeholder="—"
+                    aria-label={`Send how many of ${b.label}`}
                     className="w-24 rounded-xl border border-white/10 px-2 py-1 text-right text-sm"
                   />
+                  {(Number(qty[b.id]) || 0) > b.quantity && (
+                    <span className="mt-0.5 block text-xs text-rose-300">
+                      only {b.quantity} on hand
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {shown.length === 0 && (
+          <p className="px-4 py-8 text-center text-sm text-slate-400">
+            Nothing on this shelf matches &ldquo;{query}&rdquo;.
+          </p>
+        )}
+        {shown.length > 200 && (
+          <p className="px-4 py-3 text-center text-xs text-slate-400">
+            Showing 200 of {shown.length}. Narrow the search to see the rest —
+            anything you have already typed a quantity for is still being sent.
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-3">

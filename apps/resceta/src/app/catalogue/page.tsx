@@ -3,6 +3,7 @@ import { getCurrentStaff } from "@/server/tenancy/current-user";
 import { AppShell } from "@/components/AppShell";
 import { listCatalogue, listCategories } from "@/server/pharmacy/catalogue";
 import { can } from "@/lib/pharmacy/roles";
+import { branchContext } from "@/server/pharmacy/branches";
 import { listSuppliers } from "@/server/pharmacy/suppliers";
 import { CatalogueTable } from "./CatalogueTable";
 import { CatalogueTools } from "./CatalogueTools";
@@ -59,8 +60,12 @@ export default async function CataloguePage() {
     );
   }
 
+  // The branch the person has selected. Without this the catalogue shows every
+  // branch's stock under whichever branch is on screen.
+  const branch = await branchContext(staff.pharmacyId);
+
   const [products, categories, categoryCounts, duplicates, supplierRows] = await Promise.all([
-    listCatalogue(staff.pharmacyId),
+    listCatalogue(staff.pharmacyId, branch),
     listCategories(staff.pharmacyId),
     listCategoriesWithCounts(staff.pharmacyId),
     // Computed on every load rather than behind the button: the count is the

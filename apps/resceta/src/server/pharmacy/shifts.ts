@@ -202,6 +202,8 @@ export async function closeShift(input: {
 }): Promise<
   | {
       ok: true;
+      /** So the till can print the Z-reading without going to find it. */
+      readingId: string;
       zCounter: number;
       expectedCashCentavos: number;
       overShortCentavos: number;
@@ -257,7 +259,8 @@ export async function closeShift(input: {
 
       const closedAt = new Date();
 
-      await tx.pharmacyReading.create({
+      const reading = await tx.pharmacyReading.create({
+        select: { id: true },
         data: {
           pharmacyId: input.pharmacyId,
           type: "z",
@@ -297,6 +300,7 @@ export async function closeShift(input: {
 
       return {
         ok: true as const,
+        readingId: reading.id,
         zCounter,
         expectedCashCentavos: expected,
         overShortCentavos: diff,

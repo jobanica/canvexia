@@ -3,6 +3,7 @@ import { pharmacyDb } from "@/server/tenancy/scoped-db";
 import { allocateFefo, type AllocatableBatch } from "@/lib/pharmacy/fefo";
 import { totalSale, type DiscountType } from "@/lib/pharmacy/discount";
 import { pointsEarned, redeemable } from "@/lib/pharmacy/customer-input";
+import { stockScope } from "@/lib/pharmacy/stock-scope";
 
 /**
  * Complete a sale.
@@ -138,10 +139,31 @@ export async function completeSale(
       allocations: ReturnType<typeof allocateFefo>;
     }[] = [];
 
+    /*
+      WHICH SHELF THIS SALE COMES OFF, resolved BEFORE anything is allocated.
+
+      It used to be read after the batches were chosen, which meant FEFO picked
+      from EVERY branch: a sale at Toril could decrement a batch sitting in
+      Main, and afterwards neither shelf matched its count. The branch is the
+      till's, from the server — a branch id in a request body is one somebody
+      can change.
+    */
+    const openShift = await tx.pharmacyShift.findFirst({
+      where: { pharmacyId: req.pharmacyId, status: "open" },
+      orderBy: { openedAt: "desc" },
+      select: { id: true, branchId: true },
+    });
+    const sellingBranchId = req.branchId ?? openShift?.branchId ?? null;
+    const main = await tx.pharmacyBranch.findFirst({
+      where: { isMain: true },
+      select: { id: true },
+    });
+    const shelf = stockScope(sellingBranchId, main?.id ?? null);
+
     for (const line of lines) {
       const product = byId.get(line.productId)!;
       const batches = await tx.pharmacyBatch.findMany({
-        where: { productId: line.productId, quantity: { gt: 0 } },
+        where: { productId: line.productId, quantity: { gt: 0 }, ...shelf },
         select: {
           id: true,
           expiryDate: true,
@@ -276,14 +298,6 @@ export async function completeSale(
     });
     const receiptNumber = String(bumped.nextReceiptNo - 1).padStart(8, "0");
 
-    // Read INSIDE the same transaction as the sale, so a shift closed between
-    // the lookup and the insert cannot capture this receipt.
-    const openShift = await tx.pharmacyShift.findFirst({
-      where: { pharmacyId: req.pharmacyId, status: "open" },
-      orderBy: { openedAt: "desc" },
-      select: { id: true, branchId: true },
-    });
-
     const sale = await tx.pharmacySale.create({
       data: {
         pharmacyId: req.pharmacyId,
@@ -320,7 +334,7 @@ export async function completeSale(
           branch id somebody can change, and a sale filed at the wrong branch
           takes its stock movement with it.
         */
-        branchId: req.branchId ?? openShift?.branchId ?? null,
+        branchId: sellingBranchId,
         customerId: customer?.id ?? null,
         // Snapshotted onto the sale, so a later rate change cannot rewrite what
         // this customer was told they earned.
@@ -425,7 +439,7 @@ export async function completeSale(
             referenceId: sale.id,
             reason: `Sale ${receiptNumber}`,
             actorStaffId: req.soldByStaffId ?? null,
-            branchId: req.branchId ?? openShift?.branchId ?? null,
+            branchId: sellingBranchId,
           },
         });
       }

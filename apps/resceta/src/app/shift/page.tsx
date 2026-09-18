@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentStaff } from "@/server/tenancy/current-user";
+import { pharmacyDb } from "@/server/tenancy/scoped-db";
 import { AppShell } from "@/components/AppShell";
 import { currentShift, listShifts, takeXReading } from "@/server/pharmacy/shifts";
 import { can } from "@/lib/pharmacy/roles";
@@ -20,6 +21,13 @@ export default async function ShiftPage() {
   if (!staff) redirect("/login");
 
   const open = await currentShift(staff.pharmacyId);
+  // The same print setting the receipt obeys — one switch for the whole till.
+  const printing = await pharmacyDb(staff.pharmacyId, (tx) =>
+    tx.pharmacy.findUnique({
+      where: { id: staff.pharmacyId },
+      select: { autoPrintReceipt: true, receiptPaperMm: true },
+    }),
+  );
   const [shifts, x] = await Promise.all([
     listShifts(staff.pharmacyId),
     open
@@ -78,6 +86,8 @@ export default async function ShiftPage() {
                 openedAt={open.openedAt}
                 openingCashCentavos={open.openingCashCentavos}
                 cashSoFarCentavos={x.totals.cashCentavos}
+                autoPrint={printing?.autoPrintReceipt ?? true}
+                receiptPaperMm={printing?.receiptPaperMm ?? 58}
               />
             </>
           ) : (
