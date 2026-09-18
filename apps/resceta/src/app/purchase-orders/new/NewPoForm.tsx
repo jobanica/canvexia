@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { suggestedOrder } from "@/lib/pharmacy/alerts";
 import { raisePurchaseOrder, type PoState } from "../actions";
 
 const IDLE: PoState = { status: "idle" };
@@ -30,16 +31,26 @@ export interface PoProduct {
 export function NewPoForm({
   products,
   suppliers,
+  prefillLow = false,
 }: {
   products: PoProduct[];
   suppliers: { id: string; name: string }[];
+  /**
+   * Arrived from the alerts page's Create PO button, so the low-stock lines
+   * are already the answer. Without this the button lands on an empty form and
+   * the buyer retypes the list they were just looking at.
+   */
+  prefillLow?: boolean;
 }) {
   const [state, action, pending] = useActionState(raisePurchaseOrder, IDLE);
+
+  const low = products.filter((p) => p.onHand <= p.reorderPoint && p.reorderPoint > 0);
+
   // Start with the items that are actually low: the reason somebody opened
   // this screen is almost always the Alerts page.
-  const [rows, setRows] = useState<number[]>([0]);
-
-  const low = products.filter((p) => p.onHand <= p.reorderPoint);
+  const [rows, setRows] = useState<number[]>(() =>
+    prefillLow && low.length > 0 ? low.map((_, i) => i) : [0],
+  );
 
   return (
     <form action={action} className="space-y-6">
@@ -104,6 +115,12 @@ export function NewPoForm({
                   min={1}
                   step={1}
                   placeholder="Qty"
+                  // What it would take to get back to the reorder point. A
+                  // SUGGESTION the buyer overwrites — pack sizes are theirs to
+                  // know — but a prefilled list of zeroes is a list retyped.
+                  defaultValue={
+                    suggested ? suggestedOrder(suggested.onHand, suggested.reorderPoint) : ""
+                  }
                   className={FIELD}
                 />
                 <input

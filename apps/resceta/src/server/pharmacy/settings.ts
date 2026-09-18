@@ -32,6 +32,8 @@ export interface PharmacySettings {
   /** What the receipt says and what it is printed on. */
   receiptPaperMm: number;
   autoPrintReceipt: boolean;
+  expiryAlertDays: number;
+  deadStockDays: number;
   receiptHeader: string | null;
   receiptFooter: string | null;
   birPermitNo: string | null;
@@ -61,6 +63,8 @@ const FIELDS = {
   status: true,
   receiptPaperMm: true,
   autoPrintReceipt: true,
+  expiryAlertDays: true,
+  deadStockDays: true,
   receiptHeader: true,
   receiptFooter: true,
   birPermitNo: true,
@@ -102,6 +106,8 @@ export interface UpdateSettingsInput {
    */
   receiptPaperMm?: number;
   autoPrintReceipt?: boolean;
+  expiryAlertDays?: number;
+  deadStockDays?: number;
   receiptHeader?: string | null;
   receiptFooter?: string | null;
   birPermitNo?: string | null;
@@ -154,5 +160,53 @@ export async function updatePharmacySettings(
     });
 
     return after;
+  });
+}
+
+/**
+ * Change ONE alert threshold, from the alerts screen.
+ *
+ * Narrow on purpose. `updatePharmacySettings` requires the statutory identity
+ * fields, and that requirement is the thing stopping a partial form from
+ * blanking a TIN — so the alerts page gets its own door rather than the main
+ * one being widened for it. Audited the same way, because a threshold that
+ * quietly moved is a threshold nobody trusts.
+ */
+export async function setAlertThreshold(input: {
+  pharmacyId: string;
+  actorStaffId: string;
+  expiryAlertDays?: number;
+  deadStockDays?: number;
+}): Promise<boolean> {
+  const data: { expiryAlertDays?: number; deadStockDays?: number } = {};
+  if (input.expiryAlertDays !== undefined) data.expiryAlertDays = input.expiryAlertDays;
+  if (input.deadStockDays !== undefined) data.deadStockDays = input.deadStockDays;
+  if (Object.keys(data).length === 0) return true;
+
+  return systemDb(async (tx) => {
+    const before = await tx.pharmacy.findUnique({
+      where: { id: input.pharmacyId },
+      select: { expiryAlertDays: true, deadStockDays: true },
+    });
+    if (!before) return false;
+
+    const after = await tx.pharmacy.update({
+      where: { id: input.pharmacyId },
+      data,
+      select: { expiryAlertDays: true, deadStockDays: true },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorType: "merchant",
+        actorStaffId: input.actorStaffId,
+        action: "pharmacy.alert_threshold.update",
+        entityType: "pharmacy",
+        entityId: input.pharmacyId,
+        before,
+        after,
+      },
+    });
+    return true;
   });
 }

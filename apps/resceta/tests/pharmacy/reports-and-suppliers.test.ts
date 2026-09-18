@@ -96,32 +96,46 @@ describe("the dashboard", () => {
   });
 });
 
+/**
+ * The alerts page became four tabs backed by `server/pharmacy/alerts.ts`, so
+ * these moved with it. THE RULES ARE UNCHANGED — each one is still the rule it
+ * always was, pinned against where it now lives.
+ */
 describe("alerts", () => {
   const page = src("app/alerts/page.tsx");
+  const server = src("server/pharmacy/alerts.ts");
 
   it("separates expired from expiring", () => {
     // A batch past its date is not a warning, it is stock that must come off
-    // the shelf. Sorted in with "expiring soon" it scrolls past.
-    expect(page).toContain("expiring.filter((b) => b.expired)");
-    expect(page).toContain("expiring.filter((b) => !b.expired)");
+    // the shelf. Sorted in with "expiring soon" it scrolls past — so it is its
+    // own bucket, its own filter tile and its own badge.
+    expect(server).toMatch(/bucket: ExpiryBucket/);
+    expect(page).toMatch(/BUCKETS: ExpiryBucket\[\] = \["expired", "d30", "d60", "d90"\]/);
+    expect(page).toMatch(/bucket === "expired"\s*\n?\s*\? "border-rose/);
   });
 
-  it("separates out-of-stock from low", () => {
-    expect(page).toContain("stock.filter((p) => p.onHand === 0)");
-    expect(page).toContain("p.onHand > 0 && p.onHand <= p.reorderPoint");
+  it("still lists what has run out, even with no reorder point set", () => {
+    // Previously its own section. Now the top of the low-stock list, because a
+    // product at zero is the most urgent row there is — and requiring a reorder
+    // point would have hidden every empty shelf in a freshly imported
+    // catalogue, where the threshold is 0 on almost everything.
+    expect(server).toMatch(/p\.onHand === 0 \|\| \(p\.onHand <= p\.reorderPoint && p\.reorderPoint > 0\)/);
+    expect(server).toMatch(/low\.sort\(\(a, b\) => a\.onHand - b\.onHand/);
   });
 
-  it("shows the dates to everyone and the costs only to reporters", () => {
+  it("shows the dates to everyone and the money only to reporters", () => {
     // A cashier who can see the Amoxicillin expired last week is a cashier who
     // does not sell it.
-    expect(page).toContain('const showCost = can(staff.role, "viewReports");');
-    expect(page).toContain("showCost && (");
+    expect(page).toContain('const showMoney = can(staff.role, "viewReports");');
+    expect(page).toMatch(/showMoney && /);
   });
 
-  it("says when a reorder point of zero is why nothing is listed", () => {
+  it("says when a reorder point of zero is why something is not listed", () => {
     // A product with reorderPoint 0 can never be low — only out. That is an
-    // unanswered question, not a setting.
-    expect(page).toContain("stock.filter((p) => p.reorderPoint === 0)");
+    // unanswered question, not a setting, and it is said out loud rather than
+    // quietly shrinking the list.
+    expect(server).toMatch(/if \(p\.reorderPoint === 0\) noReorderPoint \+= 1;/);
+    expect(page).toMatch(/no reorder point set/);
   });
 });
 

@@ -3481,6 +3481,13 @@ model Pharmacy {
   /// ON by default: a pharmacy is expected to hand over a receipt, and a till
   /// that waits to be asked is a till that forgets.
   autoPrintReceipt Boolean @default(dbgenerated("true"))
+
+  /// How far ahead the expiry alert looks. A pharmacy restocked quarterly needs
+  /// longer notice than one restocked weekly — that is a decision about their
+  /// working capital, not a constant in this software.
+  expiryAlertDays Int @default(dbgenerated("90"))
+  /// Days without a sale before stock counts as dead, while still on the shelf.
+  deadStockDays   Int @default(dbgenerated("90"))
   receiptHeader  String?
   receiptFooter  String?
   /// The BIR permit number and the machine serial a registered POS has to

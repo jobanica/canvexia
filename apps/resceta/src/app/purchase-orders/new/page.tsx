@@ -8,7 +8,12 @@ import { NewPoForm } from "./NewPoForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewPoPage() {
+export default async function NewPoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ prefill?: string }>;
+}) {
+  const { prefill } = await searchParams;
   const staff = await getCurrentStaff();
   if (!staff) redirect("/login");
   // The page gate as well as the action gate. Two layers, and the action's is
@@ -34,6 +39,7 @@ export default async function NewPoPage() {
         <NewPoForm
           products={products}
           suppliers={suppliers.map((s) => ({ id: s.id, name: s.name }))}
+          prefillLow={prefill === "low"}
         />
       </main>
     </AppShell>
