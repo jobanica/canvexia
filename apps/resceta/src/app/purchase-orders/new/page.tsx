@@ -27,13 +27,13 @@ export default async function NewPoPage({
 
   return (
     <AppShell staff={staff}>
-      <main className="mx-auto max-w-4xl px-6 py-10">
-        <Link href="/purchase-orders" className="text-sm text-slate-500 underline">
-          ← Purchase orders
+      <main className="mx-auto max-w-5xl px-6 py-10">
+        <Link href="/purchase-orders" className="text-sm text-slate-400 hover:underline">
+          ← Back to purchase orders
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Raise a purchase order</h1>
-        <p className="mt-1 mb-8 text-sm text-slate-500">
-          What you are asking a supplier for. Nothing moves on the shelf until
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">New purchase order</h1>
+        <p className="mt-1 mb-8 text-sm text-slate-300">
+          Draft an order to send to a supplier. Nothing moves on the shelf until
           you receive against it.
         </p>
         <NewPoForm

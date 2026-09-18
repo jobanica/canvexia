@@ -14,6 +14,9 @@ import { onHand, type AllocatableBatch } from "@/lib/pharmacy/fefo";
 export interface PoProductOption {
   id: string;
   name: string;
+  /** The buyer searches and scans on these, exactly as the counter does. */
+  sku: string | null;
+  barcode: string | null;
   genericName: string | null;
   unit: string;
   lastCostCentavos: number;
@@ -29,6 +32,8 @@ export async function poProducts(pharmacyId: string): Promise<PoProductOption[]>
       select: {
         id: true,
         name: true,
+        sku: true,
+        barcode: true,
         genericName: true,
         unit: true,
         reorderPoint: true,
@@ -51,6 +56,8 @@ export async function poProducts(pharmacyId: string): Promise<PoProductOption[]>
   return rows.map((p) => ({
     id: p.id,
     name: p.name,
+    sku: p.sku,
+    barcode: p.barcode,
     genericName: p.genericName,
     unit: p.unit,
     // The newest delivery, whether or not any of it is left: a product that has
