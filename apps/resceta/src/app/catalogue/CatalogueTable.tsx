@@ -22,12 +22,14 @@ export function CatalogueTable({
   categories,
   showCost,
   canEditBatches,
+  suppliers,
 }: {
   products: CatalogueEditRow[];
   categories: CategoryRow[];
   /** Batch costs are margin, so they follow the same gate as everywhere else. */
   showCost: boolean;
   canEditBatches: boolean;
+  suppliers: { id: string; name: string }[];
 }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -104,7 +106,11 @@ export function CatalogueTable({
       {adding && (
         <div className="mb-4 rounded-lg border border-white/15 bg-white/[0.04] p-4">
           <h2 className="mb-3 text-sm font-semibold text-slate-800">New product</h2>
-          <ProductForm categories={categories} onDone={() => setAdding(false)} />
+          <ProductForm
+            categories={categories}
+            suppliers={suppliers}
+            onDone={() => setAdding(false)}
+          />
         </div>
       )}
 

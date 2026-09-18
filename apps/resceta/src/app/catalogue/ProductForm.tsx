@@ -23,11 +23,14 @@ const LABEL = "mb-1 block text-xs font-medium text-slate-300";
 export function ProductForm({
   product,
   categories,
+  suppliers = [],
   onDone,
 }: {
   /** Absent when adding. */
   product?: CatalogueEditRow;
   categories: CategoryRow[];
+  /** For the opening-stock section. Empty is fine — the supplier is optional. */
+  suppliers?: { id: string; name: string }[];
   onDone?: () => void;
 }) {
   const [state, action, pending] = useActionState(saveProduct, idle);
@@ -151,6 +154,88 @@ export function ProductForm({
           </label>
         </div>
       </div>
+
+      {/*
+        ── OPENING STOCK, ONLY WHEN ADDING ────────────────────────────────
+
+        REPORTED — "when i added a new product, there really is no expiration
+        date."
+
+        There is none ON a product and there should not be. But a product added
+        with boxes already on the shelf has a delivery behind it, and that
+        delivery has a date, a lot and a cost. Sending somebody to Receive stock
+        to find the product they just made is how the date gets skipped — and
+        undated stock never appears in the expiry alerts at all.
+
+        NOT SHOWN WHEN EDITING. Changing a price must not be able to conjure a
+        batch; an existing product's stock is corrected on the batch panel
+        below, where each delivery has its own row.
+      */}
+      {!product && (
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-sm font-semibold text-white">Opening stock (optional)</p>
+          <p className="mt-0.5 text-xs text-slate-400">
+            What is already on the shelf. It becomes this product&rsquo;s first batch,
+            with a stock movement behind it — exactly like a delivery received
+            tomorrow.
+          </p>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className={LABEL}>Supplier</label>
+              <select name="openingSupplier" defaultValue="" className={FIELD}>
+                <option value="">— none —</option>
+                {suppliers.map((sup) => (
+                  <option key={sup.id} value={sup.id}>
+                    {sup.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL}>Quantity</label>
+              <input
+                name="openingQuantity"
+                inputMode="numeric"
+                placeholder="0"
+                className={FIELD}
+              />
+            </div>
+            <div>
+              <label className={LABEL}>Unit cost (₱)</label>
+              {/*
+                Required as soon as there is a quantity, and refused if missing:
+                a batch at zero cost reads as a 100% margin on every report it
+                ever touches, and whoever types an opening quantity is holding
+                the delivery note that has the cost on it.
+              */}
+              <input
+                name="openingCost"
+                inputMode="decimal"
+                placeholder="what it cost you"
+                className={FIELD}
+              />
+            </div>
+            <div>
+              <label className={LABEL}>Batch / lot number</label>
+              <input
+                name="openingLot"
+                maxLength={60}
+                placeholder="optional — as printed on the box"
+                className={FIELD}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={LABEL}>Expiry date</label>
+              <input type="date" name="openingExpiry" className={FIELD} />
+              <p className="mt-1 text-xs text-slate-500">
+                Stock with no expiry date never appears in the expiry alerts — there
+                is nothing to compare it against.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <button

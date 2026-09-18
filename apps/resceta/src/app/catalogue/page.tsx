@@ -3,6 +3,7 @@ import { getCurrentStaff } from "@/server/tenancy/current-user";
 import { AppShell } from "@/components/AppShell";
 import { listCatalogue, listCategories } from "@/server/pharmacy/catalogue";
 import { can } from "@/lib/pharmacy/roles";
+import { listSuppliers } from "@/server/pharmacy/suppliers";
 import { CatalogueTable } from "./CatalogueTable";
 import { CatalogueTools } from "./CatalogueTools";
 import { duplicateGroups } from "@/server/pharmacy/merge-products";
@@ -58,14 +59,17 @@ export default async function CataloguePage() {
     );
   }
 
-  const [products, categories, categoryCounts, duplicates] = await Promise.all([
+  const [products, categories, categoryCounts, duplicates, supplierRows] = await Promise.all([
     listCatalogue(staff.pharmacyId),
     listCategories(staff.pharmacyId),
     listCategoriesWithCounts(staff.pharmacyId),
     // Computed on every load rather than behind the button: the count is the
     // reason anybody presses it, and a button that says nothing gets ignored.
     duplicateGroups(staff.pharmacyId),
+    // For the opening-stock section on a new product.
+    listSuppliers(staff.pharmacyId),
   ]);
+  const suppliers = supplierRows.map((sup) => ({ id: sup.id, name: sup.name }));
 
   return (
     <AppShell staff={staff}>
@@ -86,6 +90,7 @@ export default async function CataloguePage() {
           categories={categories}
           showCost={can(staff.role, "viewReports")}
           canEditBatches={can(staff.role, "manageStock")}
+          suppliers={suppliers}
         />
       </main>
     </AppShell>

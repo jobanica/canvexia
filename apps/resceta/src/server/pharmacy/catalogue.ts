@@ -159,9 +159,36 @@ interface WriteContext {
 }
 
 /** A product that did not exist. */
+/**
+ * OPENING STOCK, entered while the product is being created.
+ *
+ * REPORTED — "when i added a new product, there really is no expiration date."
+ *
+ * There is no expiry ON a product and there should not be, but a product added
+ * with boxes already on the shelf has a delivery behind it — and that delivery
+ * has a date, a lot number and a cost. Making somebody create the product, then
+ * go to Receive stock and find it again, is how the date gets skipped and the
+ * expiry alerts go quiet.
+ *
+ * It is a REAL BATCH with a REAL MOVEMENT, written in the same transaction as
+ * the product. One stock path: opening stock created here is indistinguishable
+ * from a delivery received tomorrow, because a second way to create stock is a
+ * second way to be wrong about it.
+ */
+export interface OpeningStock {
+  quantity: number;
+  costCentavos: number;
+  lotNumber: string | null;
+  /** `YYYY-MM-DD`, Manila. Null when the box carries no printed date. */
+  expiry: string | null;
+  supplierId: string | null;
+  branchId: string | null;
+}
+
 export async function createProduct(
   ctx: WriteContext,
   values: ProductInputValues,
+  opening?: OpeningStock | null,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const categoryId = await ownedCategory(ctx.pharmacyId, values.categoryId);
   if (categoryId === false) return { ok: false, error: "That category no longer exists." };
@@ -172,6 +199,47 @@ export async function createProduct(
       select: FIELDS,
     });
     await audit(tx, ctx, "pharmacy.product.create", created.id, null, created);
+
+    if (opening && opening.quantity > 0) {
+      // The supplier is checked through this pharmacy, so an id from anywhere
+      // else lands as null rather than filing the batch against a stranger.
+      const supplier = opening.supplierId
+        ? await tx.pharmacySupplier.findFirst({
+            where: { id: opening.supplierId, pharmacyId: ctx.pharmacyId },
+            select: { id: true },
+          })
+        : null;
+
+      const batch = await tx.pharmacyBatch.create({
+        data: {
+          pharmacyId: ctx.pharmacyId,
+          productId: created.id,
+          branchId: opening.branchId,
+          supplierId: supplier?.id ?? null,
+          lotNumber: opening.lotNumber,
+          expiryDate: opening.expiry ? new Date(`${opening.expiry}T00:00:00Z`) : null,
+          quantity: opening.quantity,
+          costCentavos: opening.costCentavos,
+        },
+        select: { id: true },
+      });
+
+      // Without this the stock exists and no ledger explains it — the one
+      // thing this system is built not to allow.
+      await tx.pharmacyStockMovement.create({
+        data: {
+          pharmacyId: ctx.pharmacyId,
+          productId: created.id,
+          batchId: batch.id,
+          branchId: opening.branchId,
+          type: "receive",
+          quantityDelta: opening.quantity,
+          reason: "Opening stock",
+          actorStaffId: ctx.actorStaffId,
+        },
+      });
+    }
+
     return { ok: true as const, id: created.id };
   });
 }

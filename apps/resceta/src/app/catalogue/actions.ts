@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/server/tenancy/current-user";
+import { z } from "zod";
 import { ProductInput } from "@/lib/pharmacy/product-input";
+import { branchContext } from "@/server/pharmacy/branches";
+import type { OpeningStock } from "@/server/pharmacy/catalogue";
 import { createProduct, setProductActive, updateProduct } from "@/server/pharmacy/catalogue";
 
 /**
@@ -50,6 +53,75 @@ function read(formData: FormData) {
   });
 }
 
+/**
+ * OPENING STOCK, read off the same form that created the product.
+ *
+ * ALL OR NOTHING ON THE QUANTITY: no quantity means no batch, and the rest of
+ * the section is ignored rather than creating an empty batch with a date on it.
+ *
+ * A QUANTITY WITH NO COST IS REFUSED, not accepted as free. A batch at zero
+ * cost shows a 100% margin on every report it ever touches, and the person
+ * typing an opening quantity is holding the delivery note that has the cost on
+ * it.
+ */
+const Opening = z.object({
+  quantity: z.coerce.number().int().min(0).max(1_000_000).default(0),
+  unitCost: z.string().trim().max(20).default(""),
+  lotNumber: z.string().trim().max(60).default(""),
+  expiryDate: z
+    .string()
+    .trim()
+    .regex(/^(\d{4}-\d{2}-\d{2})?$/, "Use the date picker for the expiry.")
+    .default(""),
+  supplierId: z.string().uuid().or(z.literal("")).default(""),
+});
+
+function pesosToCentavos(raw: string): number {
+  const cleaned = raw.replace(/[^0-9.]/g, "");
+  if (cleaned === "") return 0;
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100);
+}
+
+function readOpening(
+  formData: FormData,
+): { ok: true; opening: OpeningStock | null } | { ok: false; error: string } {
+  const parsed = Opening.safeParse({
+    quantity: formData.get("openingQuantity") || 0,
+    unitCost: formData.get("openingCost") ?? "",
+    lotNumber: formData.get("openingLot") ?? "",
+    expiryDate: formData.get("openingExpiry") ?? "",
+    supplierId: formData.get("openingSupplier") ?? "",
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the opening stock." };
+  }
+
+  const v = parsed.data;
+  if (v.quantity <= 0) return { ok: true, opening: null };
+
+  const costCentavos = pesosToCentavos(v.unitCost);
+  if (costCentavos <= 0) {
+    return {
+      ok: false,
+      error: "Opening stock needs a unit cost — otherwise it shows a 100% margin on every report.",
+    };
+  }
+
+  return {
+    ok: true,
+    opening: {
+      quantity: v.quantity,
+      costCentavos,
+      lotNumber: v.lotNumber || null,
+      expiry: v.expiryDate || null,
+      supplierId: v.supplierId || null,
+      branchId: null,
+    },
+  };
+}
+
 export async function saveProduct(
   _prev: CatalogueState,
   formData: FormData,
@@ -71,9 +143,26 @@ export async function saveProduct(
   const ctx = { pharmacyId: staff.pharmacyId, actorStaffId: staff.staffId };
   const id = String(formData.get("id") ?? "").trim();
 
-  const result = id
-    ? await updateProduct(ctx, id, parsed.data)
-    : await createProduct(ctx, parsed.data);
+  let result;
+  let opened = 0;
+  if (id) {
+    // Editing never touches stock. Changing a price must not be able to
+    // conjure a batch, and the batch panel on the row is where stock is
+    // corrected.
+    result = await updateProduct(ctx, id, parsed.data);
+  } else {
+    const opening = readOpening(formData);
+    if (!opening.ok) return { status: "error", message: opening.error };
+    if (opening.opening) {
+      // The branch comes from the session's own context, never the form: a
+      // branch id in a request body is one somebody can change, and stock
+      // filed at the wrong branch takes its movement with it.
+      const branch = await branchContext(staff.pharmacyId);
+      opening.opening.branchId = branch.writeBranchId;
+      opened = opening.opening.quantity;
+    }
+    result = await createProduct(ctx, parsed.data, opening.opening);
+  }
 
   if (!result.ok) return { status: "error", message: result.error };
 
@@ -81,7 +170,15 @@ export async function saveProduct(
   // The dashboard's low-stock list and the counter both read these fields.
   revalidatePath("/");
   revalidatePath("/pos");
-  return { status: "done", message: id ? "Saved." : `${parsed.data.name} added.` };
+  revalidatePath("/alerts");
+  return {
+    status: "done",
+    message: id
+      ? "Saved."
+      : opened > 0
+        ? `${parsed.data.name} added, with ${opened} in opening stock.`
+        : `${parsed.data.name} added.`,
+  };
 }
 
 export async function toggleProduct(

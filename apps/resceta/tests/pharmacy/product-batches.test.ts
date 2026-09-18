@@ -223,3 +223,75 @@ describe("the unit cost of an item", () => {
     expect(action).not.toMatch(/data: \{[\s\S]{0,300}quantity:/);
   });
 });
+
+
+describe("opening stock when a product is added", () => {
+  const form = src("app/catalogue/ProductForm.tsx");
+  const actions = src("app/catalogue/actions.ts");
+  const catalogue = src("server/pharmacy/catalogue.ts");
+
+  /**
+   * REPORTED — "when i added a new product, there really is no expiration
+   * date."
+   *
+   * Still none ON the product. But a product added with boxes already on the
+   * shelf has a delivery behind it, and that delivery has a date, a lot and a
+   * cost. Sending somebody to Receive stock to find the product they just made
+   * is how the date gets skipped — and undated stock never reaches the expiry
+   * alerts at all.
+   */
+  it("offers expiry, lot, cost and supplier on the add form", () => {
+    expect(form).toMatch(/name="openingExpiry"/);
+    expect(form).toMatch(/name="openingLot"/);
+    expect(form).toMatch(/name="openingCost"/);
+    expect(form).toMatch(/name="openingQuantity"/);
+    expect(form).toMatch(/name="openingSupplier"/);
+  });
+
+  it("shows the section ONLY when adding, never when editing", () => {
+    // Changing a price must not be able to conjure a batch. An existing
+    // product's stock is corrected on the batch panel, row by row.
+    expect(form).toMatch(/\{!product && \(/);
+    expect(actions).toMatch(/\/\/ Editing never touches stock\./);
+  });
+
+  it("creates a REAL batch with a REAL movement, in the product's transaction", () => {
+    // One stock path: opening stock is indistinguishable from a delivery
+    // received tomorrow, because a second way to create stock is a second way
+    // to be wrong about it.
+    expect(catalogue).toMatch(/tx\.pharmacyBatch\.create/);
+    expect(catalogue).toMatch(/tx\.pharmacyStockMovement\.create/);
+    expect(catalogue).toMatch(/reason: "Opening stock"/);
+  });
+
+  it("refuses a quantity with no unit cost", () => {
+    // A batch at zero cost reads as a 100% margin on every report it ever
+    // touches, and whoever types an opening quantity is holding the delivery
+    // note with the cost on it.
+    expect(actions).toMatch(/Opening stock needs a unit cost/);
+  });
+
+  it("writes no batch at all when no quantity was given", () => {
+    expect(actions).toMatch(/if \(v\.quantity <= 0\) return \{ ok: true, opening: null \}/);
+    expect(catalogue).toMatch(/if \(opening && opening\.quantity > 0\)/);
+  });
+
+  it("takes the branch from the session, never from the form", () => {
+    // A branch id in a request body is one somebody can change, and stock
+    // filed at the wrong branch takes its movement with it.
+    expect(actions).toMatch(/opening\.opening\.branchId = branch\.writeBranchId/);
+    expect(form).not.toMatch(/name="openingBranch/);
+  });
+
+  it("checks the supplier belongs to this pharmacy", () => {
+    expect(catalogue).toMatch(/where: \{ id: opening\.supplierId, pharmacyId: ctx\.pharmacyId \}/);
+  });
+
+  it("says undated stock will not reach the alerts", () => {
+    expect(form).toMatch(/never appears in the expiry alerts/);
+  });
+
+  it("refreshes the alerts, which are computed from that date", () => {
+    expect(actions).toMatch(/revalidatePath\("\/alerts"\)/);
+  });
+});
