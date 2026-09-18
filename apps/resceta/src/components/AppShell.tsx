@@ -49,6 +49,13 @@ const NAV: (NavEntry & { needs?: Permission })[] = [
   { href: "/hr/leave", label: "Leave", group: "People", icon: "calendar" },
 
   { href: "/readings", label: "Z-readings", group: "Business", icon: "chart", needs: "viewReports" },
+  {
+    href: "/discount-log",
+    label: "SC / PWD logbook",
+    group: "Business",
+    icon: "clipboard",
+    needs: "viewReports",
+  },
   { href: "/billing", label: "Billing", group: "Business", icon: "card", needs: "manageSettings" },
   { href: "/branches", label: "Branches", group: "Business", icon: "building", needs: "manageSettings" },
   { href: "/settings", label: "Settings", group: "Business", icon: "cog", needs: "manageSettings" },

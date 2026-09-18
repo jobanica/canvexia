@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentStaff } from "@/server/tenancy/current-user";
 import { AppShell } from "@/components/AppShell";
+import { PoExport } from "./PoExport";
 import { getPurchaseOrder } from "@/server/pharmacy/purchase-orders";
 import { outstanding } from "@/lib/pharmacy/po-input";
 import { can } from "@/lib/pharmacy/roles";
@@ -48,7 +49,34 @@ export default async function PoPage({ params }: { params: Promise<{ id: string 
               {po.expectedDate && ` · expected ${manilaDate(po.expectedDate)}`}
             </p>
           </div>
-          <span className="rounded bg-white/10 px-3 py-1 text-sm font-medium">{po.status}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded bg-white/10 px-3 py-1 text-sm font-medium">{po.status}</span>
+            {/*
+              Print opens the document view with ?auto=1 rather than printing
+              this page. A purchase order faxed to a distributor should not
+              carry the app's nav down its side, and the print view is already
+              laid out on white.
+            */}
+            <Link
+              href={`/purchase-orders/${po.id}/print?auto=1`}
+              className="rounded-xl border border-white/15 bg-white/[0.06] px-3.5 py-2 text-sm text-slate-200 hover:bg-white/10"
+            >
+              Print
+            </Link>
+            <PoExport
+              poNumber={po.poNumber}
+              header={["Item", "Generic", "Unit", "Ordered", "Received", "Unit cost", "Line total"]}
+              rows={po.items.map((i) => [
+                i.product.name,
+                i.product.genericName ?? "",
+                i.product.unit,
+                i.quantityOrdered,
+                i.quantityReceived,
+                (i.unitCostCentavos / 100).toFixed(2),
+                ((i.quantityOrdered * i.unitCostCentavos) / 100).toFixed(2),
+              ])}
+            />
+          </div>
         </div>
 
         {po.notes && <p className="mt-4 text-sm text-slate-300">{po.notes}</p>}
