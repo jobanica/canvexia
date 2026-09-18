@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import { importProducts, type ToolState } from "./tools-actions";
+import { backfillBatches, importProducts, type ToolState } from "./tools-actions";
 import { parseCsv, readImport, TEMPLATE_HEADER, type ImportRow } from "@/lib/pharmacy/csv";
 import { peso } from "@/lib/money";
 
@@ -19,8 +19,23 @@ const IDLE: ToolState = { status: "idle" };
  * BROKEN ROWS ARE SHOWN, NOT HIDDEN. An importer that silently drops the twelve
  * rows it could not read leaves somebody comparing counts and guessing.
  */
+/**
+ * TWO MODES, AND THE DIFFERENCE IS STATED, NOT IMPLIED.
+ *
+ * "Import" creates products and opening stock. "Fill in" creates nothing and
+ * only writes the expiry dates and costs that are missing from stock already
+ * here. Running the wrong one is the difference between filling in some blanks
+ * and adding 1,886 products a second time, so they are separate actions with
+ * separate buttons rather than one form with a checkbox.
+ */
+type Mode = "import" | "backfill";
+
 export function ImportPanel({ onClose }: { onClose: () => void }) {
-  const [state, action, pending] = useActionState(importProducts, IDLE);
+  const [mode, setMode] = useState<Mode>("import");
+  const [state, action, pending] = useActionState(
+    mode === "import" ? importProducts : backfillBatches,
+    IDLE,
+  );
   const [rows, setRows] = useState<ImportRow[] | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
@@ -66,25 +81,54 @@ export function ImportPanel({ onClose }: { onClose: () => void }) {
   const usable = rows?.filter((r) => r.problems.length === 0) ?? [];
   const broken = rows?.filter((r) => r.problems.length > 0) ?? [];
   const withStock = usable.filter((r) => r.quantity > 0);
+  const withExpiry = usable.filter((r) => r.expiry !== null);
+  const withCost = usable.filter((r) => r.costCentavos > 0);
 
   if (state.status === "done") {
     return (
-      <Panel title="Import finished" onClose={onClose}>
+      <Panel title={mode === "import" ? "Import finished" : "Filling in finished"} onClose={onClose}>
         <p className="text-sm text-emerald-300">{state.message}</p>
       </Panel>
     );
   }
 
   return (
-    <Panel title="Import products from a CSV" onClose={onClose}>
+    <Panel title="Load a CSV" onClose={onClose}>
       <form action={action}>
         <input type="hidden" name="csv" ref={textRef} />
 
-        <p className="text-sm text-slate-300">
-          The first row must be a header. Column names are matched loosely —
-          <span className="text-slate-400"> name, generic, sku, barcode, price, cost, quantity, expiry, lot, reorder, rx</span>.
-          A quantity with a cost creates opening stock as a real batch.
-        </p>
+        <div className="mb-4 inline-flex rounded-xl bg-white/[0.06] p-1">
+          {(["import", "backfill"] as Mode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              className={`rounded-lg px-3 py-1.5 text-sm transition ${
+                mode === m ? "bg-white/15 font-semibold text-white" : "text-slate-300"
+              }`}
+            >
+              {m === "import" ? "Add or update products" : "Fill in missing expiry & cost"}
+            </button>
+          ))}
+        </div>
+
+        {mode === "import" ? (
+          <p className="text-sm text-slate-300">
+            The first row must be a header. Column names are matched loosely —
+            <span className="text-slate-400"> name, generic, sku, barcode, price, cost, quantity, expiry, lot, reorder, rx</span>.
+            A quantity with a cost creates opening stock as a real batch.
+          </p>
+        ) : (
+          <p className="text-sm text-slate-300">
+            Writes the <strong className="text-white">expiry</strong> and{" "}
+            <strong className="text-white">cost</strong> columns onto stock that is
+            already here, matched on barcode, then SKU, then name.{" "}
+            <span className="text-slate-400">
+              It creates nothing — no products, no batches, no change to any quantity — so
+              running it twice is safe.
+            </span>
+          </p>
+        )}
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <input
@@ -162,17 +206,48 @@ export function ImportPanel({ onClose }: { onClose: () => void }) {
               </table>
             </div>
 
-            <label className="mt-3 flex items-center gap-2 text-sm">
-              <input type="checkbox" name="updateExisting" defaultChecked />
-              Update products that already exist (matched on barcode, then SKU, then name)
-            </label>
+            {mode === "import" ? (
+              <label className="mt-3 flex items-center gap-2 text-sm">
+                <input type="checkbox" name="updateExisting" defaultChecked />
+                Update products that already exist (matched on barcode, then SKU, then name)
+              </label>
+            ) : (
+              <div className="mt-3 space-y-2 text-sm">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="fillExpiry" defaultChecked />
+                  Fill in expiry dates ({withExpiry.length} row
+                  {withExpiry.length === 1 ? "" : "s"} have one)
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="fillCost" defaultChecked />
+                  Fill in unit costs ({withCost.length} row
+                  {withCost.length === 1 ? "" : "s"} have one)
+                </label>
+                <label className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-amber-200">
+                  <input type="checkbox" name="overwrite" className="mt-0.5" />
+                  <span>
+                    Also replace dates and costs that are already set.
+                    <span className="mt-0.5 block text-xs text-amber-300/80">
+                      Off by default: a date somebody typed off the box beats a date from a
+                      spreadsheet, because the person holding the box could read it.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
 
             <div className="mt-4 flex items-center gap-3">
               <button
                 disabled={pending || usable.length === 0}
                 className="brand-gradient rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >
-                {pending ? "Importing…" : `Import ${usable.length} products`}
+                {pending
+                  ? mode === "import"
+                    ? "Importing…"
+                    : "Filling in…"
+                  : mode === "import"
+                    ? `Import ${usable.length} products`
+                    : `Fill in from ${usable.length} rows`}
               </button>
               {state.status === "error" && (
                 <span className="text-sm text-red-300">{state.message}</span>

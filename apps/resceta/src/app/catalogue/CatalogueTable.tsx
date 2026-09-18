@@ -226,6 +226,7 @@ function FragmentRow({
             <BatchPanel
               batches={p.batches}
               productName={p.name}
+              priceCentavos={p.priceCentavos}
               showCost={showCost}
               canEdit={canEditBatches}
             />

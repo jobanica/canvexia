@@ -33,26 +33,85 @@ const FIELD =
 export function BatchPanel({
   batches,
   productName,
+  priceCentavos,
   showCost,
   canEdit,
 }: {
   batches: ProductBatchRow[];
   productName: string;
+  /** To sit the cost figures next to, because one without the other is half an answer. */
+  priceCentavos: number;
   showCost: boolean;
   canEdit: boolean;
 }) {
   const now = new Date();
   const undated = batches.filter((b) => b.expiryDate === null).length;
+  const uncosted = batches.filter((b) => b.costCentavos === 0).length;
+
+  /*
+    THE UNIT COST OF THIS ITEM — which, like the expiry, is a property of the
+    DELIVERY and not the product. Two deliveries of the same drug cost different
+    money, and the sale line snapshots the cost of the batch it came out of so
+    margin stays correct when the next delivery costs something else.
+
+    So there is no single "unit cost" to print. There are two honest figures,
+    and both are shown: what the stock ON THE SHELF averaged, weighted by how
+    many of each batch remain, and what the LAST delivery cost — which is the
+    number a buyer wants when deciding what to pay next time.
+  */
+  const units = batches.reduce((n, b) => n + b.quantity, 0);
+  const value = batches.reduce((n, b) => n + b.quantity * b.costCentavos, 0);
+  const averageCost = units > 0 ? Math.round(value / units) : 0;
+  const lastDelivery = batches.reduce<ProductBatchRow | null>(
+    (latest, b) => (!latest || b.receivedAt > latest.receivedAt ? b : latest),
+    null,
+  );
+  const margin =
+    priceCentavos > 0 && averageCost > 0
+      ? Math.round(((priceCentavos - averageCost) / priceCentavos) * 100)
+      : null;
 
   return (
     <div className="mt-5 border-t border-white/10 pt-4">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-white">Stock on hand, by batch</h3>
         <p className="text-xs text-slate-400">
-          Expiry belongs to the delivery, not the product — two deliveries expire
-          on different days.
+          Expiry and cost belong to the delivery, not the product — two
+          deliveries expire on different days and cost different money.
         </p>
       </div>
+
+      {showCost && batches.length > 0 && (
+        <dl className="mb-3 grid gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:grid-cols-4">
+          <Figure label="Average unit cost" value={averageCost > 0 ? peso(averageCost) : "not set"} />
+          <Figure
+            label="Last delivery cost"
+            value={
+              lastDelivery && lastDelivery.costCentavos > 0
+                ? peso(lastDelivery.costCentavos)
+                : "not set"
+            }
+          />
+          <Figure label="Selling price" value={peso(priceCentavos)} />
+          <Figure
+            label="Margin"
+            value={margin === null ? "—" : `${margin}%`}
+            tone={margin !== null && margin < 0 ? "bad" : "plain"}
+          />
+        </dl>
+      )}
+
+      {showCost && uncosted > 0 && (
+        /*
+          A cost of zero is "nobody said", not "free" — and it shows up as a
+          100% margin on every report this stock touches, which is the kind of
+          wrong number somebody makes a pricing decision on.
+        */
+        <p className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+          {uncosted} batch{uncosted === 1 ? " has" : "es have"} no unit cost, so{" "}
+          {uncosted === 1 ? "it counts" : "they count"} as a 100% margin on every report.
+        </p>
+      )}
 
       {batches.length === 0 ? (
         <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
@@ -92,6 +151,29 @@ export function BatchPanel({
           </ul>
         </>
       )}
+    </div>
+  );
+}
+
+function Figure({
+  label,
+  value,
+  tone = "plain",
+}: {
+  label: string;
+  value: string;
+  tone?: "plain" | "bad";
+}) {
+  return (
+    <div>
+      <dt className="text-[0.7rem] uppercase tracking-wide text-slate-400">{label}</dt>
+      <dd
+        className={`mt-0.5 text-sm font-semibold tabular-nums ${
+          tone === "bad" ? "text-rose-300" : "text-white"
+        }`}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
@@ -169,7 +251,7 @@ function BatchRow({
       </div>
 
       {open && canEdit && (
-        <form action={action} className="mt-3 grid gap-2 sm:grid-cols-[10rem_1fr_auto]">
+        <form action={action} className="mt-3 grid gap-2 sm:grid-cols-[10rem_1fr_9rem_auto]">
           <input type="hidden" name="batchId" value={batch.id} />
           <label className="block text-xs text-slate-400">
             Expiry
@@ -192,6 +274,21 @@ function BatchRow({
               className={`mt-1 ${FIELD}`}
             />
           </label>
+          {showCost && (
+            <label className="block text-xs text-slate-400">
+              Unit cost ₱
+              <input
+                name="unitCost"
+                type="text"
+                inputMode="decimal"
+                defaultValue={
+                  batch.costCentavos > 0 ? (batch.costCentavos / 100).toFixed(2) : ""
+                }
+                placeholder="what this delivery cost"
+                className={`mt-1 ${FIELD} text-right tabular-nums`}
+              />
+            </label>
+          )}
           <button
             disabled={pending}
             className="self-end rounded-lg brand-gradient px-3.5 py-2 text-sm font-semibold text-white disabled:opacity-40"
@@ -199,13 +296,13 @@ function BatchRow({
             {pending ? "Saving…" : "Save"}
           </button>
 
-          <p className="text-xs text-slate-500 sm:col-span-3">
+          <p className="text-xs text-slate-500 sm:col-span-4">
             {/*
               Said on the form, not just in the code: somebody who came here to
               fix a count needs to be sent to the screen that keeps the ledger
               honest, not left looking for a quantity field.
             */}
-            Dates only. To change how many are on the shelf, use{" "}
+            Dates and cost only. To change how many are on the shelf, use{" "}
             <Link href="/inventory" className="underline">
               an adjustment
             </Link>{" "}
@@ -217,10 +314,10 @@ function BatchRow({
           </p>
 
           {state.status === "error" && (
-            <p className="text-xs text-rose-300 sm:col-span-3">{state.message}</p>
+            <p className="text-xs text-rose-300 sm:col-span-4">{state.message}</p>
           )}
           {state.status === "done" && (
-            <p className="text-xs text-emerald-300 sm:col-span-3">{state.message}</p>
+            <p className="text-xs text-emerald-300 sm:col-span-4">{state.message}</p>
           )}
         </form>
       )}

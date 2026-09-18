@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/server/tenancy/current-user";
 import { parseCsv, readImport, type ImportRow } from "@/lib/pharmacy/csv";
 import { importCatalogue } from "@/server/pharmacy/catalogue-import";
+import { backfillFromCsv } from "@/server/pharmacy/catalogue-backfill";
 import { mergeProducts } from "@/server/pharmacy/merge-products";
 import { scanReceipt, type ReceiptExtractionValues } from "@/server/pharmacy/receipt-scan";
 import { branchContext } from "@/server/pharmacy/branches";
@@ -167,4 +168,57 @@ export async function scanDeliveryReceipt(
   const res = await scanReceipt(dataUrl);
   if (!res.ok) return { status: "error", message: res.error };
   return { status: "done", data: res.data };
+}
+
+/**
+ * Fill missing expiry dates and costs onto stock that is already here, from the
+ * same CSV the catalogue was imported from.
+ *
+ * A SEPARATE ACTION rather than a flag on the importer, because the two do
+ * opposite things: the importer CREATES products and opening stock, and this
+ * one creates nothing at all. Sharing an entry point would put one checkbox
+ * between "fill in the blanks" and "add 1,886 products again".
+ */
+export async function backfillBatches(_prev: ToolState, formData: FormData): Promise<ToolState> {
+  let staff;
+  try {
+    staff = await requireStaff("manageStock");
+  } catch (e) {
+    return denied(e);
+  }
+
+  const text = String(formData.get("csv") ?? "");
+  if (!text.trim()) return { status: "error", message: "No file was chosen." };
+
+  const parsed = readImport(parseCsv(text));
+  if (parsed.error) return { status: "error", message: parsed.error };
+
+  const res = await backfillFromCsv({
+    pharmacyId: staff.pharmacyId,
+    rows: parsed.rows as ImportRow[],
+    options: {
+      fillExpiry: formData.get("fillExpiry") !== null,
+      fillCost: formData.get("fillCost") !== null,
+      overwrite: formData.get("overwrite") !== null,
+    },
+    actorStaffId: staff.staffId,
+  });
+  if (!res.ok) return { status: "error", message: res.error };
+
+  const o = res.outcome;
+  revalidatePath("/catalogue");
+  revalidatePath("/alerts");
+  revalidatePath("/");
+
+  const bits: string[] = [];
+  if (o.batchesDated > 0) bits.push(`${o.batchesDated} batches dated`);
+  if (o.batchesCosted > 0) bits.push(`${o.batchesCosted} batches costed`);
+  if (bits.length === 0) {
+    bits.push("nothing needed filling in");
+  }
+  if (o.alreadyComplete > 0) bits.push(`${o.alreadyComplete} already complete`);
+  if (o.unmatched > 0) bits.push(`${o.unmatched} rows matched no product`);
+  if (o.empty > 0) bits.push(`${o.empty} rows had nothing to give`);
+
+  return { status: "done", message: `${bits.join(" · ")}.` };
 }

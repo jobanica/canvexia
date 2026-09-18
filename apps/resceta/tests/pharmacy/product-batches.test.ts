@@ -44,7 +44,7 @@ describe("the batch panel", () => {
   it("says why the date is on the batch and not the product", () => {
     // Somebody who came looking for a field that does not exist deserves the
     // reason, not an empty screen.
-    expect(panel).toMatch(/Expiry belongs to the delivery, not the product/);
+    expect(panel).toMatch(/Expiry and cost belong to the delivery, not the product/);
   });
 
   it("warns about stock with no expiry at all", () => {
@@ -58,20 +58,20 @@ describe("the batch panel", () => {
   it("sends somebody wanting to change a COUNT to the ledger screens", () => {
     expect(panel).toMatch(/\/inventory/);
     expect(panel).toMatch(/\/stocktake/);
-    expect(panel).toMatch(/Dates only/);
+    expect(panel).toMatch(/Dates and cost only/);
   });
 });
 
 describe("correcting a batch", () => {
   const action = src("app/catalogue/batch-actions.ts");
 
-  it("changes dates and NOTHING else", () => {
+  it("changes dates and cost, and NOTHING else", () => {
     // Quantity is moved by receiving, selling, transferring, counting and
     // writing off — each of which leaves a movement row explaining itself. A
     // quantity edited here would be stock appearing with no ledger behind it.
-    expect(action).toMatch(/data: \{\s*\n\s*\/\/ Dates only\./);
+    expect(action).toMatch(/\/\/ Dates and cost\. Quantity is not in this object and must never be\./);
     expect(action).not.toMatch(/quantity: \{/);
-    expect(action).not.toMatch(/data:[\s\S]{0,200}quantity:/);
+    expect(action).not.toMatch(/data:[\s\S]{0,300}quantity:/);
   });
 
   it("requires manageStock", () => {
@@ -109,5 +109,117 @@ describe("the batches carried onto the edit row", () => {
 
   it("carries only batches with stock in them", () => {
     expect(catalogue).toMatch(/where: \{ quantity: \{ gt: 0 \} \}/);
+  });
+});
+
+
+describe("filling expiry and cost in from the CSV", () => {
+  const fill = src("server/pharmacy/catalogue-backfill.ts");
+  const actions = src("app/catalogue/tools-actions.ts");
+  const panel = src("app/catalogue/ImportPanel.tsx");
+
+  /**
+   * REPORTED — "yes fill from the csv", about 1,886 products whose batches
+   * came in with no expiry date at all. Undated stock can never appear in the
+   * expiry alerts: there is nothing to compare against, so the alerts are
+   * silent and the pharmacy believes it has been told.
+   */
+  it("CREATES NOTHING — no products, no batches, no movements", () => {
+    // The ordinary importer creates opening stock from a quantity column.
+    // Running THAT again is exactly the mistake this mode exists to avoid, so
+    // nothing that holds stock is ever created here. The audit row is the one
+    // create, and it is named rather than excluded by a loose pattern.
+    expect(fill).not.toMatch(/pharmacyProduct\.create/);
+    expect(fill).not.toMatch(/pharmacyBatch\.create/);
+    expect(fill).not.toMatch(/pharmacyStockMovement\.create/);
+    expect(fill).not.toMatch(/createMany/);
+    expect(fill.match(/\.create\(/g) ?? []).toHaveLength(1);
+    expect(fill).toMatch(/tx\.auditLog\.create/);
+  });
+
+  it("never writes a quantity", () => {
+    expect(fill).not.toMatch(/data: \{[^}]*quantity:/);
+  });
+
+  it("only touches batches that still have stock in them", () => {
+    // Filling a date onto an emptied batch rewrites history for no benefit.
+    expect(fill).toMatch(/quantity: \{ gt: 0 \}/);
+  });
+
+  it("fills blanks and does not overwrite unless asked", () => {
+    // A date somebody typed off the box beats a date from a spreadsheet: the
+    // person holding the box could read it.
+    expect(fill).toMatch(/overwrite \? \{\} : \{ expiryDate: null \}/);
+    expect(fill).toMatch(/overwrite \? \{\} : \{ costCentavos: 0 \}/);
+  });
+
+  it("refuses when neither expiry nor cost was chosen", () => {
+    expect(fill).toMatch(/Choose at least one of expiry or cost/);
+  });
+
+  it("keeps the first row's value when a file names a product twice", () => {
+    expect(fill).toMatch(/ONE ENTRY PER PRODUCT, not per row/);
+  });
+
+  it("is a separate action from the importer, not a flag on it", () => {
+    // One checkbox between "fill in the blanks" and "add 1,886 products again"
+    // is one checkbox too few.
+    expect(actions).toMatch(/export async function backfillBatches/);
+    expect(fill).toMatch(/IT CREATES NOTHING/);
+  });
+
+  it("says in the panel that it creates nothing", () => {
+    expect(panel).toMatch(/It creates nothing/);
+    expect(panel).toMatch(/running it twice is safe/);
+  });
+
+  it("requires manageStock", () => {
+    expect(actions).toMatch(/backfillBatches[\s\S]{0,400}requireStaff\("manageStock"\)/);
+  });
+});
+
+describe("the unit cost of an item", () => {
+  const panel = src("app/catalogue/BatchPanel.tsx");
+  const action = src("app/catalogue/batch-actions.ts");
+
+  /**
+   * REPORTED — "there is no unit cost in the details of the item."
+   *
+   * Like the expiry, there is no single one: two deliveries of the same drug
+   * cost different money, and the sale line snapshots the cost of the batch it
+   * came out of so margin stays right when the next delivery costs something
+   * else. So both honest figures are shown instead of one invented one.
+   */
+  it("shows the weighted average of what is actually on the shelf", () => {
+    expect(panel).toMatch(/const averageCost = units > 0 \? Math\.round\(value \/ units\) : 0/);
+  });
+
+  it("shows what the last delivery cost, which is what a buyer needs", () => {
+    expect(panel).toMatch(/Last delivery cost/);
+  });
+
+  it("puts the selling price and the margin beside them", () => {
+    // Cost without price is half an answer.
+    expect(panel).toMatch(/Selling price/);
+    expect(panel).toMatch(/priceCentavos - averageCost/);
+  });
+
+  it("warns that a cost of zero reads as a 100% margin", () => {
+    // "Nobody said" is not "free", and it is the kind of wrong number somebody
+    // makes a pricing decision on.
+    expect(panel).toMatch(/no unit cost, so/);
+    expect(panel).toMatch(/100% margin/);
+  });
+
+  it("keeps the cost figures behind the same gate as every other cost", () => {
+    expect(panel).toMatch(/\{showCost && batches\.length > 0 &&/);
+  });
+
+  it("treats an empty cost box as untouched, never as free", () => {
+    expect(action).toMatch(/cost === null \? \{\} : \{ costCentavos: cost \}/);
+  });
+
+  it("still never writes a quantity", () => {
+    expect(action).not.toMatch(/data: \{[\s\S]{0,300}quantity:/);
   });
 });
