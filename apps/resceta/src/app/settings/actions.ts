@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/server/tenancy/current-user";
 import { updatePharmacySettings } from "@/server/pharmacy/settings";
-import { SettingsInput, parseStorefrontFlags } from "@/lib/pharmacy/settings-input";
+import {
+  SettingsInput,
+  parseReceiptFlags,
+  parseStorefrontFlags,
+} from "@/lib/pharmacy/settings-input";
 
 /**
  * Save the pharmacy's statutory identity.
@@ -85,11 +89,17 @@ export async function saveSettings(
     storefrontAcceptsDelivery: formData.get("storefrontAcceptsDelivery"),
   });
 
+  const receiptFlags = parseReceiptFlags({
+    sectionPresent: formData.get("receiptSection"),
+    autoPrintReceipt: formData.get("autoPrintReceipt"),
+  });
+
   const saved = await updatePharmacySettings({
     pharmacyId: staff.pharmacyId,
     actorStaffId: staff.staffId,
     ...parsed.data,
     ...flags,
+    ...receiptFlags,
   });
   if (!saved) return { status: "error", message: "That pharmacy no longer exists." };
 

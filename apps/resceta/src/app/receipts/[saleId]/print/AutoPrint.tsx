@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 /**
  * Open the print dialog on arrival.
@@ -12,10 +12,43 @@ import { useEffect } from "react";
  * mattered.
  */
 export function AutoPrint() {
+  const fired = useRef(false);
+
   useEffect(() => {
-    // A frame, so the paper is laid out before the dialog freezes it.
-    const id = requestAnimationFrame(() => window.print());
-    return () => cancelAnimationFrame(id);
+    /*
+      ONCE. React invokes an effect twice under StrictMode, and two print
+      dialogs for one sale means either two copies of the receipt or a cashier
+      dismissing the second one out of reflex.
+    */
+    if (fired.current) return;
+    fired.current = true;
+
+    let cancelled = false;
+    /*
+      WAIT FOR THE FONTS.
+
+      `print()` freezes the page as it is at that instant. Called before the
+      webfont has loaded, the receipt is measured in the fallback face and the
+      columns on a 58mm roll do not line up — the total lands in a different
+      place from the figures above it. `document.fonts.ready` is the signal for
+      exactly this, and the rAF after it lets the final layout settle.
+
+      Wrapped in a resolved promise so a browser without `document.fonts` still
+      prints rather than silently skipping.
+    */
+    const ready = document.fonts?.ready ?? Promise.resolve();
+    ready
+      .catch(() => {})
+      .then(() => {
+        if (cancelled) return;
+        requestAnimationFrame(() => {
+          if (!cancelled) window.print();
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return null;

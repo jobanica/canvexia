@@ -68,7 +68,11 @@ export default async function PosPage() {
     pharmacyDb(staff.pharmacyId, (tx) =>
       tx.pharmacy.findUnique({
         where: { id: staff.pharmacyId },
-        select: { loyaltyCentavosPerPoint: true },
+        select: {
+          loyaltyCentavosPerPoint: true,
+          autoPrintReceipt: true,
+          receiptPaperMm: true,
+        },
       }),
     ),
   ]);
@@ -109,6 +113,8 @@ export default async function PosPage() {
             branchName={branchName}
             members={members}
             loyaltyCentavosPerPoint={rates?.loyaltyCentavosPerPoint ?? 0}
+            autoPrint={rates?.autoPrintReceipt ?? true}
+            receiptPaperMm={rates?.receiptPaperMm ?? 58}
           />
         )}
       </main>

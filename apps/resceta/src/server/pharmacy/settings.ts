@@ -31,6 +31,7 @@ export interface PharmacySettings {
 
   /** What the receipt says and what it is printed on. */
   receiptPaperMm: number;
+  autoPrintReceipt: boolean;
   receiptHeader: string | null;
   receiptFooter: string | null;
   birPermitNo: string | null;
@@ -59,6 +60,7 @@ const FIELDS = {
   vatRatePct: true,
   status: true,
   receiptPaperMm: true,
+  autoPrintReceipt: true,
   receiptHeader: true,
   receiptFooter: true,
   birPermitNo: true,
@@ -99,6 +101,7 @@ export interface UpdateSettingsInput {
    * somebody corrected a TIN.
    */
   receiptPaperMm?: number;
+  autoPrintReceipt?: boolean;
   receiptHeader?: string | null;
   receiptFooter?: string | null;
   birPermitNo?: string | null;

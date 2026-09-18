@@ -110,6 +110,23 @@ export const SettingsInput = z.object({
 export type SettingsInputValues = z.infer<typeof SettingsInput>;
 
 /**
+ * Auto-print, parsed against the marker that says its section was on screen.
+ *
+ * SAME SHAPE AS THE STOREFRONT FLAGS, and for the same reason: an unticked
+ * checkbox is simply ABSENT from FormData, so "not sent" and "turned off" look
+ * identical. Without the marker, saving any other part of settings would read
+ * as "auto-print off" and quietly stop every receipt printing.
+ */
+export function parseReceiptFlags(input: {
+  sectionPresent: unknown;
+  autoPrintReceipt: unknown;
+}): { autoPrintReceipt?: boolean } {
+  const present = Flag(true).parse(input.sectionPresent);
+  if (!present) return {};
+  return { autoPrintReceipt: Flag(true).parse(input.autoPrintReceipt) as boolean };
+}
+
+/**
  * The two checkboxes, parsed against the marker that says their section was on
  * screen. Separate from the object above because their meaning depends on a
  * field that is not one of them.

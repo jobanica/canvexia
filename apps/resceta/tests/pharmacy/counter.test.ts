@@ -11,6 +11,7 @@ import {
   type SearchableProduct,
 } from "@/lib/pharmacy/counter-search";
 import { redeemable, pointsEarned } from "@/lib/pharmacy/customer-input";
+import { parseReceiptFlags } from "@/lib/pharmacy/settings-input";
 
 /**
  * THE COUNTER.
@@ -279,5 +280,79 @@ describe("the sale path", () => {
   it("charges the redemption against what is owed, not the recorded total", () => {
     expect(sale).toMatch(/const dueCentavos = totals\.totalCentavos - redemption\.centavos/);
     expect(sale).toMatch(/changeCentavos: tendered - dueCentavos/);
+  });
+});
+
+describe("printing the receipt when the sale settles", () => {
+  const printer = src("app/pos/ReceiptPrinter.tsx");
+  const autoPrint = src("app/receipts/[saleId]/print/AutoPrint.tsx");
+  const counter = src("app/pos/Counter.tsx");
+
+  /**
+   * REPORTED — "i tried the sale, i dont see receipt printing it. it should
+   * auto print."
+   *
+   * The print page had taken `?auto=1` since it was written, and its own
+   * comment said the counter links here with it after a sale. The counter never
+   * did. The mechanism existed and nothing drove it — which is the failure this
+   * codebase keeps repeating, so it is pinned rather than trusted.
+   */
+  it("actually drives the print page from the counter", () => {
+    expect(counter).toMatch(/<ReceiptPrinter/);
+    expect(printer).toMatch(/\/receipts\/\$\{saleId\}\/print\?auto=1/);
+  });
+
+  it("prints without taking the cashier off the counter", () => {
+    // A navigation to the print page loses the till between customers, and the
+    // queue does not stop for the back button.
+    expect(printer).toMatch(/<iframe/);
+    expect(printer).not.toMatch(/router\.push|redirect\(/);
+  });
+
+  it("gives the frame a real width, rather than hiding it to zero", () => {
+    // display:none and a zero-width frame both stop the receipt laying out —
+    // a thermal roll rendered at zero width prints as a column of characters.
+    expect(printer).toMatch(/left: "-10000px"/);
+    expect(printer).toMatch(/width: `\$\{paperMm \* 4\}px`/);
+    expect(printer).not.toMatch(/display: "none"/);
+  });
+
+  it("prints once per sale, never twice", () => {
+    // Two dialogs for one sale is two copies of the receipt, or a cashier
+    // dismissing the second out of reflex.
+    expect(printer).toMatch(/if \(printed\.current === saleId\) return;/);
+    expect(autoPrint).toMatch(/if \(fired\.current\) return;/);
+  });
+
+  it("waits for the fonts before freezing the page", () => {
+    // print() freezes the page as it is. Called before the webfont loads, the
+    // columns on a 58mm roll do not line up with the total underneath them.
+    expect(autoPrint).toMatch(/document\.fonts\?\.ready/);
+  });
+
+  it("still offers the receipt by hand when the roll does not come", () => {
+    expect(printer).toMatch(/Print the receipt/);
+    expect(counter).toMatch(/Open the receipt/);
+  });
+});
+
+describe("the auto-print setting", () => {
+  it("is left alone by a save that did not show the section", () => {
+    // THE CHECKBOX TRAP: an unticked box is absent from FormData, so without
+    // the marker "not sent" and "turned off" are the same thing — and saving
+    // the shop's address would quietly stop every receipt printing.
+    expect(parseReceiptFlags({ sectionPresent: null, autoPrintReceipt: null })).toEqual({});
+  });
+
+  it("is turned off only when the section was on screen and the box was clear", () => {
+    expect(parseReceiptFlags({ sectionPresent: "1", autoPrintReceipt: null })).toEqual({
+      autoPrintReceipt: false,
+    });
+  });
+
+  it("is turned on when the box is ticked", () => {
+    expect(parseReceiptFlags({ sectionPresent: "1", autoPrintReceipt: "on" })).toEqual({
+      autoPrintReceipt: true,
+    });
   });
 });

@@ -3474,6 +3474,13 @@ model Pharmacy {
   /// guessed, because a receipt laid out for 80mm and printed on 58mm wraps
   /// every line.
   receiptPaperMm Int     @default(58)
+  /// Print the receipt as soon as the sale settles.
+  ///
+  /// dbgenerated, so an existing pharmacy gets `true` from the database default
+  /// rather than Prisma writing `false` into every row on the next migration.
+  /// ON by default: a pharmacy is expected to hand over a receipt, and a till
+  /// that waits to be asked is a till that forgets.
+  autoPrintReceipt Boolean @default(dbgenerated("true"))
   receiptHeader  String?
   receiptFooter  String?
   /// The BIR permit number and the machine serial a registered POS has to

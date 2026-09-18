@@ -177,6 +177,29 @@ export function SettingsForm({ settings }: { settings: PharmacySettings }) {
             print on every receipt.
           </p>
         </div>
+        {/*
+          The marker that makes the checkbox below readable. An unticked box is
+          absent from FormData, so without this "not sent" and "turned off" are
+          the same thing — and saving the shop's address would silently stop
+          every receipt printing.
+        */}
+        <input type="hidden" name="receiptSection" value="1" />
+        <label className="flex items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            name="autoPrintReceipt"
+            defaultChecked={settings.autoPrintReceipt ?? true}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            <span className="font-medium">Print the receipt as soon as the sale settles</span>
+            <span className="mt-0.5 block text-slate-300">
+              On, because a pharmacy is expected to hand one over and a till that
+              waits to be asked is a till that forgets. Turn it off while you are
+              trying the counter out with no printer attached.
+            </span>
+          </span>
+        </label>
         <label className="block text-sm">
           <span className="font-medium">Paper width</span>
           <select

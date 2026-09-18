@@ -17,6 +17,7 @@ import {
 } from "@/lib/pharmacy/counter-search";
 import { redeemable } from "@/lib/pharmacy/customer-input";
 import { IconCart, IconSearch, IconUserPlus } from "@/components/Icons";
+import { ReceiptPrinter } from "./ReceiptPrinter";
 import type { CatalogueRow } from "@/server/pharmacy/queries";
 
 /**
@@ -54,6 +55,8 @@ export function Counter({
   branchName,
   members,
   loyaltyCentavosPerPoint,
+  autoPrint,
+  receiptPaperMm,
 }: {
   vatRatePct: number;
   products: CatalogueRow[];
@@ -67,6 +70,10 @@ export function Counter({
   branchName: string;
   members: LoyaltyMember[];
   loyaltyCentavosPerPoint: number;
+  /** Print the receipt as soon as the sale settles. A pharmacy setting. */
+  autoPrint: boolean;
+  /** 58 or 80. The frame has to lay the receipt out at its real paper width. */
+  receiptPaperMm: number;
 }) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [discountType, setDiscountType] = useState<DiscountType>("none");
@@ -623,9 +630,18 @@ export function Counter({
             <p className="font-semibold">
               Receipt {state.receiptNumber} · change {peso(state.changeCentavos)}
             </p>
-            <Link href={`/receipts/${state.saleId}`} className="underline">
+            {/*
+              The link stays even when the receipt prints itself. Auto-print
+              covers the ordinary case; a jammed roll, a printer that was off,
+              or a customer asking for a second copy is the case where somebody
+              needs the document itself.
+            */}
+            <Link href={`/receipts/${state.saleId}/print`} className="underline">
               Open the receipt
             </Link>
+            {autoPrint && (
+              <ReceiptPrinter saleId={state.saleId} paperMm={receiptPaperMm} />
+            )}
           </div>
         )}
 
