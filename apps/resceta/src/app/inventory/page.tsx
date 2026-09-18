@@ -8,7 +8,8 @@ import { parseRange } from "@/lib/pharmacy/range";
 import { RangeFilter } from "@/components/RangeFilter";
 import { can } from "@/lib/pharmacy/roles";
 import { peso, manilaDate, manilaDateTime, manilaExpiry } from "@/lib/money";
-import { WriteoffForm, batchLabel } from "./WriteoffForm";
+import { WriteoffForm } from "./WriteoffForm";
+import { batchLabel } from "@/lib/pharmacy/batch-label";
 
 export const dynamic = "force-dynamic";
 

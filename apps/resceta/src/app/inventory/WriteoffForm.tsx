@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { recordWriteoff, type WriteoffState } from "./actions";
 import { REASON_LABEL, WRITEOFF_REASONS } from "@/lib/pharmacy/writeoff-input";
-import { peso, manilaExpiry } from "@/lib/money";
+
 
 const IDLE: WriteoffState = { status: "idle" };
 const FIELD = "mt-1 w-full rounded-xl border border-white/10 px-3 py-2 text-sm";
@@ -116,21 +116,4 @@ export function WriteoffForm({ batches }: { batches: BatchOption[] }) {
       </div>
     </form>
   );
-}
-
-/** Build the option label on the server side of the boundary. */
-export function batchLabel(b: {
-  productName: string;
-  lotNumber: string | null;
-  expiryDate: Date | null;
-  quantity: number;
-  costCentavos: number;
-  unit: string;
-}): string {
-  const bits = [b.productName];
-  if (b.lotNumber) bits.push(`lot ${b.lotNumber}`);
-  bits.push(b.expiryDate ? `exp ${manilaExpiry(b.expiryDate)}` : "no expiry");
-  bits.push(`${b.quantity} ${b.unit}`);
-  bits.push(`${peso(b.costCentavos)} each`);
-  return bits.join(" · ");
 }
