@@ -5,9 +5,14 @@ import Link from "next/link";
 import { EscPos, columnsFor } from "@/lib/pharmacy/escpos";
 import {
   connect,
+  helperStatus,
+  savedHelper,
+  saveHelper,
   savedMethod,
   saveMethod,
+  sendToHelper,
   support,
+  DEFAULT_HELPER_URL,
   type PrintMethod,
 } from "@/lib/pharmacy/printer-link";
 import { peso, manilaDate } from "@/lib/money";
@@ -41,6 +46,8 @@ export function PrinterPanel({
   const [method, setMethod] = useState<PrintMethod>("dialog");
   const [can, setCan] = useState({ bluetooth: false, usb: false, secure: false });
   const [busy, setBusy] = useState(false);
+  const [helper, setHelper] = useState({ url: DEFAULT_HELPER_URL, token: "" });
+  const [found, setFound] = useState<boolean | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [bad, setBad] = useState<string | null>(null);
 
@@ -49,7 +56,20 @@ export function PrinterPanel({
   useEffect(() => {
     setMethod(savedMethod());
     setCan(support());
+    setHelper(savedHelper());
   }, []);
+
+  // Look for a running bridge whenever the address changes, so the page can
+  // say "found it" before anybody pastes a token.
+  useEffect(() => {
+    if (method !== "helper") return;
+    let live = true;
+    setFound(null);
+    helperStatus(helper.url).then((ok) => live && setFound(ok));
+    return () => {
+      live = false;
+    };
+  }, [method, helper.url]);
 
   function choose(m: PrintMethod) {
     setMethod(m);
@@ -127,6 +147,13 @@ export function PrinterPanel({
           : undefined,
     },
     {
+      value: "helper",
+      label: "Helper app  —  prints on its own",
+      blurb:
+        "A small program running on this till. The ONLY option that prints without anybody pressing anything, because it is not the browser reaching for hardware. Works with any printer the till has, including USB and Bluetooth.",
+      ok: true,
+    },
+    {
       value: "usb",
       label: "USB",
       blurb:
@@ -194,10 +221,65 @@ export function PrinterPanel({
             onClick={testDirect}
             className="rounded-xl brand-gradient px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
           >
-            {busy ? "Sending…" : `Choose the ${method === "usb" ? "USB" : "Bluetooth"} printer and test`}
+            {busy
+              ? "Sending…"
+              : method === "helper"
+                ? "Send a test print"
+                : `Choose the ${method === "usb" ? "USB" : "Bluetooth"} printer and test`}
           </button>
         )}
       </div>
+
+      {method === "helper" && (
+        <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-slate-400">Bridge</span>
+            {found === null ? (
+              <span className="text-slate-400">looking…</span>
+            ) : found ? (
+              <span className="text-emerald-300">running</span>
+            ) : (
+              <span className="text-amber-300">not running on {helper.url}</span>
+            )}
+          </div>
+          <label className="block text-xs text-slate-400">
+            Address
+            <input
+              value={helper.url}
+              onChange={(e) => {
+                const next = { ...helper, url: e.target.value };
+                setHelper(next);
+                saveHelper(next);
+              }}
+              className="mt-1 w-full rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-1.5 text-sm text-white"
+            />
+          </label>
+          <label className="block text-xs text-slate-400">
+            Token
+            {/*
+              Typed, not generated here. The bridge prints it in its own window
+              on first run — which is what proves the person setting this up is
+              actually at the till, rather than a page that found the port.
+            */}
+            <input
+              value={helper.token}
+              onChange={(e) => {
+                const next = { ...helper, token: e.target.value };
+                setHelper(next);
+                saveHelper(next);
+              }}
+              placeholder="paste the token the helper printed"
+              className="mt-1 w-full rounded-lg border border-white/15 bg-white/[0.06] px-2.5 py-1.5 font-mono text-xs text-white"
+            />
+          </label>
+          {!found && (
+            <p className="text-xs text-slate-400">
+              Start it on this computer with <code>node src/index.mjs</code>, then
+              leave the window open.
+            </p>
+          )}
+        </div>
+      )}
 
       {note && <p className="mt-2 text-xs text-emerald-300">{note}</p>}
       {bad && <p className="mt-2 text-xs text-rose-300">{bad}</p>}
@@ -208,7 +290,7 @@ export function PrinterPanel({
           footers off, and set margins to none.
         </p>
       )}
-      {method !== "dialog" && (
+      {(method === "bluetooth" || method === "usb") && (
         <p className="mt-2 text-xs text-slate-400">
           {/*
             The permission is per browser AND per device, and it is asked once.

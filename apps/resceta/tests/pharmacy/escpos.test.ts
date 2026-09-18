@@ -143,7 +143,10 @@ describe("the till when a direct printer is set", () => {
   it("does not also open the print dialog", () => {
     // Otherwise the cashier gets a dialog on every sale, on top of the receipt
     // that already came out.
-    expect(printer).toMatch(/if \(savedMethod\(\) !== "dialog"\) \{/);
+    // Hoisted into a variable when the helper path joined it; the rule is the
+    // same — anything but the dialog must not load the frame.
+    expect(printer).toMatch(/const method = savedMethod\(\);/);
+    expect(printer).toMatch(/if \(method !== "dialog"\) \{/);
   });
 
   it("offers a button, because the browser demands a gesture", () => {
@@ -184,5 +187,62 @@ describe("the document the server renders", () => {
   it("is never cached", () => {
     // A stale receipt is somebody else's sale.
     expect(route).toMatch(/"Cache-Control": "no-store"/);
+  });
+});
+
+describe("the helper app", () => {
+  const link = src("lib/pharmacy/printer-link.ts");
+  const printer = src("app/pos/ReceiptPrinter.tsx");
+  const panel = src("app/settings/PrinterPanel.tsx");
+
+  /**
+   * REPORTED — "add a helper app."
+   *
+   * Bluetooth and USB print without a dialog but still need one tap per sale:
+   * the browser refuses those APIs outside a user gesture and cannot tell a
+   * finished sale from a page helping itself to the hardware. The helper is an
+   * ordinary fetch to a program the pharmacy chose to run, so that rule does
+   * not apply — it is the only path that prints on its own.
+   */
+  it("prints with no tap at all", () => {
+    expect(printer).toMatch(/if \(method === "helper"\) \{/);
+    expect(printer).toMatch(/no gesture is required/);
+  });
+
+  it("never fails silently", () => {
+    // A receipt that did not print and said nothing is a customer walking out
+    // without one.
+    expect(printer).toMatch(/Never silent/);
+    expect(printer).toMatch(/setAuto\(e instanceof Error \? e\.message/);
+  });
+
+  it("falls back to a button when the helper does not answer", () => {
+    // The sale is already done either way.
+    expect(printer).toMatch(/<DirectPrintButton jobId=\{jobId\} src=\{src\} label=\{label\} \/>/);
+  });
+
+  it("sends the token on every print", () => {
+    expect(link).toMatch(/"X-Print-Token": token/);
+    expect(link).toMatch(/if \(!token\) throw new Error/);
+  });
+
+  it("gives up rather than hanging the till", () => {
+    expect(link).toMatch(/AbortSignal\.timeout\(15_000\)/);
+  });
+
+  it("checks for a bridge without needing the token", () => {
+    // So the settings page can say "found it" before anybody pastes anything.
+    expect(link).toMatch(/\/status/);
+    expect(link).toMatch(/body\.service === "resceta-printbridge"/);
+  });
+
+  it("makes the person type the token rather than generating one", () => {
+    // The bridge prints it in its own window, which is what proves whoever is
+    // setting this up is actually at the till.
+    expect(panel).toMatch(/paste the token the helper printed/);
+  });
+
+  it("says plainly that this is the only hands-off option", () => {
+    expect(panel).toMatch(/prints on its own/);
   });
 });

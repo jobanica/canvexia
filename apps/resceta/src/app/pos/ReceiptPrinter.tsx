@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { connect, savedMethod } from "@/lib/pharmacy/printer-link";
+import { connect, savedMethod, sendToHelper } from "@/lib/pharmacy/printer-link";
 
 /**
  * PRINT THE RECEIPT WHEN THE SALE SETTLES.
@@ -45,6 +45,7 @@ export function ReceiptPrinter({
   const printed = useRef<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [direct, setDirect] = useState(false);
+  const [auto, setAuto] = useState<string | null>(null);
 
   useEffect(() => {
     // One print per sale. Without this, a re-render after the sale — a totals
@@ -65,7 +66,40 @@ export function ReceiptPrinter({
       user gesture, and a completed sale is not one. So the frame is suppressed
       and the button below is offered instead, which IS a gesture.
     */
-    if (savedMethod() !== "dialog") {
+    const method = savedMethod();
+
+    /*
+      THE HELPER PRINTS ON ITS OWN, which is the whole reason it exists.
+
+      Bluetooth and USB need a user gesture — the browser cannot tell a finished
+      sale from a page helping itself to the hardware — so those get a button.
+      The helper is an ordinary fetch to a program the pharmacy chose to run, so
+      no gesture is required and the receipt comes out with nobody touching
+      anything.
+    */
+    if (method === "helper") {
+      let cancelled = false;
+      (async () => {
+        try {
+          const type = src.includes("/readings/") ? "reading" : "receipt";
+          const res = await fetch(
+            `/api/escpos?type=${type}&id=${encodeURIComponent(jobId)}`,
+          );
+          if (!res.ok) throw new Error(await res.text());
+          await sendToHelper(new Uint8Array(await res.arrayBuffer()));
+          if (!cancelled) setAuto("sent");
+        } catch (e) {
+          // Never silent. A receipt that did not print and said nothing is a
+          // customer walking out without one.
+          if (!cancelled) setAuto(e instanceof Error ? e.message : "The helper did not answer.");
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (method !== "dialog") {
       setDirect(true);
       return;
     }
@@ -77,6 +111,18 @@ export function ReceiptPrinter({
   }, [jobId]);
 
   if (!jobId) return null;
+
+  if (auto) {
+    return auto === "sent" ? (
+      <p className="mt-2 text-xs text-emerald-300">Printed.</p>
+    ) : (
+      <div className="mt-2">
+        <p className="text-xs text-rose-300">{auto}</p>
+        {/* The fallback, because the sale is already done either way. */}
+        <DirectPrintButton jobId={jobId} src={src} label={label} />
+      </div>
+    );
+  }
 
   if (direct) {
     return (

@@ -10,8 +10,14 @@
  *
  *   dialog    — the browser's own print dialog, to whatever printer the
  *               operating system has. Works everywhere, needs a human.
- *   bluetooth — Web Bluetooth straight to the printer. No dialog.
- *   usb       — WebUSB straight to the printer. No dialog.
+ *   bluetooth — Web Bluetooth straight to the printer. No dialog, but one tap
+ *               per sale: the API refuses outside a user gesture and a
+ *               completed sale is not one.
+ *   usb       — WebUSB, same trade.
+ *   helper    — the print bridge running on the till. THE ONLY ONE THAT PRINTS
+ *               ON ITS OWN, because it is not the browser reaching for
+ *               hardware: it is an ordinary fetch to a program the pharmacy
+ *               chose to run.
  *
  * WHAT IS NOT AVAILABLE IS SAID, NOT HIDDEN. Web Bluetooth and WebUSB do not
  * exist in Safari, which is every iPhone and iPad. Offering a button that can
@@ -19,7 +25,7 @@
  * asks the browser rather than guessing from the user agent.
  */
 
-export type PrintMethod = "dialog" | "bluetooth" | "usb";
+export type PrintMethod = "dialog" | "bluetooth" | "usb" | "helper";
 
 const STORE = "resceta_print_method";
 
@@ -192,4 +198,73 @@ export async function connect(method: PrintMethod): Promise<Connection> {
   if (method === "bluetooth") return connectBluetooth();
   if (method === "usb") return connectUsb();
   throw new Error("The print dialog needs no connection.");
+}
+
+/* ── THE HELPER APP ─────────────────────────────────────────────────────── */
+
+const HELPER_URL = "resceta_helper_url";
+const HELPER_TOKEN = "resceta_helper_token";
+
+export const DEFAULT_HELPER_URL = "http://127.0.0.1:9110";
+
+export interface HelperConfig {
+  url: string;
+  token: string;
+}
+
+export function savedHelper(): HelperConfig {
+  if (typeof window === "undefined") return { url: DEFAULT_HELPER_URL, token: "" };
+  try {
+    return {
+      url: window.localStorage.getItem(HELPER_URL) || DEFAULT_HELPER_URL,
+      token: window.localStorage.getItem(HELPER_TOKEN) || "",
+    };
+  } catch {
+    return { url: DEFAULT_HELPER_URL, token: "" };
+  }
+}
+
+export function saveHelper(c: HelperConfig): void {
+  try {
+    window.localStorage.setItem(HELPER_URL, c.url.trim() || DEFAULT_HELPER_URL);
+    window.localStorage.setItem(HELPER_TOKEN, c.token.trim());
+  } catch {
+    /* the settings just will not be remembered */
+  }
+}
+
+/**
+ * Is a bridge running? `/status` carries no secret and needs none, so the
+ * settings page can say "found it" before anybody has pasted a token.
+ */
+export async function helperStatus(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${url.replace(/\/$/, "")}/status`, {
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!res.ok) return false;
+    const body = (await res.json()) as { service?: string };
+    return body.service === "resceta-printbridge";
+  } catch {
+    // Not running, wrong port, or blocked. All the same answer to the person
+    // reading it: nothing is listening there.
+    return false;
+  }
+}
+
+export async function sendToHelper(bytes: Uint8Array): Promise<void> {
+  const { url, token } = savedHelper();
+  if (!token) throw new Error("Paste the helper's token into settings first.");
+
+  const res = await fetch(`${url.replace(/\/$/, "")}/print`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream", "X-Print-Token": token },
+    body: new Uint8Array(bytes),
+    // A till waiting forever on a printer is a till nobody can use.
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error || `The helper refused it (${res.status}).`);
+  }
 }
