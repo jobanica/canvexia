@@ -7,6 +7,7 @@ import { CatalogueTable } from "./CatalogueTable";
 import { CatalogueTools } from "./CatalogueTools";
 import { duplicateGroups } from "@/server/pharmacy/merge-products";
 import { receiptScanEnabled } from "@/server/pharmacy/receipt-scan";
+import { listCategoriesWithCounts } from "@/server/pharmacy/categories";
 
 export const dynamic = "force-dynamic";
 
@@ -49,9 +50,10 @@ export default async function CataloguePage() {
     );
   }
 
-  const [products, categories, duplicates] = await Promise.all([
+  const [products, categories, categoryCounts, duplicates] = await Promise.all([
     listCatalogue(staff.pharmacyId),
     listCategories(staff.pharmacyId),
+    listCategoriesWithCounts(staff.pharmacyId),
     // Computed on every load rather than behind the button: the count is the
     // reason anybody presses it, and a button that says nothing gets ignored.
     duplicateGroups(staff.pharmacyId),
@@ -67,6 +69,7 @@ export default async function CataloguePage() {
 
         <CatalogueTools
           duplicates={duplicates}
+          categories={categoryCounts}
           scanEnabled={receiptScanEnabled()}
           canScan={can(staff.role, "manageStock")}
         />

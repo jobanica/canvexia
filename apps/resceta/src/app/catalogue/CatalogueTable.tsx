@@ -26,15 +26,21 @@ export function CatalogueTable({
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
 
   const needle = query.trim().toLowerCase();
-  const shown = needle
-    ? products.filter((p) =>
-        [p.name, p.genericName, p.sku, p.barcode]
-          .filter(Boolean)
-          .some((v) => v!.toLowerCase().includes(needle)),
-      )
-    : products;
+  const shown = products.filter((p) => {
+    // "" is every category; "none" is the products nobody has filed, which is
+    // the list somebody opens this filter to find.
+    if (category === "none" && p.categoryId !== null) return false;
+    if (category && category !== "none" && p.categoryId !== category) return false;
+    if (!needle) return true;
+    return [p.name, p.genericName, p.sku, p.barcode]
+      .filter(Boolean)
+      .some((v) => v!.toLowerCase().includes(needle));
+  });
+
+  const unfiled = products.filter((p) => p.categoryId === null).length;
 
   // Products a counter cannot warn about, because nobody has said when to.
   const unset = products.filter((p) => p.isActive && p.reorderPoint === 0).length;
@@ -49,6 +55,20 @@ export function CatalogueTable({
           aria-label="Search the catalogue"
           className="min-w-0 flex-1 rounded-lg border border-white/15 px-3 py-2 text-sm"
         />
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          aria-label="Filter by category"
+          className="rounded-lg border border-white/15 px-3 py-2 text-sm"
+        >
+          <option value="">All categories</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+          {unfiled > 0 && <option value="none">No category ({unfiled})</option>}
+        </select>
         {!adding && (
           <button
             onClick={() => {

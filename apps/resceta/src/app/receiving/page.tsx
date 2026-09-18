@@ -5,6 +5,7 @@ import { receivingOptions, recentDeliveries } from "@/server/pharmacy/receiving"
 import { can } from "@/lib/pharmacy/roles";
 import { peso, manilaDate } from "@/lib/money";
 import { ReceivingForm } from "./ReceivingForm";
+import { receiptScanEnabled } from "@/server/pharmacy/receipt-scan";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,7 @@ export default async function ReceivingPage() {
           products={products}
           suppliers={suppliers}
           canCreateProducts={canCreateProducts}
+          scanEnabled={receiptScanEnabled()}
         />
 
         <section className="mt-12">

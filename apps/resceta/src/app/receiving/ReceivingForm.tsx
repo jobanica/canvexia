@@ -18,6 +18,8 @@ import { peso } from "@/lib/money";
  * and both copies would look perfectly consistent.
  */
 
+import { ScanIntoDelivery, type ScannedDraft } from "./ScanIntoDelivery";
+
 const IDLE: ReceivingState = { status: "idle" };
 
 interface ProductOption {
@@ -63,10 +65,13 @@ export function ReceivingForm({
   products,
   suppliers,
   canCreateProducts,
+  scanEnabled,
 }: {
   products: ProductOption[];
   suppliers: { id: string; name: string }[];
   canCreateProducts: boolean;
+  /** Whether an API key is configured for reading a receipt photo. */
+  scanEnabled: boolean;
 }) {
   const [state, action, pending] = useActionState(receiveAction, IDLE);
   const [rows, setRows] = useState<Draft[]>([blank(0)]);
@@ -128,8 +133,45 @@ export function ReceivingForm({
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
 
+  /**
+   * Scanned lines become ordinary rows in this form.
+   *
+   * APPENDED, NOT SUBSTITUTED: somebody who has already typed two lines and
+   * then scans the rest should not lose the two. The empty starter row is
+   * dropped, because an untouched blank is not a line anybody typed.
+   */
+  function acceptScanned(scanned: ScannedDraft[]) {
+    setRows((rs) => {
+      const kept = rs.filter((r) => r.productId || r.newProductName || r.quantity);
+      let key = nextKey;
+      const added = scanned.map((d) => ({
+        ...blank(key++),
+        productId: d.productId,
+        newProductName: d.newProductName,
+        lotNumber: d.lotNumber,
+        expiryDate: d.expiryDate,
+        // A line with no expiry on the paper is a line somebody has to decide
+        // about, so it is left unticked rather than silently marked "no expiry".
+        noExpiry: false,
+        quantity: d.quantity,
+        unitCost: d.unitCost,
+      }));
+      setNextKey(key);
+      return [...kept, ...added];
+    });
+  }
+
   return (
     <form action={action} className="space-y-6">
+      {/*
+        OUTSIDE THE LINE EDITOR, above it: the scan fills this form in, it does
+        not replace it. Whatever it puts here is edited and submitted by the
+        same code path as a hand-typed delivery.
+      */}
+      {scanEnabled && (
+        <ScanIntoDelivery onAccept={acceptScanned} onSupplier={(n) => !supplierId && setNewSupplierName(n)} />
+      )}
+
       <input type="hidden" name="deliveryRef" value={deliveryRef} />
       <input type="hidden" name="supplierId" value={supplierId} />
       <input type="hidden" name="newSupplierName" value={supplierId ? "" : newSupplierName} />

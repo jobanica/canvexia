@@ -4,9 +4,11 @@ import { useState } from "react";
 import { ImportPanel } from "./ImportPanel";
 import { MergePanel } from "./MergePanel";
 import { ScanPanel } from "./ScanPanel";
+import { CategoryManager } from "./CategoryManager";
 import type { DuplicateGroup } from "@/lib/pharmacy/duplicates";
+import type { CategoryDetail } from "@/server/pharmacy/categories";
 
-type Tool = "import" | "merge" | "scan" | null;
+type Tool = "import" | "merge" | "scan" | "categories" | null;
 
 /**
  * The three bulk tools, above the catalogue.
@@ -21,10 +23,12 @@ type Tool = "import" | "merge" | "scan" | null;
  */
 export function CatalogueTools({
   duplicates,
+  categories,
   scanEnabled,
   canScan,
 }: {
   duplicates: DuplicateGroup[];
+  categories: CategoryDetail[];
   scanEnabled: boolean;
   canScan: boolean;
 }) {
@@ -34,6 +38,15 @@ export function CatalogueTools({
   return (
     <>
       <div className="mb-6 flex flex-wrap gap-2">
+        <Button
+          active={open === "categories"}
+          onClick={() => setOpen(open === "categories" ? null : "categories")}
+        >
+          Categories
+          <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs text-slate-300">
+            {categories.length}
+          </span>
+        </Button>
         <Button active={open === "import"} onClick={() => setOpen(open === "import" ? null : "import")}>
           Import CSV
         </Button>
@@ -52,6 +65,7 @@ export function CatalogueTools({
         )}
       </div>
 
+      {open === "categories" && <CategoryManager categories={categories} onClose={close} />}
       {open === "import" && <ImportPanel onClose={close} />}
       {open === "merge" && <MergePanel groups={duplicates} onClose={close} />}
       {open === "scan" && <ScanPanel onClose={close} />}
