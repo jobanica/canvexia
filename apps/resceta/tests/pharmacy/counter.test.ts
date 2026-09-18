@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  amountToCentavos,
   changeFor,
   scanMatch,
   searchProducts,
@@ -147,6 +148,62 @@ describe("points at the till", () => {
   });
 });
 
+
+describe("typing an amount into the tender box", () => {
+  /**
+   * REPORTED — "I cannot type the cash amount paid to me."
+   *
+   * The box held centavos and re-rendered `(c / 100).toFixed(2)` every
+   * keystroke. Typing "5" became "5.00"; the next digit made "5.000", which
+   * parses back to 5 and renders "5.00" again. The field was stuck on its first
+   * digit and no sale could be completed.
+   *
+   * This walks the controlled-input round trip one keystroke at a time. It is
+   * the only shape of test that would have caught it: every individual piece
+   * was correct, and the LOOP was the bug.
+   */
+  const typeIn = (keys: string, render: (state: string) => string) => {
+    let state = "";
+    for (const key of keys) {
+      state = render(state + key); // browser appends, React re-renders
+    }
+    return state;
+  };
+
+  const RAW = (s: string) => s; // what the fix does: show what was typed
+  const REFORMATTING = (s: string) => {
+    const c = amountToCentavos(s);
+    return c ? (c / 100).toFixed(2) : "";
+  };
+
+  it("lets a cashier type a whole amount", () => {
+    expect(typeIn("500", RAW)).toBe("500");
+    expect(amountToCentavos(typeIn("500", RAW))).toBe(50_000);
+  });
+
+  it("lets them type centavos too", () => {
+    expect(amountToCentavos(typeIn("1250.75", RAW))).toBe(125_075);
+  });
+
+  it("proves the old reformatting box could not be typed into", () => {
+    // Guarding the REASON, not just the result: "500" came out as ₱5.
+    expect(amountToCentavos(typeIn("500", REFORMATTING))).toBe(500);
+  });
+
+  it("accepts money written the way people write it", () => {
+    expect(amountToCentavos("1,200.50")).toBe(120_050);
+    expect(amountToCentavos("₱500")).toBe(50_000);
+    expect(amountToCentavos("  500 ")).toBe(50_000);
+  });
+
+  it("never returns NaN, which would render as change of NaN", () => {
+    expect(amountToCentavos("")).toBe(0);
+    expect(amountToCentavos("abc")).toBe(0);
+    expect(amountToCentavos("1.2.3")).toBe(0);
+    expect(amountToCentavos("-50")).toBe(5000);
+  });
+});
+
 describe("the counter screen", () => {
   const counter = src("app/pos/Counter.tsx");
 
@@ -166,6 +223,22 @@ describe("the counter screen", () => {
 
   it("clears the cart after a sale, so the next customer starts empty", () => {
     expect(counter).toMatch(/if \(state\.status !== "done"\) return;\s*\n\s*setCart\(\{\}\)/);
+  });
+
+  it("keeps the raw text in every money field, and formats none of it mid-typing", () => {
+    // The rule that makes the field typeable at all. A `toFixed` in a value
+    // bound to a keystroke handler is the bug that shipped.
+    expect(counter).toMatch(/value=\{t\.input\}/);
+    expect(counter).not.toMatch(/value=\{t\.amountCentavos/);
+    expect(counter).toMatch(/value=\{redeemInput\}/);
+  });
+
+  it("does not use a number input for money", () => {
+    // A number input fights a typed comma, shows spinners on a till, and
+    // blanks itself on input the browser dislikes.
+    // Anchored to an actual JSX attribute on its own line, so the comment
+    // explaining WHY it is not used does not trip its own rule.
+    expect(counter).not.toMatch(/^\s*type="number"/m);
   });
 
   it("computes its totals with the server's own function", () => {

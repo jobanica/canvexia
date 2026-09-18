@@ -94,6 +94,34 @@ export interface Tender {
   amountCentavos: number;
 }
 
+/**
+ * WHAT THE CASHIER TYPED → centavos.
+ *
+ * REPORTED — "I cannot type the cash amount paid to me."
+ *
+ * The amount box held centavos and re-rendered `(centavos / 100).toFixed(2)` on
+ * every keystroke. Typing "5" became "5.00"; the next digit made "5.000", which
+ * parses back to 5 and re-renders as "5.00". The field was permanently stuck on
+ * its first digit and the sale could never be completed.
+ *
+ * The lesson is the rule, not the patch: A MONEY FIELD KEEPS THE TEXT THE
+ * PERSON TYPED and derives the number from it. Formatting mid-typing fights the
+ * person doing the typing — and this is the field that decides what a customer
+ * is charged.
+ *
+ * Forgiving about how money gets typed: "1,200.50", "₱500" and " 500 " are all
+ * the same amount to a cashier in a hurry, so they are the same amount here.
+ * Anything unparseable is zero rather than NaN, because NaN propagates into the
+ * change calculation and a till must never display a change of "NaN".
+ */
+export function amountToCentavos(text: string): number {
+  const cleaned = text.replace(/[^0-9.]/g, "");
+  if (cleaned === "") return 0;
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round(n * 100);
+}
+
 /** What has been handed over. */
 export function tenderedTotal(tenders: Tender[]): number {
   return tenders.reduce((sum, t) => sum + (t.amountCentavos > 0 ? t.amountCentavos : 0), 0);

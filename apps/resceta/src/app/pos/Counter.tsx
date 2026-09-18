@@ -12,8 +12,8 @@ import {
   searchProducts,
   shortfall,
   tenderedTotal,
+  amountToCentavos,
   TENDER_METHODS,
-  type Tender,
 } from "@/lib/pharmacy/counter-search";
 import { redeemable } from "@/lib/pharmacy/customer-input";
 import { IconCart, IconSearch, IconUserPlus } from "@/components/Icons";
@@ -71,10 +71,21 @@ export function Counter({
   const [cart, setCart] = useState<Record<string, number>>({});
   const [discountType, setDiscountType] = useState<DiscountType>("none");
   const [query, setQuery] = useState("");
-  const [tenders, setTenders] = useState<Tender[]>([{ method: "cash", amountCentavos: 0 }]);
+  /*
+    THE TEXT THE CASHIER TYPED, not centavos.
+
+    Holding centavos here meant re-rendering the box as `(c / 100).toFixed(2)`
+    on every keystroke, which made the field impossible to type into past its
+    first digit. A money field keeps the raw text and derives the number.
+  */
+  const [tenders, setTenders] = useState<{ method: string; input: string }[]>([
+    { method: "cash", input: "" },
+  ]);
   const [memberQuery, setMemberQuery] = useState("");
   const [member, setMember] = useState<LoyaltyMember | null>(null);
-  const [redeemPoints, setRedeemPoints] = useState(0);
+  // Raw text, for the same reason the tender amounts are: a number coerced on
+  // every keystroke eats a leading zero and fights the person typing.
+  const [redeemInput, setRedeemInput] = useState("");
   const [flash, setFlash] = useState<string | null>(null);
   const searchBox = useRef<HTMLInputElement>(null);
   const online = useOnline();
@@ -117,6 +128,7 @@ export function Counter({
 
   // Capped at the balance AND the bill by the same helper the server uses, so
   // the figure on screen is the figure that will be applied.
+  const redeemPoints = Math.max(0, Math.floor(Number(redeemInput.replace(/[^0-9]/g, "")) || 0));
   const redemption = member
     ? redeemable(redeemPoints, member.pointsBalance, totals.totalCentavos, loyaltyCentavosPerPoint)
     : { points: 0, centavos: 0 };
@@ -125,9 +137,13 @@ export function Counter({
   const needsRx = lines.some((l) => byId.get(l.productId)?.requiresPrescription);
   const blockedOnRx = needsRx && !canDispenseRx;
   const statutory = discountType === "sc" || discountType === "pwd";
-  const change = changeFor(due, tenders);
-  const owed = shortfall(due, tenders);
-  const paid = tenderedTotal(tenders);
+  const amounts = tenders.map((t) => ({
+    method: t.method,
+    amountCentavos: amountToCentavos(t.input),
+  }));
+  const change = changeFor(due, amounts);
+  const owed = shortfall(due, amounts);
+  const paid = tenderedTotal(amounts);
 
   // After a completed sale the cart has to be empty and the box focused, or the
   // next customer is rung up on top of the last one's items.
@@ -135,10 +151,10 @@ export function Counter({
     if (state.status !== "done") return;
     setCart({});
     setDiscountType("none");
-    setTenders([{ method: "cash", amountCentavos: 0 }]);
+    setTenders([{ method: "cash", input: "" }]);
     setMember(null);
     setMemberQuery("");
-    setRedeemPoints(0);
+    setRedeemInput("");
     setQuery("");
     searchBox.current?.focus();
   }, [state]);
@@ -183,7 +199,7 @@ export function Counter({
       <input type="hidden" name="discountType" value={discountType} />
       <input type="hidden" name="customerId" value={member?.id ?? ""} />
       <input type="hidden" name="pointsToRedeem" value={redemption.points} />
-      <input type="hidden" name="payments" value={JSON.stringify(tenders.filter((t) => t.amountCentavos > 0))} />
+      <input type="hidden" name="payments" value={JSON.stringify(amounts.filter((t) => t.amountCentavos > 0))} />
 
       {/* ── SEARCH AND THE SHELF ─────────────────────────────────────────── */}
       <section className={`${CARD} p-4 sm:p-5`}>
@@ -331,7 +347,7 @@ export function Counter({
                   type="button"
                   onClick={() => {
                     setMember(null);
-                    setRedeemPoints(0);
+                    setRedeemInput("");
                   }}
                   className="shrink-0 text-xs text-slate-400 underline hover:text-white"
                 >
@@ -341,18 +357,17 @@ export function Counter({
               {loyaltyCentavosPerPoint > 0 && member.pointsBalance > 0 && totals.totalCentavos > 0 && (
                 <div className="mt-2 flex items-center gap-2">
                   <input
-                    type="number"
-                    min={0}
-                    max={member.pointsBalance}
-                    value={redeemPoints || ""}
-                    onChange={(e) => setRedeemPoints(Math.max(0, Number(e.target.value) || 0))}
+                    type="text"
+                    inputMode="numeric"
+                    value={redeemInput}
+                    onChange={(e) => setRedeemInput(e.target.value)}
                     placeholder="Points to use"
                     aria-label="Points to redeem"
                     className={`${FIELD} py-1.5 text-xs`}
                   />
                   <button
                     type="button"
-                    onClick={() => setRedeemPoints(member.pointsBalance)}
+                    onClick={() => setRedeemInput(String(member.pointsBalance))}
                     className="shrink-0 rounded-lg border border-white/15 px-2 py-1.5 text-xs text-slate-200"
                   >
                     Use all
@@ -507,18 +522,20 @@ export function Counter({
                     </option>
                   ))}
                 </select>
+                {/*
+                  text, NOT type="number": a number input fights a cashier over
+                  a typed comma, shows spinner arrows nobody wants on a till,
+                  and silently blanks itself on input the browser dislikes.
+                  inputMode gives a phone or tablet the numeric keypad, which is
+                  the only thing the number type was buying here.
+                */}
                 <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={t.amountCentavos ? (t.amountCentavos / 100).toFixed(2) : ""}
+                  type="text"
+                  inputMode="decimal"
+                  value={t.input}
                   onChange={(e) =>
                     setTenders((ts) =>
-                      ts.map((x, j) =>
-                        j === i
-                          ? { ...x, amountCentavos: Math.round((Number(e.target.value) || 0) * 100) }
-                          : x,
-                      ),
+                      ts.map((x, j) => (j === i ? { ...x, input: e.target.value } : x)),
                     )
                   }
                   placeholder="0.00"
@@ -543,12 +560,18 @@ export function Counter({
             <button
               type="button"
               onClick={() =>
-                setTenders((ts) => [
-                  ...ts,
+                setTenders((ts) => {
                   // Pre-filled with what is still owed, which is the number the
-                  // cashier was about to type.
-                  { method: "gcash", amountCentavos: shortfall(due, ts) },
-                ])
+                  // cashier was about to type anyway.
+                  const remaining = shortfall(
+                    due,
+                    ts.map((t) => ({ method: t.method, amountCentavos: amountToCentavos(t.input) })),
+                  );
+                  return [
+                    ...ts,
+                    { method: "gcash", input: remaining > 0 ? (remaining / 100).toFixed(2) : "" },
+                  ];
+                })
               }
               className="text-xs text-violet-300 underline hover:text-violet-200"
             >
@@ -556,7 +579,11 @@ export function Counter({
             </button>
             <button
               type="button"
-              onClick={() => setTenders([{ method: tenders[0]?.method ?? "cash", amountCentavos: due }])}
+              onClick={() =>
+                setTenders([
+                  { method: tenders[0]?.method ?? "cash", input: (due / 100).toFixed(2) },
+                ])
+              }
               className="text-xs text-slate-300 underline hover:text-white"
             >
               Exact cash
@@ -608,9 +635,9 @@ export function Counter({
             onClick={() => {
               setCart({});
               setDiscountType("none");
-              setTenders([{ method: "cash", amountCentavos: 0 }]);
+              setTenders([{ method: "cash", input: "" }]);
               setMember(null);
-              setRedeemPoints(0);
+              setRedeemInput("");
               searchBox.current?.focus();
             }}
             className="rounded-xl border border-white/15 px-4 py-2.5 text-sm text-slate-200"
