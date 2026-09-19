@@ -1,342 +1,465 @@
-# Partner Portal — A8 SMS marketing, A7.4 QR clock-in, staff invite email
+# Partner Portal A7.6 — staff compensation plans
 
-Mode C plan. **Nothing is written yet.** Section 0 is the part to read first:
-the SMS stack this brief asks for **already exists**, and eight other premises
-do not hold. Section 5 has six questions I cannot answer from the code.
+Mode C plan. **Nothing is written yet.** §0 is the part to read first: five of
+the brief's premises do not hold against this repository, and one of them
+(`comp_statements` is not a new table) changes the shape of the work.
 
-The previous occupant of this filename — the A7 plan, now shipped — is archived
-at `docs/canvexia/partner-a7-plan.md`.
+The previous occupant of this filename — the A8 plan, now shipped — is archived
+at `docs/canvexia/partner-a8-plan.md`, its checklist at `partner-a8-task.md`.
 
-Traced: `system_architecture.md`, the A7 plan, `packages/core/src/*`,
-`packages/db/prisma/schema.prisma`, all eleven files under
-`apps/servd/src/{server,lib}/sms`, `server/billing/xendit.ts`,
-`server/email/*`, `lib/qr.ts`, `components/partner/TeamManager.tsx`, and the
-`partner_invites` / `attendance_sessions` models.
+Traced, silently, nothing modified: `system_architecture.md`, the A8 plan,
+`packages/db/prisma/schema.prisma` (the A7 block, `PartnerLedgerEntry`,
+`PartnerUser`), `packages/db/prisma/rls.sql` §A7, `packages/db/src/commissions.ts`,
+`packages/core/src/identity/partner-permissions.ts`,
+`apps/servd/src/server/partners/{commissions,commissions-actions,staff,staff-actions,attendance,auth}.ts`,
+`apps/servd/src/app/(platform)/partner/{commissions,team,me,attendance}/**`,
+`components/partner/{portal-nav,CommissionsView,StaffDetail}.tsx`,
+`app/api/cron/partner-commissions/route.ts`,
+`packages/db/prisma/manual/add-partner-staff.sql`, and the live database.
 
 ---
 
-## 0. Blocking — what the brief assumes vs. what is here
+## 0. Blocking — the brief's premises vs. what is here
 
-### 0.1 THE BIG ONE: a complete SMS stack already exists
+### 0.1 `apps/partner` does not exist
 
-The brief reads as though SMS is greenfield ("new module, A8", "built on the
-swappable SMS provider interface … move that interface to packages/core/sms if
-it isn't there"). It is not greenfield. `apps/servd` already has, working and
-tested:
+The portal is a route group inside Servd: `apps/servd/src/app/(platform)/partner`.
+This is deliberate and recorded (§1, §6b of `system_architecture.md`) — a second
+Next process needs its own Prisma client, Supabase cookie handling, middleware
+and Vercel project. Every path in this plan is rewritten accordingly:
 
-| | |
+| Brief | Here |
 |---|---|
-| `server/sms/provider.ts` | the swappable interface — `SmsProvider`, `SendResult`, `InboundMessage` |
-| `server/sms/semaphore.ts` | **the Philippine A2P aggregator**, implemented |
-| `server/sms/campaigns.ts` | compose, schedule, send, per-message status |
-| `server/sms/credits.ts` | wallet debit/refund |
-| `server/sms/optin.ts` | double opt-in |
-| `server/sms/notify.ts`, `admin.ts` | transactional sends, admin surface |
-| `lib/sms/{phone,consent,keywords}.ts` | E.164 normalisation, consent copy, STOP classification |
-| `app/api/webhooks/sms/route.ts` | inbound webhook, STOP handling |
-| `tests/sms/sms.test.ts` | the suite |
-| models | `SmsCampaign`, `SmsMessage`, `SmsCreditLedger`, `CustomerContact` (with `marketingConsent`, `consentText`, `consentSource`, `optOutAt`), `Restaurant.smsCreditBalance`, `.smsSenderName`, `.smsDoubleOptIn` |
+| `/team/staff/{id}/compensation` | `/partner/team/staff/[id]/compensation` |
+| `/team/compensation` | `/partner/team/compensation` |
+| `/my/compensation` | `/partner/me/compensation` |
 
-**Every one of them is scoped to `restaurantId`.** A8 is therefore not "build an
-SMS module" — it is **"add a second axis to an existing one"**, exactly as D29
-did for merchants. That is a different job with a different risk profile: the
-danger is not missing features, it is breaking a live merchant-facing system
-while widening it.
+### 0.2 There is no `core` schema
 
-This changes the sub-phase shape (see §3) and it is the single reason I want
-approval before writing anything.
+Every table in this project is in `public`. A second Postgres schema means a
+Prisma preview feature and annotating ~110 live models. So `core.comp_plans`
+reads as `public.comp_plans`. `packages/core` is pure TypeScript and owns no
+tables at all — the permission KEYS go there; the tables do not.
 
-**One thing that must NOT be broken.** `api/webhooks/sms/route.ts` matches a
-STOP by phone number **across the whole platform**, on purpose and with a
-comment saying so — a person who texts STOP has opted out of everything, not of
-one restaurant. Adding a partner axis must preserve that. It is the assertion I
-will write first.
+### 0.3 `commission_rules` exists — and it is EMPTY
 
-### 0.2 `core.*` is not a schema; `apps/partner` does not exist
+The brief's migration clause fires. What it does not anticipate is that the
+whole A7 commission stack has never been used:
 
-Same two as A7 and unchanged: every table is `public` with a quoted camelCase
-name, the `app` schema holds RLS helper functions only, and the portal is
-`/partner` inside `apps/servd`. `core.sms_contacts` reads as
-`public.sms_contacts` throughout.
+```
+commission_rules  0     commission_statements  0     commission_lines  0
+partner_role_permissions rows on commissions.*  0     partner_users  3
+```
 
-### 0.3 `RESEND_API_KEY` is not an environment variable in this repo
+So this is not a data migration. Nothing frozen has to survive it, no seat has
+an override to preserve, and the old tables can be **dropped** rather than
+kept alongside — which is what the brief asks for and is only cheap because it
+is being asked for now rather than after a partner has been paid against a
+frozen figure.
 
-The brief says "if `RESEND_API_KEY` is missing in env, show a warning banner".
-There is no such variable anywhere — `grep` finds zero hits. The Resend key
-lives **encrypted in `platform_settings.emailCredsEnc`**, decrypted with
-`CREDENTIALS_ENCRYPTION_KEY`, and is entered at `/super-admin/email`.
+### 0.4 `comp_statements` is NOT a new table — it is `commission_statements` widened
 
-So the banner's condition becomes "no email provider is configured"
-(`getEmailStatus().configured === false`), which is the real question and is
-already a function. Checking an env var that does not exist would make the
-banner permanent.
+This is the finding that changes the plan's shape. The brief describes
+`comp_statements` as "frozen on the 1st Asia/Manila". That already exists and
+works:
 
-### 0.4 Email is already live — the copy the brief describes is already stale
+- `commission_statements` — one row per seat per `YYYY-MM`, unique on
+  `(partnerUserId, month)`, `totalCentavos`, `frozenAt`, `paidAt`,
+  `paidReference`, `paidBy`.
+- `commission_lines` — the per-merchant explanation, each line snapshotting the
+  rule that produced it.
+- `/api/cron/partner-commissions` at `0 1 1 * *`, idempotent, one transaction
+  per seat, writing a `cron_runs` row and queueing a `commission.ready` email.
+- `draftCommission()` — the same function the screen previews with and the cron
+  freezes from, so a preview cannot disagree with what lands.
 
-"Current state: /team … says *we can't email this yet*" was true this morning.
-As of this session: `CREDENTIALS_ENCRYPTION_KEY` is set, the Resend key is
-stored, `canvexia.com` is verified, `/api/cron/drain-emails` runs every 15
-minutes, and a real message was **delivered** from
-`CANVEXIA <noreply@canvexia.com>`.
+Building a parallel `comp_statements` would leave **two frozen monthly
+per-seat statement tables**, one of them still written by a live cron. That is
+precisely the failure `system_architecture.md` §6b names about two screens
+editing one partner's terms — it is how the number and its explanation come to
+disagree. **The plan renames and widens these two tables instead.** All the
+brief's properties are kept; none of the working machinery is rebuilt.
 
-So Part 3 is smaller than written: the **sending** half is done. What is
-missing is the invite email itself and the accept route.
+### 0.5 Nothing counts days worked
 
-### 0.5 It is `canvexia.com`, not `canvexia.app`
+`daily_rate` needs days worked in a Manila month. Attendance has
+`todaySession()`, `attendanceWeek()` and `lastSevenDays()` — no monthly count.
+One new read, and one real decision behind it (§5 Q3).
 
-The brief asks me to confirm the sending domain for **`canvexia.app`**. The
-domain verified in Resend, and the one the portal is branded around, is
-**`canvexia.com`**. `canvexia.app` is not registered, not in Resend, and appears
-nowhere in this repository. I have assumed a typo; see Q5.
+### 0.6 What the brief is right about, and stays right about
 
-### 0.6 There is no `/invite/{token}` route at all
-
-`partner_invites` is complete — `tokenHash` (SHA-256, never the token),
-`expiresAt`, `acceptedAt`, `revokedAt`, `invitedByUserId`. What does not exist
-is any route that consumes one. The partner-portal QA report listed this as
-§4.1: *"without it no partner can be onboarded"*.
-
-This is the most valuable single item in the whole brief and it is in Part 3,
-which is why running Part 3 first is right.
-
-### 0.7 There is no per-partner email sender identity
-
-The brief: "from the partner's sender identity if verified, else from
-CANVEXIA's default sender". There is no partner-level sender identity for
-**email**. `smsSenderName` exists and is on `Restaurant` — a merchant column,
-for SMS, not a partner's email domain.
-
-Sending as `noreply@davaooperator.com` would require verifying each partner's
-domain in Resend and storing per-partner credentials — a real feature, and not
-a small one. **Proposed:** always send from CANVEXIA's verified sender with the
-partner's brand name as the display name and in the subject, which is what the
-brief's own fallback says. Per-partner domains become their own phase. See Q4.
-
-### 0.8 A QR *generator* is here; a QR *scanner* is not
-
-`qrcode@^1.5.4` is a dependency and `lib/qr.ts` has `qrSvg` / `qrPngDataUrl` —
-that covers the kiosk **display** with no new package.
-
-**Reading** a QR from a camera is a different library and there is none. The
-brief says to ask; see Q1.
-
-### 0.9 `smsSenderName` is on the wrong table for what the brief wants
-
-"Sender name per partner (from A5 sender identity), status pending until HQ
-marks it approved" — the column exists on `Restaurant`, not `Partner`, and has
-no status field. A8 needs `partners.smsSenderName` + `smsSenderStatus` as new
-columns, not a reuse.
+Not payroll. No SSS, PhilHealth, Pag-IBIG, no tax, no deductions, no bank
+transfer, **no bank or GCash details stored anywhere**. The existing
+`markCommissionPaidAction` already stores only a free-text reference and the
+email of whoever marked it — that property is preserved verbatim, and §8 pins
+it with a test that fails if a payout-detail column is ever added to these
+tables.
 
 ---
 
-## 1. PART 3 — Staff invite email + accept route
+## 1. Schema
 
-The smallest, the most valuable, and the only part I would run today.
+All four tables in `public`, `text` ids (`String @default(uuid())`), centavos
+integers, `YYYY-MM` month keys. Written as one idempotent file
+`packages/db/prisma/manual/partner-comp-plans.sql`, mirrored into
+`schema.prisma`, then `pnpm --filter @servd/db db:rls`.
 
-### Files
+### 1.1 `comp_plans` [NEW] — replaces `commission_rules`
 
-| | |
+One row is a whole arrangement, not one term of it. That is the brief's
+central change from A7, where `per_signup` and `pct_recurring` were two rows
+that happened to belong to the same person.
+
+```
+id, partnerId, partnerUserId
+basisKind          'daily_rate' | 'monthly_base' | 'none'
+dailyRateCentavos      int   -- set iff basisKind = 'daily_rate'
+monthlyBaseCentavos    int   -- set iff basisKind = 'monthly_base'
+allowances             jsonb -- [{ key, label, perDayCentavos|perMonthCentavos }]
+activationCommissionCentavos  int
+recurringKind      'flat' | 'pct' | 'none'      -- ONE, never both
+recurringCentavos      int   -- flat: per merchant per month
+recurringPctBp         int   -- pct: BASIS POINTS of what settled
+recurringMonths        int   -- 0 = forever; flat only
+bonusTiers             jsonb -- [{ atLeast, amountCentavos }]
+bonusCumulative        bool  default false
+startsAt, endsAt, createdAt, createdBy
+```
+
+- **`daily_rate` wins over `monthly_base`** — the brief says so. Enforced by a
+  CHECK, not by precedence in the maths: a row that sets both is refused at
+  write time, so there is never a stored plan whose meaning depends on which
+  branch the reader takes first.
+- **`recurring_commission` XOR `recurring_pct`** — a CHECK, same reasoning.
+- Percentages are **basis points**, exactly as `CommissionRule.value` was, for
+  the reason the A7 comment gives: 2.5% in a float is how a statement ends up a
+  centavo short of the sum of its own lines.
+- **Plans are added and ended, never edited** — the A7 rule, kept. `endsAt` is
+  EXCLUSIVE, which is what makes consecutive plans produce exactly one payer.
+- `allowances` and `bonusTiers` are jsonb because their shape is a list whose
+  length is the operator's business. They are validated in code on the way in
+  and on the way out; a malformed blob renders as "plan needs attention"
+  rather than a crash or a silent zero.
+
+### 1.2 `comp_templates` [NEW]
+
+Partner-scoped, plus HQ-seeded rows with `partnerId IS NULL` that every partner
+can read and none can edit. Same columns as the plan body, no seat, no dates.
+
+The brief's "Field rep (recommended)" is seeded **only if §5 Q1 is answered.**
+Its figures are marked `[confirm these figures]` in the brief itself and the
+standing rule in this project is that a number on a screen comes from the user
+or a placeholder, never from me. Until it is confirmed the migration creates
+the table and seeds nothing, and the screen says there are no templates yet.
+
+### 1.3 `comp_statements` — `commission_statements` RENAMED and widened
+
+```
+ALTER TABLE commission_statements RENAME TO comp_statements;   -- 0 rows
+```
+plus new component columns, each nullable-free and defaulting to 0:
+
+```
+baseCentavos, allowanceCentavos, activationCentavos,
+recurringCentavos, bonusCentavos, adjustmentCentavos
+daysWorked          int
+planId              text   -- the plan this froze from, for the audit trail
+```
+
+`totalCentavos` stays, and stays the sum of the components. A statement must
+explain itself — a single figure is the thing nobody can check.
+
+### 1.4 `comp_lines` — `commission_lines` RENAMED and widened
+
+Keeps `ledgerEntryId` and its unique-per-statement index (a replayed job cannot
+pay twice). Gains `component` (`'base' | 'allowance' | 'activation' |
+'recurring' | 'bonus' | 'adjustment'`) so the base pay and the transport
+allowance have somewhere to be itemised, and `label`. `productId`/`merchantId`
+become nullable, because a base-pay line is about nobody's merchant.
+
+### 1.5 `comp_adjustments` [NEW]
+
+```
+id, partnerId, partnerUserId, month, amountCentavos (signed), reason,
+createdAt, createdBy, statementId (null until the month freezes)
+```
+
+Signed, append-only, never edited — a correction is another row, the same
+convention as `PartnerLedgerEntry`. An adjustment for a month that has already
+frozen is refused with the reason on screen rather than silently ignored;
+adjusting a frozen month means a row in the next one.
+
+### 1.6 Dropped [DELETE]
+
+`commission_rules` — dropped after `comp_plans` exists. 0 rows; the brief says
+do not keep both.
+
+---
+
+## 2. The maths — `packages/db/src/compensation.ts` [NEW]
+
+Pure, no database, its own test, following `commissions.ts` exactly (which
+lives in `packages/db` rather than `packages/core` because `apps/servd` is its
+only consumer, and one consumer is not a library — §1 of the architecture).
+
+`composeCompensation(month, plan, facts) -> CompStatementDraft` where `facts`
+carries days worked, the month's activations, the settlements attributed to the
+seat, and the month's adjustments. It returns the six components, the lines
+that explain each, and the total.
+
+Decisions it owns, all arguable and none needing a database:
+
+1. **Base.** `daily_rate` → `dailyRate × daysWorked`. `monthly_base` → the flat
+   figure, **not prorated by attendance** (a monthly salary that shrinks on a
+   day somebody forgot to tap is a payroll dispute, and this is explicitly not
+   payroll). Proration against `partner_users.startDate` for a mid-month joiner
+   is §5 Q4.
+2. **Allowances.** `perDayCentavos × daysWorked`, or `perMonthCentavos` flat.
+   One line each, labelled, so ₱120/day transport reads as "Transport — 22 days
+   × ₱120".
+3. **Activation.** `activationCommissionCentavos` per activation. What counts
+   as an activation is §5 Q2 — the existing engine pays off the merchant's
+   FIRST SETTLEMENT, which is what keeps the lines from summing past what was
+   collected, and I propose keeping that.
+4. **Recurring.** `pct` → basis points of what settled, floored, per settlement
+   — identical to today's `pct_recurring`. `flat` → `recurringCentavos` per
+   assigned merchant per month, **for `recurringMonths` months counted from
+   that merchant's first settlement**, which the A7 engine has no concept of
+   and is new work: it needs each merchant's first-ever settlement date, which
+   `firstPaymentIds()` already computes for a different purpose.
+5. **Bonus.** Highest tier REACHED pays, unless `bonusCumulative`, in which case
+   every tier reached pays. Tiers are counted against activations in the month.
+6. **Adjustments.** Summed, signed, one line each carrying its reason.
+7. **Floors.** Every percentage rounds DOWN, as today. A total may not be
+   negative: adjustments that would take it below zero are still itemised and
+   the total floors at ₱0, because a negative statement is a debt this system
+   has no way to collect and should not pretend to record.
+
+---
+
+## 3. Permissions — `packages/core/src/identity/partner-permissions.ts` [MODIFY]
+
+The brief's four keys replace A7's two:
+
+| Old | New |
 |---|---|
-| `[NEW]` | `packages/core/src/email/templates.ts` — pure copy + render helpers |
-| `[MODIFY]` | `packages/core/src/index.ts` |
-| `[NEW]` | `apps/servd/src/server/partners/invite-email.ts` |
-| `[NEW]` | `apps/servd/src/app/invite/[token]/page.tsx` |
-| `[NEW]` | `apps/servd/src/server/partners/accept-invite.ts` |
-| `[NEW]` | `apps/servd/src/components/partner/AcceptInvite.tsx` |
-| `[MODIFY]` | `apps/servd/src/server/partners/team.ts` / `team-actions.ts` — resend, sent status |
-| `[MODIFY]` | `apps/servd/src/components/partner/TeamManager.tsx` |
-| `[MODIFY]` | `apps/servd/src/server/email/outbox.ts` — render `partner.invite` |
-| `[NEW]` | `apps/servd/tests/partners/invite.test.ts` |
+| `commissions.view_own` | `comp.view_own` |
+| `commissions.manage` | `comp.manage` (set plans) |
+| — | `comp.view` (see the team's amounts, without setting plans) |
+| — | `comp.mark_paid` (split out of manage) |
 
-### What moves to `packages/core`, and what cannot
+**The rename has a trap and it is the reason this section is not a find-and-
+replace.** A missing row in `partner_role_permissions` means DEFAULT, not
+denied — so renaming a key does not deny anything, it silently reverts every
+partner's override on it to the default. Here there are **0 such rows**, so the
+rename is free today and would not have been in three months. The migration
+still carries the `UPDATE ... SET permission = ...` for the two old keys, so
+the file is correct if it is ever run against a database that has them.
 
-The brief says move "the Resend client and base email template" into
-`packages/core/email`. **Half of that can move; half must not.**
+Defaults proposed:
 
-`packages/core` has **zero dependencies** and is framework-agnostic pure
-TypeScript. It can hold the templates and the body/subject builders, and those
-genuinely belong there — a second app will want them.
+- `admin` — all four.
+- `ops_manager` — `comp.view_own` only, **not `comp.view`.** §5 Q5; I lean no,
+  and the reasoning is A7's own: what somebody is paid is a commercial term in
+  the same class as the revenue share, and an ops manager who can see the
+  team's pay is most of the way to negotiating against it. The key exists so a
+  partner who disagrees can grant it without a release.
+- `sales`, `support` — `comp.view_own`.
 
-It cannot hold the Resend *client* as it exists, because `getEmailCreds()` reads
-`platform_settings` through Prisma under `systemDb` and is `server-only`.
-Moving that would drag Prisma and a tenancy wrapper into a package whose whole
-value is having neither.
+`comp.manage` stays admin-only, as `commissions.manage` was.
 
-**Proposed split:** templates and copy → `packages/core/src/email`; the
-credential load and the `fetch` to Resend stay in `apps/servd/src/server/email`,
-re-exported so nothing that imports the old path breaks.
-
-### The invite email
-
-Queued into `outbound_emails` as template `partner.invite` — it does **not**
-call Resend directly. That is deliberate: the drainer already exists, already
-retries, already claims-before-send, and a second sending path would be a second
-thing to get idempotency wrong in.
-
-Payload carries **no token**. `outbound_emails.payload` is documented as "NEVER
-a token or a password", and the whole point of `tokenHash` is that a leaked
-database cannot accept an invitation. So the drainer composes the link from the
-invite row — which means the token has to reach the drainer some other way.
-
-**This is the one real design problem in Part 3.** Three options, and I am
-proposing the third:
-
-1. Put the token in the payload → breaks the model's stated rule and puts a live
-   credential in a table with no encryption.
-2. Send the email synchronously at invite time → a second sending path, and an
-   invite that fails to send silently rolls back or silently does not.
-3. **Encrypt the token into the payload** with `CREDENTIALS_ENCRYPTION_KEY`
-   (now set), so the row carries `tokenEnc` and the drainer decrypts at send
-   time. A leaked database without the key is still useless, which is the
-   property `tokenHash` was protecting.
-
-Option 3 keeps one sending path and keeps the security property. It is what I
-will build unless told otherwise.
-
-### `/invite/[token]`
-
-- Hash the URL token, look up by `tokenHash`, reject expired / accepted /
-  revoked with a **distinct message for each** — "this link has expired" and
-  "this invitation was withdrawn" are different facts and a single "invalid"
-  teaches nobody anything.
-- Name + password, creating the Supabase user. **This is the one place the
-  service-role key legitimately creates a user**, and it is not the thing the
-  standing rule forbids: the rule is against *minting passwords for people*; here
-  the person chooses their own and holds the invite that authorises it.
-- One transaction: create `partner_users` row with the invited role, stamp
-  `acceptedAt`, audit. A half-accepted invite is a seat with no login or a login
-  with no seat.
-- Redirect to the role's home — `sales`/`support` land on "My day", which A7.2
-  already built.
-- Magic link: **not proposed.** Supabase magic links need SMTP configured *in
-  Supabase*, which is separate from Resend and is not set up. Password it is.
-
-### `/team` changes
-
-Replace the "we can't email this yet" box (now false) with sent status, Resend
-(regenerates the token, invalidates the old hash, re-queues), Revoke (exists),
-and **keep Copy-link** as the brief asks — partners whose staff do not check
-email are real.
-
-The admin-only warning banner keys on `getEmailStatus().configured`, per §0.3.
-
-### Tests
-
-Invite → queued row → drain → accept → seat exists with the right role → old
-token rejected after resend → expired/revoked/accepted each give their own
-message → audit rows for both invite and accept.
+Also [MODIFY]: `PERMISSION_LABELS`, `PERMISSION_GROUPS` (the "People and field
+work" group — every key must be in exactly one group or it renders nowhere and
+can only ever hold its default; A7's own test asserts this).
 
 ---
 
-## 2. PART 2 — QR clock-in (A7.4 patch)
+## 4. Screens
 
-### Files
+### 4.1 `/partner/team/staff/[id]/compensation` [NEW]
 
-`[NEW]` `manual/add-attendance-kiosks.sql`, `lib/partners/kiosk-token.ts`
-(pure HMAC, tested), `server/partners/kiosk.ts`, `app/(platform)/partner/
-attendance/kiosk/page.tsx`, `components/partner/{KioskDisplay,QrScanner}.tsx`
-`[MODIFY]` `schema.prisma`, `rls.sql`, `attendance-actions.ts`,
-`attendance.ts`, `FieldApp.tsx`, `attendance/manager/page.tsx`,
-`staff-actions.ts`, `attendance.csv/route.ts`
+The plan editor for one seat. Current plan, its history (ended plans, never
+deleted), "start from a template", and the month-to-date preview computed by
+the same function the cron freezes with. Behind `comp.manage`; a seat reading
+its own lands on 4.3 instead.
 
-### Schema
+### 4.2 `/partner/team/compensation` [NEW]
 
-- `attendance_kiosks(id, partnerId, label, lat, lng, active, secret, createdAt)`
-  — a **per-kiosk secret**, not a global one, so revoking a compromised kiosk is
-  a row update rather than an env change that invalidates every kiosk.
-- `attendance_sessions` += `method` (`gps` | `qr`), `kioskId`.
-- `partner_users` += `kioskRequired` (default false).
+Everyone, one month: base, allowances, activations, recurring, bonus,
+adjustments, total, paid/unpaid. Behind `comp.view`. Mark-paid behind
+`comp.mark_paid`, keeping today's append-only refusal (a statement already
+marked paid is not re-marked, so a double submit cannot overwrite the date and
+reference of the payment that actually happened).
 
-### The token
+### 4.3 `/partner/me/compensation` [NEW]
 
-HMAC-SHA256 over `partnerId | kioskId | floor(epoch/60)`, base64url, rotating
-every 60 s. Validation accepts the **current and previous** bucket — a scan that
-starts at 59.8 s must not fail — which gives the ≤90 s freshness the brief asks
-for without a clock-sync problem.
+Own statements and own current plan, read-only. Behind `comp.view_own`.
 
-Pure function in `lib/partners/kiosk-token.ts`, so the four cases the brief
-names are testable at a fixed clock: valid, two minutes old, another partner's
-kiosk, and a `kioskRequired` seat attempting GPS-only.
+### 4.4 `/partner/commissions` [MODIFY → redirect]
 
-### Kiosk page
+A permanent redirect to 4.2 or 4.3 depending on the seat's keys, on the
+`/super-admin/partners` precedent. `CommissionsView.tsx` is deleted, not left
+orphaned. Nav [MODIFY]: `portal-nav.tsx` "Commissions" becomes "Compensation"
+pointing at the right one of the three.
 
-`partners.read`-level gate plus `attendance.view_all`; no `PortalShell`, no nav.
-"Requires re-auth to exit fullscreen" — browsers do not let a page trap
-fullscreen, so what this can honestly be is: **exiting fullscreen reveals a lock
-screen that needs the password**, not a page that cannot be closed. Stated
-because the brief's wording implies something the web platform does not permit.
-
-### Scanning
-
-See Q1. GPS is still captured on a QR check-in, per the brief.
-
----
-
-## 3. PART 1 — SMS (A8), restructured around what exists
-
-Because of §0.1 the sub-phases in the brief do not match the work. Proposed:
-
-| | |
-|---|---|
-| **A8.0** | **Lift the existing SMS stack to two axes.** `SmsProvider` and the pure helpers → `packages/core/src/sms`; `partnerId` alongside `restaurantId` on campaigns/messages/ledger; prove the platform-wide STOP still works. **No new features.** This is the risky phase and it ships alone. |
-| A8.1 | `sms_contacts` + the four consent capture points + opt-out (add `tigil`/`alis` to the keyword set) + tests |
-| A8.2 | `sms_wallets` + Xendit top-up (reuse `server/billing/xendit.ts`) + ledger + low-balance |
-| A8.3 | composer / segments / scheduling / send window / frequency cap |
-| A8.4 | inbox + 1:1 replies + notifications |
-| A8.5 | automations + analytics + export/forget |
-
-Two design notes worth flagging now:
-
-- **`sms.send` and `sms.reply_own`** are two new permission keys — the A7 grid
-  goes 29 → 31, and `PERMISSION_GROUPS` needs an SMS section or they will not
-  render (a key in no group is denied silently; A7's own test catches that).
-- **"Forget" with a tombstone hash** is the only part of A8 that is
-  irreversible. It needs its own review; I will not fold it into a phase with
-  five other things.
-
----
-
-## 4. What I will NOT build unless told otherwise
-
-- A second email sending path. Everything queues through `outbound_emails`.
-- Supabase magic links (§1) — Supabase SMTP is not configured.
-- Per-partner verified email domains (§0.7).
-- Any new npm dependency except a QR scanner, and only after Q1.
-- Re-opt-in of an opted-out contact without a new consent event — the brief
-  forbids it and so does the PH Data Privacy Act.
-- Removing "Reply STOP to opt out" — configurable wording, not removable.
+`StaffDetail.tsx` [MODIFY] gains one line linking to 4.1 — behind `comp.manage`,
+and it links rather than embeds, so a screen about somebody's record does not
+become a screen that pays them.
 
 ---
 
 ## 5. Questions I cannot answer from the code
 
-**Q1 — QR scanner library.** None exists (`qrcode` is generation only).
-Proposed, in order: the browser's **native `BarcodeDetector`** (zero bytes,
-supported in Chrome/Android which is what field staff use), falling back to
-**`jsqr`** (~14 kB, no dependencies) where it is missing — notably iOS Safari
-before 17. The alternative is `@zxing/browser` (~200 kB) or `html5-qrcode`
-(~90 kB, bundles its own UI). Confirm the native+jsqr pair, or name another.
+**Q1 — the seeded template figures.** The brief marks them
+`[confirm these figures]`: daily ₱615, transport ₱120/day, activation ₱500,
+recurring ₱100 × 12 months, tiers ≥15 → ₱3,000 and ≥25 → ₱6,000. Standing rule
+in this project: a number on a screen comes from you or a placeholder. Confirm
+them and the template seeds; say no and the table ships empty with the editor
+working.
 
-**Q2 — ₱0.50 per credit, and the provider unit cost.** The brief says confirm.
-I also cannot see Semaphore's actual per-segment price anywhere in the repo, and
-the statement's pass-through line is wrong if I guess it. What is the real
-provider cost per segment, and should it be an env var or an HQ config row?
+**Q2 — what is an "activation"?** Two candidates already exist: the
+`merchant.converted` staff event (a merchant was signed) and an `activation` /
+first settlement on `PartnerLedgerEntry` (money arrived). A7 pays on the
+second. Paying on the first pays for a signature that may never settle.
+I propose money.
 
-**Q3 — Semaphore inbound and delivery-receipt formats.** `semaphore.ts` says
-*"Semaphore inbound payloads vary by setup; accept the common shape"* — i.e. it
-was written against a guess. Delivery receipts are not handled at all. Per the
-brief I will stub behind the provider interface, but the campaign status column
-is decorative until we have the real callback format. Can you get the webhook
-and DLR spec from them?
+**Q3 — days worked, for someone who does not check in.** `daily_rate` ×
+`daysWorked` gives **₱0** for an office seat that never taps a kiosk, and
+`partner_users.kioskRequired` tells us some seats are office staff. Options:
+(a) `daily_rate` is only offered to seats that check in, and the editor says
+so; (b) a per-plan `assumedDaysPerMonth` fallback. I lean (a) — (b) is a number
+the system invents about somebody's attendance.
 
-**Q4 — Partner email sender identity** (§0.7). Confirm: CANVEXIA's verified
-sender with the partner's brand name as display name and in the subject, and
-per-partner domains as a later phase?
+**Q4 — a mid-month joiner on `monthly_base`.** Prorate against
+`partner_users.startDate`, or pay the full month? I lean full month and an
+adjustment row if the operator disagrees, because proration is the first step
+towards payroll.
 
-**Q5 — `canvexia.app`** (§0.5). Typo for `canvexia.com`, or a second domain you
-intend to register?
+**Q5 — should `ops_manager` hold `comp.view` by default?** I lean no (§3).
 
-**Q6 — Sequencing.** Part 3 is ~1 phase. Part 2 is ~1. Part 1 is **six**
-sub-phases and A8.0 is a refactor of a live merchant-facing system. Run Part 3
-now and re-scope the rest after, or approve all three and run continuously as
-A7 did?
+**Q6 — the verification target does not decompose.** The brief checks
+₱13,530 + ₱2,640 + ₱6,000 + ₱3,000 = **₱25,170**. The first two are clean: 22
+days × ₱615 = ₱13,530 and 22 × ₱120 = ₱2,640. The last two are **both bonus
+tiers**, which only sums under `cumulative` — under "highest reached pays" the
+same month is ₱22,170. So either the check case is a cumulative plan, or one of
+the two is activations (and 6 × ₱500 = ₱3,000 would fit, but 6 activations does
+not reach a ≥15 tier). Tell me which and it becomes the fixture in §8.
+
+---
+
+## 6. Files
+
+**[NEW]**
+```
+packages/db/prisma/manual/partner-comp-plans.sql
+packages/db/src/compensation.ts
+apps/servd/src/server/partners/compensation.ts          reads + freeze
+apps/servd/src/server/partners/comp-actions.ts          plans, adjustments, mark paid
+apps/servd/src/lib/partners/comp-plan.ts                validate/describe a plan (pure)
+apps/servd/src/app/(platform)/partner/team/staff/[id]/compensation/page.tsx
+apps/servd/src/app/(platform)/partner/team/compensation/page.tsx
+apps/servd/src/app/(platform)/partner/me/compensation/page.tsx
+apps/servd/src/components/partner/CompPlanEditor.tsx
+apps/servd/src/components/partner/CompStatements.tsx
+apps/servd/tests/partners/compensation.test.ts
+apps/servd/tests/partners/comp-plan.test.ts
+apps/servd/tests/partners/comp-permissions.test.ts
+```
+
+**[MODIFY]**
+```
+packages/db/prisma/schema.prisma          4 models: 2 new, 2 renamed+widened
+packages/db/prisma/rls.sql                comp_plans/comp_templates/comp_statements/
+                                          comp_adjustments onto the A7 seat-arm loop;
+                                          comp_lines keeps the semi-join
+packages/db/src/index.ts                  export compensation.ts
+packages/core/src/identity/partner-permissions.ts   the four keys
+apps/servd/src/components/partner/portal-nav.tsx
+apps/servd/src/components/partner/StaffDetail.tsx
+apps/servd/src/app/(platform)/partner/commissions/page.tsx   → redirect
+apps/servd/src/app/api/cron/partner-commissions/route.ts     → freezes compensation
+apps/servd/src/server/partners/notify.ts                     commission.ready copy
+apps/servd/tests/partners/permission-matrix.test.ts
+apps/servd/tests/partners/permissions.test.ts
+```
+
+**[DELETE]**
+```
+packages/db/src/commissions.ts                     subsumed by compensation.ts
+apps/servd/src/server/partners/commissions.ts
+apps/servd/src/server/partners/commissions-actions.ts
+apps/servd/src/components/partner/CommissionsView.tsx
+apps/servd/tests/partners/commissions.test.ts      cases carried into compensation.test.ts
+public.commission_rules                            the table, 0 rows
+```
+
+---
+
+## 7. RLS
+
+The four tables go onto the **A7 seat-arm loop** in `rls.sql`, not the
+partner-only block — `comp_statements` is a colleague's pay and the seat is a
+real boundary there, exactly as a GPS trail is:
+
+```
+('comp_plans',        'comp.manage'),
+('comp_statements',   'comp.view'),
+('comp_adjustments',  'comp.manage'),
+```
+
+`comp_lines` keeps the semi-join through its statement. `comp_templates` is
+partner-scoped only (no seat column) plus the HQ rows, which are readable by
+everyone and writable by super-admin alone.
+
+Every one of them `REVOKE ALL FROM anon, authenticated` — these hold what
+people are paid, and the anon key ships in every browser.
+
+Two things that must be true afterwards and will be checked, not assumed: the
+backstop sweep has not left any of them `super_only`, and no table is missing
+FORCE. Postgres is unreachable from this sandbox, so the verification runs as
+SQL over the Supabase Management API (`sqlc.sh`) — which is how §1.3's row
+counts above were established, and is a substitute for running the suite rather
+than the same thing.
+
+---
+
+## 8. Tests
+
+- `comp-plan.test.ts` — the two XOR rules refuse at the boundary; a plan
+  setting both a daily rate and a monthly base is rejected, not resolved.
+- `compensation.test.ts` — the six components; `endsAt` exclusive produces
+  exactly one payer across a plan change; the ≥15/≥25 tiers under both
+  `cumulative` settings; `recurringMonths` expiring in month 13; floors; the
+  §5 Q6 fixture once it is settled; **and the zero case** — a seat with no plan
+  freezes a ₱0 statement, because a missing row reads as "the job did not run".
+- `comp-permissions.test.ts` — every new key is in exactly one group; `admin`
+  cannot be left unable to reach the screen; the old keys are gone from the
+  labels, the grid and the nav.
+- A source-level test that no column on the four tables matches
+  `/bank|account_?number|gcash|routing/i`. The brief forbids storing them; a
+  test is what makes that survive the next release.
+- Freeze idempotence, carried over from `commissions.test.ts` unchanged.
+
+Run: `pnpm --filter servd test`, then root `pnpm build`.
+
+---
+
+## 9. Sequencing
+
+1. §1 schema + §7 RLS, verified over the Management API.
+2. §2 maths, with §8's tests, before any screen.
+3. §3 permissions.
+4. §4 screens, `/partner/commissions` redirect last so nothing is unreachable
+   in between.
+5. Cron cut over; one manual firing against the real database to prove a
+   statement freezes and stays frozen.
+6. `system_architecture.md` gains an A7.6 section — the save state, per the
+   protocol.
+
+---
+
+## 10. HALT
+
+Awaiting approval, and answers to §5 Q1–Q6. Q1 and Q6 block a seeded template
+and the verification fixture respectively; Q2–Q5 have a stated lean and can be
+taken as proposed if you would rather not decide each one.
