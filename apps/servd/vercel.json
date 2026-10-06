@@ -18,6 +18,10 @@
     {
       "path": "/api/cron/email-followup",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/agent-outbox",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

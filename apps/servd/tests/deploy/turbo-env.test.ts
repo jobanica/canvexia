@@ -52,6 +52,7 @@ function readsByVariable(): Map<string, string[]> {
   const roots = [
     join(ROOT, "apps/servd/src"),
     join(ROOT, "apps/resceta/src"),
+    join(ROOT, "apps/agent-portal/src"),
     join(ROOT, "packages/core/src"),
   ];
   const found = new Map<string, string[]>();

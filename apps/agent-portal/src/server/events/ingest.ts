@@ -289,6 +289,15 @@ async function paymentSubmitted(
   const referral = await findReferral(tx, productId, d.external_customer_id);
   if (!referral) return { status: "pending" };
 
+  // A receipt path names the product whose upload it was (api/v1/receipts).
+  // One product pointing its payment at another product's file is refused.
+  if (d.receipt_path) {
+    const product = await tx.agentProduct.findUniqueOrThrow({ where: { id: productId }, select: { slug: true } });
+    if (!d.receipt_path.startsWith(`receipts/${product.slug}/`)) {
+      return { status: "refused", error: "receipt_not_yours" };
+    }
+  }
+
   // Checked before the insert so the refusal is an answer, not an aborted
   // transaction. The unique index is still what actually guarantees it.
   const clash = await tx.agentPayment.findUnique({

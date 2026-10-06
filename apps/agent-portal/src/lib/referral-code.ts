@@ -19,14 +19,7 @@ export function generateReferralCode(rand: (max: number) => number = randomInt):
 }
 
 /**
- * What a customer typed → what is stored. Uppercased, spaces and dashes
- * dropped, because "abc 123" and "ABC-123" are the same code to a person.
- * Returns null for anything that cannot be a code, so a stale `?ref=` from an
- * old invite link reads as "no code" rather than as an error.
+ * Normalising what a customer typed is shared with every product (they
+ * normalise before sending), so it lives in the connection kit.
  */
-export function normalizeReferralCode(input: string | null | undefined): string | null {
-  if (!input) return null;
-  const code = input.toUpperCase().replace(/[\s-]+/g, "");
-  if (!/^[A-Z0-9]{4,20}$/.test(code)) return null;
-  return code;
-}
+export { normalizeReferralCode } from "@servd/core/agent-kit/ref";

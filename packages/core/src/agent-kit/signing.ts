@@ -43,15 +43,23 @@ export function canonicalString(
   return `${timestamp}.${method.toUpperCase()}.${pathname}.${rawBody}`;
 }
 
+/**
+ * The body is a string for JSON and bytes for an uploaded receipt image. Both
+ * are signed as bytes after the same prefix, so a string body signs exactly as
+ * canonicalString() describes.
+ */
+export type SignedBody = string | Uint8Array;
+
 export function signRequest(
   secret: string,
   timestamp: string,
   method: string,
   pathname: string,
-  rawBody: string,
+  rawBody: SignedBody,
 ): string {
   const mac = createHmac("sha256", secret)
-    .update(canonicalString(timestamp, method, pathname, rawBody), "utf8")
+    .update(`${timestamp}.${method.toUpperCase()}.${pathname}.`, "utf8")
+    .update(typeof rawBody === "string" ? Buffer.from(rawBody, "utf8") : rawBody)
     .digest("hex");
   return `sha256=${mac}`;
 }
@@ -62,7 +70,7 @@ export function signedHeaders(opts: {
   secret: string;
   method: string;
   pathname: string;
-  rawBody: string;
+  rawBody: SignedBody;
   now?: Date;
 }): Record<string, string> {
   const timestamp = String(Math.floor((opts.now ?? new Date()).getTime() / 1000));
@@ -89,7 +97,7 @@ export function verifyRequest(opts: {
   signature: string | null;
   method: string;
   pathname: string;
-  rawBody: string;
+  rawBody: SignedBody;
   now?: Date;
   toleranceSeconds?: number;
 }): VerifyResult {

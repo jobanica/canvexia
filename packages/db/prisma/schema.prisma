@@ -644,9 +644,23 @@ model Restaurant {
   loyaltyPesosPerPoint Int     @default(20) // ₱ spent to earn 1 point
   loyaltyPointValue    Int     @default(100) // centavos a point is worth on redeem
 
+  // --- Agent-portal billing (D37) -------------------------------------------
+  /// "gateway" — the subscription is billed by the Xendit/PayMongo cron, as
+  /// every restaurant was before D37. "manual" — the owner pays by QR to the
+  /// company account and uploads a receipt; the agent portal confirms it and
+  /// calls back. Database-defaulted to gateway so every existing row keeps the
+  /// billing it signed up under; only the new signup path writes "manual".
+  billingMode      String    @default(dbgenerated("'gateway'"))
+  /// When the agent portal confirmed the one-time activation payment. Null
+  /// until then, and again if that payment is reversed.
+  activationPaidAt DateTime?
+  /// When the owner signed the subscription agreement (contract.signed).
+  contractSignedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  manualPayments     ServdManualPayment[]
   plan               Plan?                 @relation(fields: [planId], references: [id])
   staff              StaffUser[]
   subscriptions      Subscription[]
@@ -3453,4 +3467,76 @@ model PortalStaff {
   createdAt  DateTime        @default(now())
 
   @@map("portal_staff")
+}
+
+// ============================================================================
+// Connection kit, product side (D37). Shared by every product in this
+// database; each row says which product it belongs to.
+// ============================================================================
+
+/// Events waiting to be delivered to the agent portal. Written in the SAME
+/// transaction as the change they describe — a signup and its
+/// customer.signed_up land together or not at all — and sent afterwards, with
+/// retries, until the portal answers 200. That is the whole point of an outbox:
+/// the portal being down never loses an event and never fails a signup.
+model ProductEventOutbox {
+  id            String    @id @default(uuid())
+  productSlug   String
+  eventId       String    @unique
+  type          String
+  payload       Json
+  /// pending → sent, or → failed when the portal says it can never accept it.
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  lastStatus    Int?
+  lastError     String?
+  /// The portal's answer: processed | pending | duplicate | refused.
+  portalStatus  String?
+  createdAt     DateTime  @default(now())
+  sentAt        DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@map("product_event_outbox")
+}
+
+/// Callbacks received from the agent portal, kept for idempotency: the portal
+/// delivers at least once, and a payment confirmed twice must extend the
+/// subscription once.
+model ProductCallbackInbox {
+  eventId     String   @id
+  productSlug String
+  type        String
+  payload     Json
+  receivedAt  DateTime @default(now())
+  /// What applying it did ("applied", or why it was skipped).
+  outcome     String?
+
+  @@map("product_callback_inbox")
+}
+
+/// Servd's own record of a manual payment it reported to the portal, so the
+/// owner's billing page can show what they sent and what became of it without
+/// asking the portal. The portal's agent_payments row is the authority; this
+/// row follows it through the callbacks.
+model ServdManualPayment {
+  id                String    @id @default(uuid())
+  restaurantId      String
+  type              String // activation | monthly
+  monthsCovered     Int       @default(1)
+  billingMonthStart DateTime? @db.Date
+  amount            Int // centavos
+  bankReference     String    @unique
+  receiptPath       String?
+  /// submitted | confirmed | rejected | reversed
+  status            String    @default("submitted")
+  reason            String?
+  eventId           String    @unique
+  submittedAt       DateTime  @default(now())
+  decidedAt         DateTime?
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, submittedAt])
+  @@map("servd_manual_payments")
 }

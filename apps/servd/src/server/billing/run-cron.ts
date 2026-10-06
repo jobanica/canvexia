@@ -5,6 +5,7 @@ import { nextBillingAction } from "@/lib/billing/lifecycle";
 import { addMonths } from "@/lib/billing/period";
 import { PLAN_FIELDS } from "@/server/billing/subscription";
 import { renewFeatureSubscriptions } from "@/server/billing/feature-subscriptions";
+import { coverageEnd, manualBillingAction } from "@/lib/billing/manual";
 
 export interface CronSummary {
   processed: number;
@@ -17,6 +18,9 @@ export interface CronSummary {
   featuresRenewed: number;
   featuresInvoiced: number;
   featuresLapsed: number;
+  /** Manual (QR + receipt) restaurants, D37. */
+  manualPastDue: number;
+  manualSuspended: number;
 }
 
 /**
@@ -30,7 +34,7 @@ export async function runBillingCron(now: Date = new Date()): Promise<CronSummar
   const [subs, freePlan, openInvoices] = await systemDb(async (tx) => [
     await tx.subscription.findMany({
       where: { status: { in: ["trialing", "active", "past_due"] } },
-      include: { plan: { select: PLAN_FIELDS } },
+      include: { plan: { select: PLAN_FIELDS }, restaurant: { select: { billingMode: true } } },
     }),
     await tx.plan.findFirst({
       where: { isActive: true, priceMonthly: { lte: 0 } },
@@ -58,9 +62,17 @@ export async function runBillingCron(now: Date = new Date()): Promise<CronSummar
   const s: CronSummary = {
     processed: subs.length, charged: 0, failed: 0, awaiting: 0, suspended: 0, cancelled: 0,
     featuresRenewed: 0, featuresInvoiced: 0, featuresLapsed: 0,
+    manualPastDue: 0, manualSuspended: 0,
   };
 
-  for (const sub of subs) {
+  // Manual-billing restaurants never touch the gateway: no invoice, no charge,
+  // no fall-back to the Free plan. They are handled on their own below.
+  const manualSubs = subs.filter((sub) => sub.restaurant.billingMode === "manual");
+  const gatewaySubs = subs.filter((sub) => sub.restaurant.billingMode !== "manual");
+  s.processed = gatewaySubs.length;
+  await runManualBilling(manualSubs, now, s);
+
+  for (const sub of gatewaySubs) {
     const decision = nextBillingAction(
       {
         status: sub.status as "trialing" | "active" | "past_due",
@@ -193,4 +205,49 @@ export async function runBillingCron(now: Date = new Date()): Promise<CronSummar
   s.featuresLapsed = feat.lapsed;
 
   return s;
+}
+
+/**
+ * The manual-billing half of the daily run (D37). Coverage comes from the
+ * restaurant's confirmed monthly receipts; past it the subscription goes
+ * past_due, and MAX_PAST_DUE_DAYS later the restaurant is suspended. The
+ * portal's payment.confirmed callback is what lifts either.
+ */
+export async function runManualBilling(
+  subs: { id: string; restaurantId: string; status: string; trialEndsAt: Date | null }[],
+  now: Date,
+  s: CronSummary,
+): Promise<void> {
+  if (subs.length === 0) return;
+  const confirmed = await systemDb((tx) =>
+    tx.servdManualPayment.findMany({
+      where: {
+        restaurantId: { in: subs.map((x) => x.restaurantId) },
+        status: "confirmed",
+        type: "monthly",
+        billingMonthStart: { not: null },
+      },
+      select: { restaurantId: true, billingMonthStart: true, monthsCovered: true },
+    }),
+  );
+  for (const sub of subs) {
+    const paidUntil = coverageEnd(
+      confirmed
+        .filter((p) => p.restaurantId === sub.restaurantId)
+        .map((p) => ({ billingMonthStart: p.billingMonthStart!, monthsCovered: p.monthsCovered })),
+    );
+    const decision = manualBillingAction(
+      { status: sub.status as "trialing" | "active" | "past_due", trialEndsAt: sub.trialEndsAt, paidUntil },
+      now,
+    );
+    if (decision.action === "mark_past_due") {
+      await systemDb((tx) => tx.subscription.update({ where: { id: sub.id }, data: { status: "past_due" } }));
+      s.manualPastDue++;
+    } else if (decision.action === "suspend") {
+      await systemDb((tx) =>
+        tx.restaurant.updateMany({ where: { id: sub.restaurantId, status: { not: "suspended" } }, data: { status: "suspended" } }),
+      );
+      s.manualSuspended++;
+    }
+  }
 }

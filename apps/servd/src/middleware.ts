@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 import { parseHost } from "@/lib/host";
 import { readUtmParams, encodeUtm, UTM_COOKIE, UTM_MAX_AGE } from "@/lib/utm";
 import { PATH_HEADER } from "@/lib/platform/admin-scope";
+import { REF_COOKIE, REF_COOKIE_OPTIONS, refFromSearchParams } from "@servd/core/agent-kit/ref";
 
 /**
  * Host-based multi-tenant routing.
@@ -43,15 +44,21 @@ function captureUtm(req: NextRequest, res: NextResponse): NextResponse {
 }
 
 /**
- * Click attribution, applied to whatever response we're sending.
- *
- * There used to be a second capture here — ?ref=CODE into a 30-day referral
- * cookie — which the referral program read to attribute a signup and accrue a
- * commission. There is no commission any more, so nothing reads it and it is
- * gone; only the ad tags are still worth keeping.
+ * Agent referral (D37): ?ref=CODE into a 30-day cookie, so a restaurant owner
+ * who opens an agent's link today and signs up next week is still credited to
+ * that agent. Only a well-formed code is stored, and only when the URL carries
+ * one — a plain reload never erases it. The signup page reads it back to
+ * prefill the code; the agent portal decides whether it attaches.
  */
+function captureRef(req: NextRequest, res: NextResponse): NextResponse {
+  const code = refFromSearchParams(req.nextUrl.searchParams);
+  if (code) res.cookies.set(REF_COOKIE, code, REF_COOKIE_OPTIONS);
+  return res;
+}
+
+/** Click attribution, applied to whatever response we're sending. */
 function captureAttribution(req: NextRequest, res: NextResponse): NextResponse {
-  return captureUtm(req, res);
+  return captureRef(req, captureUtm(req, res));
 }
 
 type PendingCookie = { name: string; value: string; options?: Record<string, unknown> };

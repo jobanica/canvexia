@@ -1,5 +1,5 @@
 import "server-only";
-import { SIGNATURE_HEADERS, verifyRequest } from "@servd/core/agent-kit";
+import { SIGNATURE_HEADERS, verifyRequest, type SignedBody } from "@servd/core/agent-kit";
 import { productForApi } from "@/server/products";
 
 /**
@@ -11,7 +11,7 @@ import { productForApi } from "@/server/products";
  */
 export async function authenticateProduct(
   req: Request,
-  rawBody: string,
+  rawBody: SignedBody,
 ): Promise<{ ok: true; productId: string; slug: string } | { ok: false }> {
   const slug = req.headers.get(SIGNATURE_HEADERS.product) ?? "";
   const product = await productForApi(slug);

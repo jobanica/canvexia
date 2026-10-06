@@ -3,10 +3,11 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { ReferralCodeField } from "@servd/core/agent-kit/react";
 import { AppIcon, Wordmark } from "@/components/Wordmark";
 import { signUpRestaurant, type SignupState } from "./actions";
 
-export function SignupForm() {
+export function SignupForm({ initialCode = "" }: { initialCode?: string }) {
   const [state, action, pending] = useActionState<SignupState, FormData>(
     signUpRestaurant,
     null,
@@ -39,7 +40,8 @@ export function SignupForm() {
 
       <div className="mt-4 rounded-lg border border-brand-primary/20 bg-brand-primary/5 px-4 py-3 text-sm text-plum-ink/75">
         <span className="font-semibold text-brand-primary">✨ 30-day free trial</span> — every
-        feature unlocked, no card. After 30 days you move to the Free plan unless you upgrade.
+        feature unlocked, no card. To keep Servd after that, activate and pay monthly by bank or
+        e-wallet transfer from your Billing page.
       </div>
 
       <form action={action} className="mt-6 space-y-4">
@@ -51,6 +53,18 @@ export function SignupForm() {
             id="restaurantName"
             name="restaurantName"
             required
+            className="mt-1 w-full rounded-lg border border-plum-ink/15 px-3 py-2"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium" htmlFor="ownerName">
+            {t("yourName")}
+          </label>
+          <input
+            id="ownerName"
+            name="ownerName"
+            required
+            autoComplete="name"
             className="mt-1 w-full rounded-lg border border-plum-ink/15 px-3 py-2"
           />
         </div>
@@ -93,6 +107,16 @@ export function SignupForm() {
             autoComplete="new-password"
             className="mt-1 w-full rounded-lg border border-plum-ink/15 px-3 py-2"
           />
+        </div>
+
+        <div>
+          <ReferralCodeField
+            lookupPath="/api/agent-code"
+            defaultValue={initialCode}
+            label={t("referralCode")}
+            inputClassName="mt-1 w-full rounded-lg border border-plum-ink/15 px-3 py-2 uppercase"
+          />
+          <p className="text-xs text-plum-ink/50">{t("referralHint")}</p>
         </div>
 
         {state?.error && <p className="text-sm text-guava">{state.error}</p>}

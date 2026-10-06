@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { randomBytes, randomUUID } from "node:crypto";
 import { signedHeaders } from "@servd/core/agent-kit";
 import { asSuper, hasDb, prisma } from "./helpers";
@@ -8,6 +8,16 @@ import { asSuper, hasDb, prisma } from "./helpers";
  * database. What a product built on the connection kit will actually hit.
  */
 process.env.CREDENTIALS_ENCRYPTION_KEY ??= randomBytes(32).toString("hex");
+
+// Private storage is Supabase in production; here, a map.
+const stored = new Map<string, { bytes: Uint8Array; type: string }>();
+vi.mock("@/server/storage", () => ({
+  PRIVATE_BUCKET: "test",
+  putPrivateObject: async (path: string, bytes: Uint8Array, type: string) => {
+    stored.set(path, { bytes, type });
+  },
+  signedUrl: async (path: string) => `https://storage.test/${path}`,
+}));
 
 const d = hasDb ? describe : describe.skip;
 const stamp = randomUUID().slice(0, 8);
@@ -23,13 +33,15 @@ let pendingCode = "";
 const AGENT_MOBILE = "639171112222";
 
 type Routes = {
+  receipts: typeof import("@/app/api/v1/receipts/route");
+  customers: typeof import("@/app/api/v1/customers/[id]/route");
   events: typeof import("@/app/api/v1/events/route");
   codes: typeof import("@/app/api/v1/codes/[code]/route");
   ingest: typeof import("@/server/events/ingest");
 };
 let routes: Routes;
 
-function signed(method: string, path: string, body: string, opts: { secret?: string; slug?: string; now?: Date } = {}) {
+function signed(method: string, path: string, body: string | Uint8Array, opts: { secret?: string; slug?: string; now?: Date } = {}) {
   return new Request(`${BASE}${path}`, {
     method,
     headers: {
@@ -43,7 +55,7 @@ function signed(method: string, path: string, body: string, opts: { secret?: str
         now: opts.now,
       }),
     },
-    body: method === "GET" ? undefined : body,
+    body: method === "GET" ? undefined : (body as BodyInit),
   });
 }
 
@@ -96,6 +108,8 @@ d("product API", () => {
   beforeAll(async () => {
     const { encryptSecret } = await import("@/server/crypto");
     routes = {
+      receipts: await import("@/app/api/v1/receipts/route"),
+      customers: await import("@/app/api/v1/customers/[id]/route"),
       events: await import("@/app/api/v1/events/route"),
       codes: await import("@/app/api/v1/codes/[code]/route"),
       ingest: await import("@/server/events/ingest"),
@@ -274,6 +288,61 @@ d("product API", () => {
     it("answers 400 for a body that is not JSON", async () => {
       const res = await routes.events.POST(signed("POST", "/api/v1/events", "{nope"));
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe("POST /api/v1/receipts", () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+
+    it("stores a signed image under the product's own prefix", async () => {
+      const res = await routes.receipts.POST(signed("POST", "/api/v1/receipts", png));
+      expect(res.status).toBe(200);
+      const { receipt_path } = await res.json();
+      expect(receipt_path).toMatch(new RegExp(`^receipts/${SLUG}/\\d{4}/\\d{2}/[0-9a-f-]+\\.png$`));
+      expect(stored.get(receipt_path)?.type).toBe("image/png");
+    });
+
+    it("refuses something that is not an image, whatever it claims", async () => {
+      const html = new TextEncoder().encode("<html><script>alert(1)</script>");
+      expect((await routes.receipts.POST(signed("POST", "/api/v1/receipts", html))).status).toBe(422);
+    });
+
+    it("refuses an image whose bytes were changed after signing", async () => {
+      const req = signed("POST", "/api/v1/receipts", png);
+      const tampered = new Request(req.url, { method: "POST", headers: req.headers, body: new Uint8Array([...png, 9]) });
+      expect((await routes.receipts.POST(tampered)).status).toBe(401);
+    });
+
+    it("refuses a payment that points at another product's receipt", async () => {
+      const ext = `rcpt-${stamp}`;
+      await send(signup(ext));
+      const r = await send(payment(ext, `RCPT-${stamp}`, { receipt_path: "receipts/someone-else/2026/10/x.png" }));
+      expect(r.json).toMatchObject({ status: "refused", error: "receipt_not_yours" });
+    });
+  });
+
+  describe("GET /api/v1/customers/{id}", () => {
+    const terms = async (ext: string) => {
+      const path = `/api/v1/customers/${ext}`;
+      const res = await routes.customers.GET(signed("GET", path, ""), { params: Promise.resolve({ id: ext }) });
+      return res.json();
+    };
+
+    it("returns the fees from the customer's own rule", async () => {
+      const ext = `terms-${stamp}`;
+      await send(signup(ext));
+      expect(await terms(ext)).toMatchObject({
+        known: true,
+        status: "lead",
+        activation_fee: 50000,
+        monthly_fee: 80000,
+        activation_confirmed: false,
+        contract_signed: false,
+      });
+    });
+
+    it("says an unknown customer is unknown", async () => {
+      expect(await terms(`nobody-${stamp}`)).toMatchObject({ known: false, activation_fee: null });
     });
   });
 

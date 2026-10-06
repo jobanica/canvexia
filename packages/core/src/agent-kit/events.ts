@@ -101,6 +101,20 @@ export interface CodeLookupResponse {
   agent_name: string | null;
 }
 
+/** GET /api/v1/customers/{external_customer_id} */
+export interface CustomerTermsResponse {
+  external_customer_id: string;
+  /** False if the portal has not processed this customer's signup yet. */
+  known: boolean;
+  status: "lead" | "active" | "churned" | null;
+  paid_months: number;
+  /** From the commission rule the customer signed up under. Null if none. */
+  activation_fee: number | null;
+  monthly_fee: number | null;
+  activation_confirmed: boolean;
+  contract_signed: boolean;
+}
+
 /** POST /api/v1/events */
 export interface EventResponse {
   event_id: string;

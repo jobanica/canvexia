@@ -6,11 +6,17 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { uniqueSlug } from "@/lib/slug";
 import { provisionTrial } from "@/server/billing/subscription";
+import { enqueueProductEvent } from "@servd/db";
+import { newEventId, normalizeReferralCode } from "@servd/core/agent-kit";
+import { productSlug } from "@/server/agent-portal/config";
+import { flushOutboxQuietly } from "@/server/agent-portal/outbox";
 
 export type SignupState = { ok?: boolean; error?: string } | null;
 
 const schema = z.object({
   restaurantName: z.string().trim().min(2, "Restaurant name is required").max(80),
+  ownerName: z.string().trim().min(2, "Your name is required").max(120),
+  agentCode: z.string().trim().max(40).optional(),
   phone: z.string().trim().min(7, "Enter a valid phone number").max(30),
   email: z.string().trim().email("Enter a valid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -21,6 +27,13 @@ const schema = z.object({
  * the confirmation email) and provisions the tenant + first owner (role=admin).
  * The restaurant starts `active` so the owner can onboard immediately; login is
  * gated by Supabase until the email is confirmed.
+ *
+ * Agent era (D37): the restaurant is created on MANUAL billing (QR + receipt,
+ * confirmed in the agent portal), and `customer.signed_up` is queued in the
+ * same transaction — with the referral code if one was given — so the portal
+ * learns of every signup exactly when it commits. The code is not checked
+ * here: the portal decides whether it attaches, and a bad code never blocks
+ * a signup.
  */
 export async function signUpRestaurant(
   _prev: SignupState,
@@ -28,6 +41,8 @@ export async function signUpRestaurant(
 ): Promise<SignupState> {
   const parsed = schema.safeParse({
     restaurantName: formData.get("restaurantName"),
+    ownerName: formData.get("ownerName"),
+    agentCode: formData.get("agentCode") || undefined,
     phone: formData.get("phone"),
     email: formData.get("email"),
     password: formData.get("password"),
@@ -35,7 +50,7 @@ export async function signUpRestaurant(
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
-  const { restaurantName, phone, email, password } = parsed.data;
+  const { restaurantName, ownerName, agentCode, phone, email, password } = parsed.data;
 
   try {
     const supabase = await createSupabaseServerClient();
@@ -67,12 +82,26 @@ export async function signUpRestaurant(
             status: "active",
             // Seed the contact phone — it also shows on printed receipts.
             printerConfig: { receipt: { phone } },
-            staff: { create: { authUserId, role: "admin", email } },
+            staff: { create: { authUserId, role: "admin", email, displayName: ownerName } },
+            billingMode: "manual",
           },
           select: { id: true },
         });
         // 30-day Business trial — every feature unlocked, no card.
         await provisionTrial(tx, restaurant.id);
+        await enqueueProductEvent(tx, productSlug(), {
+          event_id: newEventId(),
+          type: "customer.signed_up",
+          occurred_at: new Date().toISOString(),
+          data: {
+            external_customer_id: restaurant.id,
+            business_name: restaurantName,
+            owner_name: ownerName,
+            owner_phone: phone,
+            agent_code: normalizeReferralCode(agentCode) ?? null,
+            plan: null,
+          },
+        });
       });
     } catch (e) {
       console.error("[signup] provisioning failed:", e);
@@ -85,6 +114,7 @@ export async function signUpRestaurant(
       return { error: "Couldn't create your restaurant. Please try again." };
     }
 
+    await flushOutboxQuietly();
     return { ok: true };
   } catch (e) {
     // Never let the action crash into a 500 page — surface a friendly message.

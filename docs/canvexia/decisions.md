@@ -1610,3 +1610,26 @@ The owner's answers, recorded verbatim in substance:
 - **Helper functions read GUCs directly.** `app_user` has no USAGE on schema
   `app`; a helper that calls another helper fails at run time, which the
   existing policies never hit because policy names resolve at creation.
+
+### Phase 2 — the connection kit, and Servd on it
+
+- **The kit is three entries**: `@servd/core/agent-kit` (server: signing,
+  event and callback contracts, `deliverEvent`, `uploadReceipt`,
+  `getCustomerTerms`, `verifyCallback`), `/ref` (Edge-safe `?ref=` capture for
+  middleware) and `/react` (`ReferralCodeField`, `ReceiptUploadForm`). The
+  outbox and callback inbox are in `@servd/db`, because they write tables.
+- **The outbox leases, it does not lock.** A row claimed for sending is pushed
+  two minutes into the future in a short statement and sent outside any
+  transaction; Servd's transactions time out at 5 s and an HTTP call does not
+  belong inside one.
+- **Servd's new self-signups are `billingMode = 'manual'`.** Existing rows are
+  `'gateway'` by database default and their billing is untouched. Manual
+  restaurants are taken out of the gateway cron: no invoice, no charge, and no
+  fall-back to the Free plan. Past paid coverage they go past_due, and
+  suspended after the gateway path's own 14-day grace.
+- **Prices shown to an owner come from the portal** (`GET /api/v1/customers/{id}`,
+  the rule they signed up under), never from Servd.
+- **Receipts are uploaded to the portal synchronously** (`POST /api/v1/receipts`)
+  and only then is `payment.submitted` queued, so a receipt that cannot be
+  stored is reported while the owner is on the page. The portal refuses a
+  payment whose receipt path belongs to another product.

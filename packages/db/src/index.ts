@@ -15,3 +15,15 @@ export {
   type ProvisionPharmacyInput,
   type ProvisionedPharmacy,
 } from "./provisioning/pharmacy";
+export {
+  enqueueProductEvent,
+  claimDueEvents,
+  OUTBOX_LEASE_MS,
+  markEventSent,
+  markEventRetry,
+  markEventFailed,
+  recordCallback,
+  setCallbackOutcome,
+  type OutboxEvent,
+  type ClaimedEvent,
+} from "./agent-kit/outbox";

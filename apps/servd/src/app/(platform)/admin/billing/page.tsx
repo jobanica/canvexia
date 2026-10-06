@@ -10,6 +10,7 @@ import { getFeaturePrices } from "@/server/billing/feature-pricing";
 import { FEATURE_META, type Feature } from "@/lib/billing/features";
 import { formatPeso } from "@/lib/money";
 import { manilaDate } from "@/lib/time/manila";
+import { ManualBilling } from "@/components/billing/ManualBilling";
 
 const FEATURE_LABEL: Record<string, string> = Object.fromEntries(
   FEATURE_META.map((f) => [f.key, f.label]),
@@ -28,6 +29,29 @@ export default async function BillingPage({
   const { upgrade, unlocked } = await searchParams;
   // allowSuspended so an owner can pay their way out of suspension here.
   const { restaurantId } = await requireAdminPage({ allowSuspended: true });
+
+  // D37: restaurants on manual billing pay by QR + receipt through the agent
+  // portal. The gateway checkout, the one-time feature store and the gateway
+  // invoices below do not apply to them — showing them would offer a second
+  // way to pay that bypasses the portal.
+  const mode = await tenantDb(restaurantId, (tx) =>
+    tx.restaurant.findFirst({ select: { billingMode: true } }),
+  );
+  if (mode?.billingMode === "manual") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Link href="/admin" className="text-sm text-plum-ink/50">← Dashboard</Link>
+          <h1 className="font-heading text-2xl font-bold">Billing</h1>
+          <p className="text-sm text-plum-ink/50">
+            Pay by QR or bank transfer, then upload your receipt. We confirm it and your account
+            stays active.
+          </p>
+        </div>
+        <ManualBilling restaurantId={restaurantId} />
+      </div>
+    );
+  }
 
   const [sub, invoices, access, owned, prices, pendingRows] = await Promise.all([
     getCurrentSubscription(restaurantId),
