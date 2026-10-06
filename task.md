@@ -7,7 +7,7 @@ own domains (D31). Two products live: **Servd** (restaurants) and **Resceta**
 | Domain | Serves | Deployment |
 |---|---|---|
 | **servdph.net** | Servd — restaurants | `apps/servd` |
-| **canvexia.com** | CANVEXIA — the partner portal | `apps/servd`, same deployment |
+| **agents.canvexia.com** | CANVEXIA — the agent portal (the partner portal is retired, D38) | `apps/agent-portal` |
 | **resceta.com** | Resceta — pharmacy | `apps/resceta` |
 
 ---
@@ -32,12 +32,12 @@ provisioning creates it pending and defaulting to active would mean the platform
 had enabled it. Everything works except selling.
 
 The licence numbers go in through **Settings** in Resceta. **Activation is done
-in the CANVEXIA partner portal** — `/partner`, under *Your pharmacies* — not in
+in Servd super-admin** — `/super-admin/pharmacies` (it was the partner portal until D38) — not in
 psql (D36). The portal refuses until the FDA LTO is on file, and writes an audit
 row naming the partner who did it and the licence number they acted on.
 
 So the order is: record the LTO in Resceta's Settings, then press **Activate**
-in the partner portal.
+in super-admin → Pharmacies.
 
 Rename it freely — Resceta has no slug in its URLs (D30), so the name and slug
 are display only.

@@ -42,7 +42,7 @@ const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? "";
 
 const TITLE = "Create your restaurant's online ordering page — free";
 const DESCRIPTION =
-  "Upload your logo and menu, build your preview, and experience how your customers can order online. No credit card. ₱499 one-time to activate.";
+  "Upload your logo and menu, build your preview, and experience how your customers can order online. No credit card. Free for 30 days.";
 
 export const metadata: Metadata = {
   metadataBase: metadataBaseUrl(),
@@ -90,7 +90,7 @@ const BENEFITS: [string, string, string][] = [
 const FAQ: [string, string][] = [
   [
     "Is it really free to try?",
-    "Yes — build your full preview and experience the ordering flow free. The ₱499 one-time payment only comes when you're ready to accept real orders.",
+    "Yes — build your full preview and experience the ordering flow free, then activate and use every feature free for 30 days.",
   ],
   [
     "What do I need to start?",
@@ -102,7 +102,7 @@ const FAQ: [string, string][] = [
   ],
   [
     "Do I pay monthly?",
-    "No. Activation is a one-time ₱499 and your online ordering page is yours for good — walang monthly bayad. Other features are optional one-time unlocks you can add later if you want them.",
+    "Yes — after your 30-day free trial there's a one-time activation and a monthly subscription, paid by bank or e-wallet transfer. You'll see the exact amounts on your Billing page before you pay anything.",
   ],
 ];
 
@@ -147,7 +147,7 @@ export default async function CreatePage() {
 
             <div data-cta-anchor className="mt-7">
               <Cta href={buildHref} />
-              <CtaNote>No credit card • No commitment • ₱499 one-time to activate</CtaNote>
+              <CtaNote>No credit card • 30 days free</CtaNote>
             </div>
           </div>
 

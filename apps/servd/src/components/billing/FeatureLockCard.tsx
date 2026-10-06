@@ -48,34 +48,15 @@ export function FeatureLockCard({
             <p className="mt-1 text-sm text-plum-ink/70">{lock.blurb}</p>
 
             {lock.sellable ? (
-              <div className="mt-4 rounded-lg border border-brand-primary/40 bg-cream/40 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-plum-ink/45">One-time</p>
-                <p className="font-heading text-2xl font-extrabold text-plum-ink">{price}</p>
-                <p className="mt-1 text-xs text-plum-ink/60">
-                  Pay once and it&apos;s yours for good — no monthly fee, and it stays yours
-                  whatever plan you&apos;re on later.
-                </p>
-                <div className="mt-3">
-                  <UnlockFeatureButton
-                    feature={lock.feature}
-                    price={price}
-                    pending={lock.pending}
-                  />
-                </div>
-                {lock.pending && (
-                  <p className="mt-2 text-xs text-plum-ink/50">
-                    A checkout was already started. If you&apos;ve paid, it unlocks here within a
-                    minute.
-                  </p>
-                )}
+              <div className="mt-4">
+                <UnlockFeatureButton feature={lock.feature} price={price} pending={lock.pending} />
               </div>
             ) : (
               // Not sold as a one-time unlock — metered (SMS burns credits per
               // text) or billed monthly. Saying so beats a button that can't work.
               <div className="mt-4 rounded-lg border border-plum-ink/10 bg-cream/40 p-4">
                 <p className="text-sm text-plum-ink/70">
-                  This one isn&apos;t sold as a one-time unlock. See the options on the billing
-                  page.
+                  This one is added on request. See your billing page, or message us.
                 </p>
                 <Link
                   href="/admin/billing"

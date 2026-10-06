@@ -645,12 +645,11 @@ model Restaurant {
   loyaltyPointValue    Int     @default(100) // centavos a point is worth on redeem
 
   // --- Agent-portal billing (D37) -------------------------------------------
-  /// "gateway" — the subscription is billed by the Xendit/PayMongo cron, as
-  /// every restaurant was before D37. "manual" — the owner pays by QR to the
-  /// company account and uploads a receipt; the agent portal confirms it and
-  /// calls back. Database-defaulted to gateway so every existing row keeps the
-  /// billing it signed up under; only the new signup path writes "manual".
-  billingMode      String    @default(dbgenerated("'gateway'"))
+  /// "manual" — the owner pays by QR or bank transfer and uploads a receipt;
+  /// the agent portal confirms it and calls back (D37). Every restaurant is
+  /// manual since gateway billing was retired (D38). "gateway" survives only
+  /// in history, and nothing reads it any more.
+  billingMode      String    @default(dbgenerated("'manual'"))
   /// When the agent portal confirmed the one-time activation payment. Null
   /// until then, and again if that payment is reversed.
   activationPaidAt DateTime?

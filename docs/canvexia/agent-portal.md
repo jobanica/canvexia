@@ -10,10 +10,12 @@ psql "$DIRECT_URL" -f packages/db/prisma/manual/add-agent-portal.sql
 psql "$DIRECT_URL" -f packages/db/prisma/manual/add-product-connection-kit.sql
 psql "$DIRECT_URL" -f packages/db/prisma/manual/add-agent-callback-outbox.sql
 psql "$DIRECT_URL" -f packages/db/prisma/manual/add-resceta-connection-kit.sql
+psql "$DIRECT_URL" -f packages/db/prisma/manual/retire-gateway-billing.sql
 pnpm db:rls
 ```
 
-All four are additive. `db:rls` must run after them: it holds the agent and
+The first four are additive. The fifth (D38) moves every restaurant to manual
+billing and queues a signup event for each live one; it is safe to re-run. `db:rls` must run after them: it holds the agent and
 verifier policies, the append-only triggers on the commission ledger and audit
 log, and the verifier column guard. A database built fresh from the schema
 (D26) needs only `db:rls`.
@@ -66,3 +68,11 @@ signups still work and their events wait in `product_event_outbox`.
   approve each → send the money → mark paid with the transfer reference.
 - **Failed callbacks** show on the overview. A product that was down catches
   up on its own; one answering 4xx needs looking at.
+
+## Retiring the gateway (D38)
+
+- In the Xendit and PayMongo dashboards, remove the webhooks pointing at
+  `/api/webhooks/*` — they now answer 410 — and stop any recurring invoices.
+- Set `AGENT_PORTAL_URL` on Servd too: partner hosts redirect there, and the
+  homepage's "Become an agent" link uses it.
+- Pharmacies are activated from Servd super-admin → **Pharmacies**.

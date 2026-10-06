@@ -1,16 +1,17 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { PrismaClient, type Prisma } from "@prisma/client";
-import { listPartnerPharmacies, activatePharmacy } from "@/server/partners/pharmacies";
+import { listPharmacies, activatePharmacyAsHq } from "@/server/pharmacies/hq";
 
 /**
- * A partner switching on a pharmacy, against a real database.
+ * HQ switching on a pharmacy, against a real database (D36's rule, HQ's
+ * button since the partner portal was retired — D38).
  *
- * The pure test covers the rule. What only a database can show is that the
- * rule is reached through a policy: a partner naming another partner's
- * pharmacy id must not activate it, and must not learn it exists.
+ * The pure test covers the rule. This covers the write: the licence check is
+ * applied to what is in the row at the moment of the click, the audit row is
+ * written with it, and nothing happens twice.
  *
- * Skips without DATABASE_URL. Must not run as a superuser.
+ * Skips without DATABASE_URL.
  */
 const hasDb = !!process.env.DATABASE_URL;
 const d = hasDb ? describe : describe.skip;
@@ -26,115 +27,66 @@ function asSuper<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
 }
 
 const stamp = randomUUID().slice(0, 8);
-let alphaId = "", betaId = "";
-let alphaPharmacy = "", alphaNoLto = "", betaPharmacy = "";
+let withLto = "", noLto = "", suspended = "";
 
-async function makePartner(label: string) {
-  return (await asSuper((tx) => tx.partner.create({
-    data: {
-      name: `${label} ${stamp}`, email: `${label}-${stamp}@example.test`,
-      status: "approved", tier: "operator", revenueSharePct: 70,
-    },
-    select: { id: true },
-  }))).id;
-}
-
-async function makePharmacy(partnerId: string, label: string, lto: string | null) {
+async function makePharmacy(label: string, lto: string | null, status = "pending") {
   return (await asSuper((tx) => tx.pharmacy.create({
-    data: {
-      partnerId, name: `${label} ${stamp}`, slug: `${label}-${stamp}`,
-      status: "pending", fdaLtoNumber: lto,
-    },
+    data: { name: `${label} ${stamp}`, slug: `${label}-${stamp}`, status, fdaLtoNumber: lto },
     select: { id: true },
   }))).id;
 }
 
-d("a partner activating a pharmacy", () => {
+const status = (id: string) =>
+  asSuper((tx) => tx.pharmacy.findUniqueOrThrow({ where: { id }, select: { status: true } })).then((r) => r.status);
+
+d("HQ activating a pharmacy", () => {
   beforeAll(async () => {
-    alphaId = await makePartner("alpha");
-    betaId = await makePartner("beta");
-    alphaPharmacy = await makePharmacy(alphaId, "alphaph", "LTO-2026-0001");
-    alphaNoLto = await makePharmacy(alphaId, "alphanolto", null);
-    betaPharmacy = await makePharmacy(betaId, "betaph", "LTO-2026-0002");
+    withLto = await makePharmacy("hqlto", "LTO-2026-0001");
+    noLto = await makePharmacy("hqnolto", null);
+    suspended = await makePharmacy("hqsusp", "LTO-2026-0003", "suspended");
   });
 
   afterAll(async () => {
-    await asSuper(async (tx) => {
-      await tx.pharmacy.deleteMany({ where: { partnerId: { in: [alphaId, betaId] } } });
-      await tx.auditLog.deleteMany({ where: { partnerId: { in: [alphaId, betaId] } } });
-      await tx.partner.deleteMany({ where: { id: { in: [alphaId, betaId] } } });
-    });
     await prisma.$disconnect();
   });
 
-  it("lists only its own pharmacies, with no where clause of its own to trust", async () => {
-    const rows = await listPartnerPharmacies(alphaId);
-    const ids = rows.map((r) => r.id).sort();
-    expect(ids).toEqual([alphaPharmacy, alphaNoLto].sort());
-    expect(ids).not.toContain(betaPharmacy);
+  it("lists pharmacies with whether each can be activated", async () => {
+    const rows = await listPharmacies();
+    expect(rows.find((r) => r.id === withLto)?.activation.ok).toBe(true);
+    expect(rows.find((r) => r.id === noLto)?.activation.ok).toBe(false);
   });
 
-  it("activates its own pending pharmacy once the licence is on file", async () => {
-    const before = await listPartnerPharmacies(alphaId);
-    expect(before.find((r) => r.id === alphaPharmacy)?.status).toBe("pending");
+  it("activates a pending pharmacy once the licence is on file, and audits it", async () => {
+    expect(await activatePharmacyAsHq({ pharmacyId: withLto, actorEmail: "owner@canvexia.test" })).toMatchObject({ ok: true });
+    expect(await status(withLto)).toBe("active");
 
-    const out = await activatePharmacy({
-      partnerId: alphaId, pharmacyId: alphaPharmacy, actorEmail: "alpha@example.test",
-    });
-    expect(out.ok).toBe(true);
-
-    const row = await asSuper((tx) =>
-      tx.pharmacy.findUnique({ where: { id: alphaPharmacy }, select: { status: true } }));
-    expect(row!.status).toBe("active");
-  });
-
-  it("writes an audit row naming who did it and on what basis", async () => {
-    // A status change on a regulated merchant that is not attributable to a
-    // person is the one outcome this must not produce.
     const log = await asSuper((tx) => tx.auditLog.findFirst({
-      where: { entityType: "pharmacy", entityId: alphaPharmacy, action: "pharmacy.activate" },
-      orderBy: { createdAt: "desc" },
+      where: { entityType: "pharmacy", entityId: withLto, action: "pharmacy.activate" },
     }));
-    expect(log).not.toBeNull();
-    expect(log!.actorType).toBe("partner");
-    expect(log!.partnerId).toBe(alphaId);
-    expect(log!.actorEmail).toBe("alpha@example.test");
+    expect(log).toMatchObject({ actorType: "hq", actorEmail: "owner@canvexia.test" });
     expect(log!.reason).toContain("LTO-2026-0001");
-    expect((log!.before as { status: string }).status).toBe("pending");
-    expect((log!.after as { status: string }).status).toBe("active");
+    expect(log!.before).toEqual({ status: "pending" });
+    expect(log!.after).toEqual({ status: "active" });
   });
 
-  it("REFUSES another partner's pharmacy, and does not admit it exists", async () => {
-    const out = await activatePharmacy({
-      partnerId: alphaId, pharmacyId: betaPharmacy, actorEmail: "alpha@example.test",
-    });
-    expect(out).toMatchObject({ ok: false });
-    if (out.ok) return;
-    // "not found", not "not yours" — probing ids should not be a directory.
-    expect(out.message).toMatch(/not found/i);
-
-    const row = await asSuper((tx) =>
-      tx.pharmacy.findUnique({ where: { id: betaPharmacy }, select: { status: true } }));
-    expect(row!.status).toBe("pending");
+  it("refuses while no licence is on file", async () => {
+    const out = await activatePharmacyAsHq({ pharmacyId: noLto, actorEmail: "owner@canvexia.test" });
+    expect(out).toMatchObject({ ok: false, message: expect.stringMatching(/Licence to Operate/i) });
+    expect(await status(noLto)).toBe("pending");
   });
 
-  it("refuses its own pharmacy while no licence is on file", async () => {
-    const out = await activatePharmacy({
-      partnerId: alphaId, pharmacyId: alphaNoLto, actorEmail: "alpha@example.test",
-    });
-    expect(out).toMatchObject({ ok: false });
-    if (out.ok) return;
-    expect(out.message).toMatch(/Licence to Operate/i);
-
-    const row = await asSuper((tx) =>
-      tx.pharmacy.findUnique({ where: { id: alphaNoLto }, select: { status: true } }));
-    expect(row!.status).toBe("pending");
+  it("refuses to undo a suspension by activating", async () => {
+    expect(await activatePharmacyAsHq({ pharmacyId: suspended, actorEmail: "owner@canvexia.test" })).toMatchObject({ ok: false });
+    expect(await status(suspended)).toBe("suspended");
   });
 
   it("refuses to activate twice", async () => {
-    const out = await activatePharmacy({
-      partnerId: alphaId, pharmacyId: alphaPharmacy, actorEmail: "alpha@example.test",
+    expect(await activatePharmacyAsHq({ pharmacyId: withLto, actorEmail: "owner@canvexia.test" })).toMatchObject({ ok: false });
+  });
+
+  it("says not found for an unknown id", async () => {
+    expect(await activatePharmacyAsHq({ pharmacyId: randomUUID(), actorEmail: "x" })).toMatchObject({
+      ok: false, message: expect.stringMatching(/not found/i),
     });
-    expect(out).toMatchObject({ ok: false });
   });
 });

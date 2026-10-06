@@ -1660,3 +1660,53 @@ The owner's answers, recorded verbatim in substance:
 - **Shared, not copied:** month arithmetic and receipt rules are in
   `@servd/core/agent-kit/billing`; the outbox loop is `flushProductOutbox` in
   `@servd/db`. What a product does on lapse stays in the product.
+
+---
+
+## D38 — Gateway billing and the partner portal are retired
+
+**Settled by the owner** ("retire"), 2026-10-06. Follows from D37: payments
+are manual and partners are gone.
+
+### What is gone
+
+- **Xendit / PayMongo platform billing.** No checkout, no saved-card charge, no
+  hosted invoice, anywhere: subscriptions, the DIY ₱499 activation, one-time
+  feature unlocks, the custom-domain add-on, monthly feature subscriptions and
+  branch activation. The gateway clients, settlement, the partner ledger
+  writer, sub-accounts and the Xendit credentials screen are deleted.
+  `/api/webhooks/xendit` and `/api/webhooks/billing[/partnerId]` answer
+  **410 Gone** so a gateway still pointed at them gets a permanent answer.
+- **The partner portal** — `/partner`, `/partners`, super-admin Partners,
+  partner provisioning, merchant reassignment between partners. Partner hosts
+  (`canvexia.com`, `*.canvexia.com` served by Servd) now **308 to
+  `AGENT_PORTAL_URL`**, or answer 410 if it is unset. This supersedes D31's
+  routing for those hosts and D36's "partner portal" button.
+
+### What replaced it
+
+- **Every restaurant is manual billing** (`retire-gateway-billing.sql` flips
+  the default and every row, and queues `customer.signed_up` for each live
+  restaurant the portal has not heard of). The daily run only decides who has
+  lapsed; feature subscriptions simply run out.
+- **Every creation path tells the portal**: self-signup, DIY activation,
+  super-admin "create account" (both kinds) and demo conversion all go
+  through `queueSignupEvent`, which never sends a blank name or phone — the
+  portal would refuse it permanently.
+- **DIY activation is free and immediate**: the preview becomes an account on
+  a 30-day trial; the one-time activation is paid afterwards by receipt, once
+  the agreement is signed.
+- **Add-ons are asked for, not bought**: every former "Buy" button says
+  "message us"; HQ grants them with the existing super-admin tools after a
+  confirmed transfer.
+- **Pharmacy activation is HQ's** — `/super-admin/pharmacies`, owner role
+  only, same licence check and audit row as D36.
+
+### Left for a person to decide
+
+- The **Terms** page and the **refund policy** still describe one-time
+  payments. They are legal text and were not rewritten.
+- **Follow-up email templates** are database rows; any that say "₱499" are
+  edited in super-admin → Email.
+- `partners`, `partner_ledger_entries` and the partner RLS arm are still in
+  the schema, holding history. Dropping them is a separate, destructive step.

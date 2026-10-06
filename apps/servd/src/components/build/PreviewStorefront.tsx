@@ -33,7 +33,7 @@ export function PreviewStorefront({
     setError(null);
     const res = await requestActivation();
     if (res.ok) {
-      window.location.href = res.checkoutUrl;
+      window.location.href = res.nextUrl;
     } else {
       setBusy(false);
       setError(res.error);
@@ -82,7 +82,7 @@ export function PreviewStorefront({
                   disabled={busy}
                   className="mt-5 w-full rounded-full py-3.5 font-heading text-base font-bold btn-brand disabled:opacity-60"
                 >
-                  {busy ? "Opening payment…" : "Activate for ₱499"}
+                  {busy ? "Activating…" : "Activate my account"}
                 </button>
                 {error && <p className="mt-2 text-sm text-guava">{error}</p>}
                 <Link

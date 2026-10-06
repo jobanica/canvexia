@@ -1,209 +1,34 @@
 import "server-only";
 import { systemDb } from "@/server/tenancy/scoped-db";
-import { getBillingProvider } from "@/server/billing";
-import { nextBillingAction } from "@/lib/billing/lifecycle";
-import { addMonths } from "@/lib/billing/period";
-import { PLAN_FIELDS } from "@/server/billing/subscription";
 import { renewFeatureSubscriptions } from "@/server/billing/feature-subscriptions";
 import { coverageEnd, manualBillingAction } from "@/lib/billing/manual";
 
 export interface CronSummary {
   processed: number;
-  charged: number;
-  failed: number;
-  awaiting: number;
-  suspended: number;
-  cancelled: number;
-  /** Per-feature monthly subscriptions (e.g. the content scheduler). */
-  featuresRenewed: number;
-  featuresInvoiced: number;
-  featuresLapsed: number;
-  /** Manual (QR + receipt) restaurants, D37. */
   manualPastDue: number;
   manualSuspended: number;
+  /** Per-feature monthly subscriptions that ran out. */
+  featuresLapsed: number;
 }
 
 /**
- * Daily billing run: for every live subscription, decide (pure lifecycle) and
- * act — charge the saved card, prompt for payment, dun, suspend, or cancel.
- * Idempotent across days: a successful charge advances currentPeriodEnd so the
- * subscription isn't "due" again until the next cycle.
+ * The daily billing run.
+ *
+ * Every restaurant is on manual billing (D37, D38): paid by bank or QR
+ * transfer, confirmed in the agent portal. Nothing here charges a card, raises
+ * an invoice or calls a gateway — those paths are retired. What is left is
+ * deciding, from confirmed payments, who has lapsed.
  */
 export async function runBillingCron(now: Date = new Date()): Promise<CronSummary> {
-  const provider = await getBillingProvider();
-  const [subs, freePlan, openInvoices] = await systemDb(async (tx) => [
-    await tx.subscription.findMany({
+  const subs = await systemDb((tx) =>
+    tx.subscription.findMany({
       where: { status: { in: ["trialing", "active", "past_due"] } },
-      include: { plan: { select: PLAN_FIELDS }, restaurant: { select: { billingMode: true } } },
+      select: { id: true, restaurantId: true, status: true, trialEndsAt: true },
     }),
-    await tx.plan.findFirst({
-      where: { isActive: true, priceMonthly: { lte: 0 } },
-      orderBy: { priceMonthly: "asc" },
-      select: { id: true },
-    }),
-    // Every unpaid invoice, oldest first. Two jobs: it is the age signal the
-    // suspension arm reads, and it is how this run knows an invoice has already
-    // been raised — see the await_payment branch below.
-    await tx.restaurantInvoice.findMany({
-      where: { status: "open" },
-      orderBy: { createdAt: "asc" },
-      select: { id: true, restaurantId: true, createdAt: true },
-    }),
-  ]);
-
-  // Oldest-first ordering means the first row wins, so this keeps the oldest.
-  const oldestOpenByRestaurant = new Map<string, { id: string; createdAt: Date }>();
-  for (const inv of openInvoices) {
-    if (!oldestOpenByRestaurant.has(inv.restaurantId)) {
-      oldestOpenByRestaurant.set(inv.restaurantId, { id: inv.id, createdAt: inv.createdAt });
-    }
-  }
-
-  const s: CronSummary = {
-    processed: subs.length, charged: 0, failed: 0, awaiting: 0, suspended: 0, cancelled: 0,
-    featuresRenewed: 0, featuresInvoiced: 0, featuresLapsed: 0,
-    manualPastDue: 0, manualSuspended: 0,
-  };
-
-  // Manual-billing restaurants never touch the gateway: no invoice, no charge,
-  // no fall-back to the Free plan. They are handled on their own below.
-  const manualSubs = subs.filter((sub) => sub.restaurant.billingMode === "manual");
-  const gatewaySubs = subs.filter((sub) => sub.restaurant.billingMode !== "manual");
-  s.processed = gatewaySubs.length;
-  await runManualBilling(manualSubs, now, s);
-
-  for (const sub of gatewaySubs) {
-    const decision = nextBillingAction(
-      {
-        status: sub.status as "trialing" | "active" | "past_due",
-        trialEndsAt: sub.trialEndsAt,
-        currentPeriodEnd: sub.currentPeriodEnd,
-        failedCharges: sub.failedCharges,
-        cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
-        hasSavedCard: !!sub.providerPaymentMethodId,
-        oldestOpenInvoiceAt: oldestOpenByRestaurant.get(sub.restaurantId)?.createdAt ?? null,
-      },
-      now,
-    );
-    const amount = sub.plan.priceMonthly;
-
-    // A 14-day paid trial that ended without a saved card → revert to the Free
-    // plan (lifetime free) rather than suspend. Free is always there to fall
-    // back to, so an un-converted trial just becomes a free account.
-    const trialEnded = sub.status === "trialing" && !!sub.trialEndsAt && sub.trialEndsAt <= now;
-    if (trialEnded && !sub.providerPaymentMethodId && amount > 0 && freePlan) {
-      await systemDb(async (tx) => {
-        await tx.subscription.update({
-          where: { id: sub.id },
-          data: {
-            planId: freePlan.id,
-            status: "active",
-            trialEndsAt: null,
-            currentPeriodEnd: addMonths(now, 1),
-            failedCharges: 0,
-            cancelAtPeriodEnd: false,
-          },
-        });
-        await tx.restaurant.update({ where: { id: sub.restaurantId }, data: { planId: freePlan.id, status: "active" }, select: { id: true } });
-      });
-      continue;
-    }
-
-    if (decision.action === "none") continue;
-
-    if (decision.action === "cancel") {
-      await systemDb(async (tx) => {
-        await tx.subscription.update({ where: { id: sub.id }, data: { status: "cancelled" } });
-      });
-      s.cancelled++;
-      continue;
-    }
-
-    // Free plans (₱0) never bill — keep them active and roll the period forward
-    // so they're never suspended or invoiced for non-payment.
-    if (amount <= 0) {
-      const overdue = !sub.currentPeriodEnd || sub.currentPeriodEnd <= now;
-      if (sub.status !== "active" || overdue) {
-        const base = sub.currentPeriodEnd && sub.currentPeriodEnd > now ? sub.currentPeriodEnd : now;
-        await systemDb(async (tx) => {
-          await tx.subscription.update({
-            where: { id: sub.id },
-            data: { status: "active", currentPeriodEnd: addMonths(base, 1), failedCharges: 0 },
-          });
-          await tx.restaurant.update({ where: { id: sub.restaurantId }, data: { status: "active" }, select: { id: true } });
-        });
-      }
-      continue;
-    }
-
-    if (decision.action === "suspend") {
-      await systemDb(async (tx) => {
-        await tx.subscription.update({ where: { id: sub.id }, data: { status: "past_due" } });
-        await tx.restaurant.update({ where: { id: sub.restaurantId }, data: { status: "suspended" }, select: { id: true } });
-      });
-      s.suspended++;
-      continue;
-    }
-
-    const canCharge = decision.action === "charge" && provider && sub.providerPaymentMethodId;
-
-    if (decision.action === "await_payment" || !canCharge) {
-      // Raise an invoice only if there isn't one outstanding already.
-      //
-      // This ran unconditionally, and this job runs DAILY over every past_due
-      // subscription — so a merchant who did not pay was handed a fresh invoice
-      // every twenty-four hours, forever. Thirty days late meant thirty open
-      // invoices for one month of service, each with its own gateway checkout,
-      // and any "what do I owe" total summing all of them.
-      const outstanding = oldestOpenByRestaurant.get(sub.restaurantId);
-      await systemDb(async (tx) => {
-        if (!outstanding) {
-          await tx.restaurantInvoice.create({
-            data: { restaurantId: sub.restaurantId, amount, status: "open", periodStart: now, periodEnd: addMonths(now, 1) },
-          });
-        }
-        await tx.subscription.update({ where: { id: sub.id }, data: { status: "past_due" } });
-      });
-      s.awaiting++;
-      continue;
-    }
-
-    // charge the saved card
-    const res = await provider!.chargeSavedCard({
-      amount,
-      description: `Servd ${sub.plan.name} subscription`,
-      paymentMethodId: sub.providerPaymentMethodId!,
-      customerId: sub.providerCustomerId ?? undefined,
-    });
-    const base = sub.currentPeriodEnd && sub.currentPeriodEnd > now ? sub.currentPeriodEnd : now;
-
-    if (res.status === "paid") {
-      await systemDb(async (tx) => {
-        const inv = await tx.restaurantInvoice.create({
-          data: { restaurantId: sub.restaurantId, amount, status: "paid", periodStart: now, periodEnd: addMonths(base, 1), providerRef: res.providerRef, paidAt: now },
-          select: { id: true },
-        });
-        await tx.subscription.update({ where: { id: sub.id }, data: { status: "active", currentPeriodEnd: addMonths(base, 1), failedCharges: 0 } });
-        await tx.restaurant.update({ where: { id: sub.restaurantId }, data: { status: "active" }, select: { id: true } });
-      });
-      s.charged++;
-    } else {
-      await systemDb(async (tx) => {
-        await tx.restaurantInvoice.create({
-          data: { restaurantId: sub.restaurantId, amount, status: "failed", periodStart: now, periodEnd: addMonths(now, 1), providerRef: res.providerRef },
-        });
-        await tx.subscription.update({ where: { id: sub.id }, data: { status: "past_due", failedCharges: { increment: 1 } } });
-      });
-      s.failed++;
-    }
-  }
-
-  // Per-feature monthly subscriptions renew on the same daily pass.
-  const feat = await renewFeatureSubscriptions(now);
-  s.featuresRenewed = feat.renewed;
-  s.featuresInvoiced = feat.invoiced;
-  s.featuresLapsed = feat.lapsed;
-
+  );
+  const s: CronSummary = { processed: subs.length, manualPastDue: 0, manualSuspended: 0, featuresLapsed: 0 };
+  await runManualBilling(subs, now, s);
+  s.featuresLapsed = (await renewFeatureSubscriptions(now)).lapsed;
   return s;
 }
 
@@ -216,7 +41,7 @@ export async function runBillingCron(now: Date = new Date()): Promise<CronSummar
 export async function runManualBilling(
   subs: { id: string; restaurantId: string; status: string; trialEndsAt: Date | null }[],
   now: Date,
-  s: CronSummary,
+  s: Pick<CronSummary, "manualPastDue" | "manualSuspended">,
 ): Promise<void> {
   if (subs.length === 0) return;
   const confirmed = await systemDb((tx) =>

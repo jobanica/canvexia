@@ -99,7 +99,7 @@ export function EmailFollowUp({
       <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="Leads" value={totals.leads} hint="gave an email" />
         <Stat label="Saw preview" value={totals.reachedPreview} hint="moved to track B" />
-        <Stat label="Activated" value={totals.activated} hint="paid ₱499" />
+        <Stat label="Activated" value={totals.activated} hint="activated a preview" />
         <Stat label="Due now" value={totals.dueNow} hint="next run sends these" />
       </dl>
 

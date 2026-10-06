@@ -18,7 +18,7 @@ export type FormState = { ok?: boolean; error?: string } | null;
 async function ensureModule(restaurantId: string) {
   const access = await getCustomDomainAccess(restaurantId);
   if (!access.allowed) {
-    throw new Error("Custom domains are locked. Upgrade to Growth or buy the one-time unlock.");
+    throw new Error("Custom domains are locked. Message us to add one to your account.");
   }
 }
 

@@ -1,10 +1,9 @@
 import { requireSuperAdminPage } from "@/server/tenancy/require-admin";
 import { getMerchantDirectory } from "@/server/partners/directory";
-import { ReassignMerchantForm } from "@/components/super-admin/ReassignMerchantForm";
 
 /**
- * Every merchant on the platform and who owns it — the only screen that
- * deliberately crosses partners.
+ * Every merchant on the platform. Read-only since the partner portal was
+ * retired (D38): there are no partners to move merchants between any more.
  */
 export default async function SuperAdminMerchantsPage({
   searchParams,
@@ -13,7 +12,7 @@ export default async function SuperAdminMerchantsPage({
 }) {
   await requireSuperAdminPage();
   const sp = await searchParams;
-  const { merchants, partners, unassigned, total } = await getMerchantDirectory({
+  const { merchants, partners, total } = await getMerchantDirectory({
     partnerId: sp.partner ?? null,
     query: sp.q ?? null,
   });
@@ -27,23 +26,6 @@ export default async function SuperAdminMerchantsPage({
           {partners.length === 1 ? "" : "s"}.
         </p>
       </div>
-
-      {unassigned > 0 && (
-        <div className="rounded-tile border border-guava/30 bg-guava/5 p-4">
-          <p className="text-sm font-semibold text-guava">
-            {unassigned} merchant{unassigned === 1 ? " belongs" : "s belong"} to no partner.
-          </p>
-          <p className="mt-1 text-sm text-plum-ink/60">
-            Since the partner policies went live these are invisible to every partner portal and
-            absent from every statement — nobody is being paid for them, and nobody can support
-            them. Run{" "}
-            <code className="rounded bg-plum-ink/5 px-1">
-              node scripts/backfill-house-partner.mjs
-            </code>{" "}
-            or move them below.
-          </p>
-        </div>
-      )}
 
       <form className="flex flex-wrap gap-2" action="/super-admin/merchants">
         <input
@@ -95,19 +77,10 @@ export default async function SuperAdminMerchantsPage({
                     )}
                   </p>
                 </div>
-                <ReassignMerchantForm
-                  restaurantId={m.id}
-                  currentPartnerId={m.partnerId}
-                  partners={partners}
-                />
               </li>
             ))}
           </ul>
         )}
-        <p className="mt-3 text-xs text-plum-ink/40">
-          Moving a merchant is recorded in the audit log with who did it and why. The merchant keeps
-          all of its data — only the owner changes.
-        </p>
       </section>
     </div>
   );

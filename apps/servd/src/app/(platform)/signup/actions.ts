@@ -6,9 +6,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { uniqueSlug } from "@/lib/slug";
 import { provisionTrial } from "@/server/billing/subscription";
-import { enqueueProductEvent } from "@servd/db";
-import { newEventId, normalizeReferralCode } from "@servd/core/agent-kit";
-import { productSlug } from "@/server/agent-portal/config";
+import { queueSignupEvent } from "@/server/agent-portal/signup-event";
 import { flushOutboxQuietly } from "@/server/agent-portal/outbox";
 
 export type SignupState = { ok?: boolean; error?: string } | null;
@@ -89,18 +87,12 @@ export async function signUpRestaurant(
         });
         // 30-day Business trial — every feature unlocked, no card.
         await provisionTrial(tx, restaurant.id);
-        await enqueueProductEvent(tx, productSlug(), {
-          event_id: newEventId(),
-          type: "customer.signed_up",
-          occurred_at: new Date().toISOString(),
-          data: {
-            external_customer_id: restaurant.id,
-            business_name: restaurantName,
-            owner_name: ownerName,
-            owner_phone: phone,
-            agent_code: normalizeReferralCode(agentCode) ?? null,
-            plan: null,
-          },
+        await queueSignupEvent(tx, {
+          restaurantId: restaurant.id,
+          businessName: restaurantName,
+          ownerName,
+          ownerPhone: phone,
+          agentCode,
         });
       });
     } catch (e) {

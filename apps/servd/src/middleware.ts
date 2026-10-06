@@ -127,34 +127,15 @@ export async function middleware(req: NextRequest) {
 
   const info = parseHost(host, rootDomain, process.env.NEXT_PUBLIC_PARTNER_ROOT_DOMAIN);
 
-  // A partner's own domain serves the partner portal, not a storefront.
-  //
-  // This branch has to exist before NEXT_PUBLIC_PARTNER_ROOT_DOMAIN is set, not
-  // after: without it, the first partner host configured would fall through to
-  // the tenant rewrite below and be looked up as a restaurant, which it is not.
-  // Inert until that variable exists, because parseHost cannot return this kind
-  // without it.
-  // CANVEXIA's own domain: the bare root AND a partner's subdomain both serve
-  // the portal, and the rewrite is identical — /partner is prefixed either way,
-  // and which partner it is gets resolved from the host further down. The only
-  // difference is that the root has no partner to resolve, which the portal
-  // already handles by sending an unauthenticated visitor to /partner/login.
+  // The partner portal is retired (D38). Its hosts — CANVEXIA's own domain and
+  // any partner subdomain — no longer serve anything from this app: they
+  // redirect to the agent portal, where sales now live. Kept as an explicit
+  // branch rather than deleted, because without it a partner host would fall
+  // through to the tenant rewrite below and be looked up as a restaurant.
   if (info.kind === "partner" || info.kind === "partner_root") {
-    const session = await refreshSession(req);
-    const headers = new Headers(req.headers);
-    headers.set(PATH_HEADER, pathname);
-    // Already-prefixed paths are left alone so a redirect to /partner/login from
-    // inside the portal does not become /partner/partner/login.
-    const target = pathname.startsWith("/partner")
-      ? `${pathname}${search}`
-      : `/partner${pathname === "/" ? "" : pathname}${search}`;
-    return withSession(
-      captureAttribution(
-        req,
-        NextResponse.rewrite(new URL(target, req.url), { request: { headers } }),
-      ),
-      session,
-    );
+    const target = process.env.AGENT_PORTAL_URL?.trim();
+    if (target) return NextResponse.redirect(new URL("/", target), 308);
+    return new NextResponse("This address is no longer in use.", { status: 410 });
   }
 
   if (info.kind === "platform") {

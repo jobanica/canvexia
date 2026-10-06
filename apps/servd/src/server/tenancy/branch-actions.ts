@@ -9,7 +9,6 @@ import { isMemberOf, canEnterBranch } from "@/server/tenancy/branches";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { uniqueSlug } from "@/lib/slug";
 import { BRANCH_COOKIE, BRANCH_COOKIE_MAX_AGE } from "@/lib/tenancy/active-branch";
-import { createBranchActivationCheckout } from "@/server/tenancy/branch-activation";
 
 /**
  * Switch which branch the dashboard is showing.
@@ -128,34 +127,4 @@ export async function addBranch(
   // at a branch the session then refuses, quietly landing them somewhere else.
   void newId;
   return { ok: true };
-}
-
-export type ActivateBranchState = { error?: string } | null;
-
-/**
- * Start the ₱499 Xendit checkout for one branch.
- *
- * Membership is re-checked here, not taken from the form — otherwise anyone
- * could post another restaurant's id and generate invoices against it.
- *
- * On success this REDIRECTS to Xendit rather than returning a URL for the
- * client to follow: a redirect throws, so there's no window where the action
- * has succeeded but the browser is still sitting on the branches page.
- */
-export async function activateBranch(
-  _prev: ActivateBranchState,
-  formData: FormData,
-): Promise<ActivateBranchState> {
-  const user = await getCurrentUser();
-  if (!user || user.kind !== "staff" || user.role !== "admin") {
-    return { error: "Only an owner can activate a branch." };
-  }
-  const restaurantId = String(formData.get("restaurantId") ?? "");
-  if (!restaurantId || !(await isMemberOf(user.authUserId, restaurantId))) {
-    return { error: "Branch not found." };
-  }
-
-  const res = await createBranchActivationCheckout(restaurantId);
-  if (!res.ok) return { error: res.error };
-  redirect(res.checkout.checkoutUrl);
 }
