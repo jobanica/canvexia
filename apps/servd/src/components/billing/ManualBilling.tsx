@@ -6,6 +6,7 @@ import { submitReceiptAction } from "@/server/agent-portal/receipt-actions";
 import { canSubmitActivation, coverageEnd, monthKeyOfDate, nextBillingMonth } from "@/lib/billing/manual";
 import { formatPeso } from "@/lib/money";
 import { manilaDate } from "@/lib/time/manila";
+import { SignAgreementButton } from "@/components/billing/SignAgreementButton";
 
 const STATUS_LABEL: Record<string, string> = {
   submitted: "Waiting for review",
@@ -34,7 +35,7 @@ export async function ManualBilling({ restaurantId }: { restaurantId: string }) 
   const instructions = paymentInstructions();
   const [data, terms] = await Promise.all([
     tenantDb(restaurantId, async (tx) => ({
-      restaurant: await tx.restaurant.findFirst({ select: { activationPaidAt: true } }),
+      restaurant: await tx.restaurant.findFirst({ select: { activationPaidAt: true, contractSignedAt: true } }),
       payments: await tx.servdManualPayment.findMany({ orderBy: { submittedAt: "desc" }, take: 24 }),
     })),
     config ? getCustomerTerms(config, restaurantId) : Promise.resolve(null),
@@ -47,7 +48,10 @@ export async function ManualBilling({ restaurantId }: { restaurantId: string }) 
     confirmedMonthly.map((p) => ({ billingMonthStart: p.billingMonthStart!, monthsCovered: p.monthsCovered })),
   );
   const now = new Date();
-  const allowActivation = canSubmitActivation(data.payments);
+  const contractSigned = !!data.restaurant?.contractSignedAt || !!terms?.contract_signed;
+  // No activation receipt before the agreement is signed (D37). The portal
+  // refuses to confirm one either; this just stops the owner paying early.
+  const allowActivation = contractSigned && canSubmitActivation(data.payments);
 
   return (
     <div className="space-y-6">
@@ -75,6 +79,17 @@ export async function ManualBilling({ restaurantId }: { restaurantId: string }) 
           </div>
         </dl>
       </div>
+
+      {config && !contractSigned && (
+        <div className="rounded-tile border border-brand-primary/30 bg-brand-primary/5 p-5">
+          <h2 className="font-heading text-lg font-bold">First, sign your subscription agreement</h2>
+          <p className="mb-3 mt-1 text-sm text-plum-ink/70">
+            It sets out your fees and the minimum term. You can sign on your phone; it takes a minute.
+            Activation opens once it is signed.
+          </p>
+          <SignAgreementButton />
+        </div>
+      )}
 
       {!config || !instructions ? (
         <div className="rounded-tile border border-mango/40 bg-mango/10 p-5 text-sm">

@@ -1633,3 +1633,30 @@ The owner's answers, recorded verbatim in substance:
   and only then is `payment.submitted` queued, so a receipt that cannot be
   stored is reported while the owner is on the page. The portal refuses a
   payment whose receipt path belongs to another product.
+
+### Phases 3–5 — money, contracts, Resceta
+
+- **The commission engine is one pure function** (`apps/agent-portal/src/lib/commission.ts`)
+  over the referral's pinned rule and the settings. Confirmation, rejection and
+  reversal are each one transaction under the caller's own role, so Postgres —
+  not the button — decides that a verifier may confirm and reject but not
+  reverse. Payment and customer rows are locked in a fixed order, so two
+  verifiers cannot both confirm the same billing month.
+- **Reversal never edits the ledger.** An unpaid original is marked `reversed`
+  with a `reversed` negative twin (net zero, never paid). A paid original — or
+  one already in a payout — keeps its status and gets an `approved` negative
+  twin payable next month; a resulting negative balance carries forward.
+  Monthly reversals take the paid months back off the customer.
+- **Payouts** net per agent from approved commission payable before the payout
+  month; below the minimum (or ≤ 0) nothing is written and the rows wait. The
+  destination account is snapshotted onto the payout.
+- **The portal refuses to confirm an activation without a signed contract**, as
+  well as the products refusing to take one. Signing links are stateless HMAC
+  tokens (7 days); the signed text is re-rendered server-side for the PDF.
+- **Resceta self-signup** creates pharmacies through the existing
+  `provisionPharmacyIn`, owned by the house partner, `pending` — so the FDA
+  licence check (D36) still decides dispensing. Payment is recorded on the
+  pharmacy but enforces nothing; Resceta has no subscription to suspend.
+- **Shared, not copied:** month arithmetic and receipt rules are in
+  `@servd/core/agent-kit/billing`; the outbox loop is `flushProductOutbox` in
+  `@servd/db`. What a product does on lapse stays in the product.

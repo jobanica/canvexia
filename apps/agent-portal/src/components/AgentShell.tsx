@@ -7,7 +7,10 @@ import type { SignedInAgent } from "@/server/auth";
  */
 const TABS = [
   { href: "/", label: "Home" },
-  { href: "/share", label: "Share" },
+  { href: "/customers", label: "Customers" },
+  { href: "/earnings", label: "Earnings" },
+  { href: "/payouts", label: "Payouts" },
+  { href: "/profile", label: "Profile" },
 ];
 
 export function AgentShell({ agent, children }: { agent: SignedInAgent; children: React.ReactNode }) {
@@ -44,7 +47,7 @@ export function AgentShell({ agent, children }: { agent: SignedInAgent; children
             <Link
               key={t.href}
               href={t.href}
-              className="flex-1 py-3 text-center text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="flex-1 py-3 text-center text-xs font-medium text-slate-700 hover:bg-slate-50 sm:text-sm"
             >
               {t.label}
             </Link>

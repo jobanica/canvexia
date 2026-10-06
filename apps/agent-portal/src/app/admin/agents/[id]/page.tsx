@@ -6,6 +6,8 @@ import { ActionForm } from "@/components/ActionForm";
 import { actionsFor, type AgentAction } from "@/lib/agent-status";
 import { manilaDateTime } from "@/lib/time";
 import { agentStatusAction } from "../actions";
+import { agentPerformance } from "@/server/stats";
+import { peso } from "@/lib/money";
 
 const LABEL: Record<AgentAction, string> = {
   approve: "Approve",
@@ -27,6 +29,7 @@ export default async function AgentDetail({ params }: { params: Promise<{ id: st
     tx.agent.findUnique({ where: { id }, include: { _count: { select: { referrals: true } } } }),
   ).catch(() => null);
   if (!agent) notFound();
+  const perf = await agentPerformance(agent.id);
 
   const rows: [string, React.ReactNode][] = [
     ["Referral code", <span key="c" className="font-mono">{agent.referralCode}</span>],
@@ -52,6 +55,22 @@ export default async function AgentDetail({ params }: { params: Promise<{ id: st
           </div>
         ))}
       </dl>
+      <div className="mt-4 grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
+        {[
+          ["Activations", String(perf.activations)],
+          ["Active customers", String(perf.activeCustomers)],
+          ["Churn rate", perf.churnRate === null ? "—" : `${Math.round(perf.churnRate * 100)}%`],
+          ["Commission earned", peso(perf.commissionEarned)],
+        ].map(([k, val]) => (
+          <div key={k} className="rounded-lg border border-slate-200 bg-white p-3">
+            <p className="text-lg font-semibold">{val}</p>
+            <p className="text-xs text-slate-500">{k}</p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-slate-500">
+        {perf.leads} signed up and not yet paying · {perf.churned} cancelled · {peso(perf.commissionPaid)} paid out
+      </p>
       <div className="mt-4 flex flex-wrap gap-3">
         {actionsFor(agent.status).map((a) => (
           <ActionForm

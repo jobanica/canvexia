@@ -27,3 +27,4 @@ export {
   type OutboxEvent,
   type ClaimedEvent,
 } from "./agent-kit/outbox";
+export { flushProductOutbox, type FlushSummary } from "./agent-kit/flush";

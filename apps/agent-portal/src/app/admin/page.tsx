@@ -8,26 +8,25 @@ export default async function AdminOverview() {
   const who = await getSignedIn();
   if (!who || who.kind !== "staff") redirect("/login");
 
-  if (who.role === "verifier") {
-    return (
-      <div>
-        <h1 className="text-xl font-semibold">Verification</h1>
-        <p className="mt-2 text-sm text-slate-600">The receipt queue appears here.</p>
-      </div>
-    );
-  }
+  if (who.role === "verifier") redirect("/admin/queue");
 
-  const [pendingAgents, activeAgents, products, waiting, refused] = await staffDb("admin", (tx) =>
+  const [pendingAgents, activeAgents, products, waiting, refused, queue, changes, failedCallbacks] = await staffDb("admin", (tx) =>
     Promise.all([
       tx.agent.count({ where: { status: "pending" } }),
       tx.agent.count({ where: { status: "active" } }),
       tx.agentProduct.count({ where: { status: "active" } }),
       tx.agentEvent.count({ where: { processedAt: null, error: WAITING } }),
       tx.agentEvent.count({ where: { processedAt: { not: null }, error: { not: null } } }),
+      tx.agentPayment.count({ where: { status: "submitted" } }),
+      tx.agentPayoutDetailChange.count({ where: { status: "pending" } }),
+      tx.agentCallbackOutbox.count({ where: { status: "failed" } }),
     ]),
   );
 
   const tiles: [string, number, string][] = [
+    ["Receipts to verify", queue, "/admin/queue"],
+    ["Payout detail changes", changes, "/admin/payout-changes"],
+    ["Callbacks that failed", failedCallbacks, "/admin/events"],
     ["Applications to review", pendingAgents, "/admin/agents?status=pending"],
     ["Active agents", activeAgents, "/admin/agents?status=active"],
     ["Active products", products, "/admin/products"],

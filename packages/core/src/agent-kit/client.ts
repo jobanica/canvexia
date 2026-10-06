@@ -93,6 +93,28 @@ export async function getCustomerTerms(
   }
 }
 
+/**
+ * A link to the portal's signing page for this customer. Null if the portal
+ * has not processed the customer's signup yet, or cannot be reached — the
+ * product should say "try again in a moment" rather than fail.
+ */
+export async function requestSigningLink(
+  config: AgentPortalConfig,
+  externalCustomerId: string,
+  fetchImpl: Fetch = fetch,
+): Promise<{ url: string; expiresAt: string; alreadySigned: boolean } | null> {
+  try {
+    const r = await call(
+      config, "POST", "/api/v1/contracts/links", JSON.stringify({ external_customer_id: externalCustomerId }), "application/json", fetchImpl, 10_000,
+    );
+    const j = r.json as { url?: string; expires_at?: string; already_signed?: boolean } | null;
+    if (r.status !== 200 || !j?.url) return null;
+    return { url: j.url, expiresAt: j.expires_at ?? "", alreadySigned: !!j.already_signed };
+  } catch {
+    return null;
+  }
+}
+
 export const RECEIPT_MAX_BYTES = 4 * 1024 * 1024;
 export const RECEIPT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
@@ -215,4 +237,52 @@ export function verifyCallback(
 /** A unique event id for a product event. */
 export function newEventId(): string {
   return `evt_${crypto.randomUUID()}`;
+}
+
+// ---------------------------------------------------------------------------
+// Portal side: delivering a callback to a product
+// ---------------------------------------------------------------------------
+
+export type CallbackDelivery =
+  | { kind: "delivered" }
+  | { kind: "failed"; status: number; error: string }
+  | { kind: "retry"; status: number | null; error: string };
+
+/**
+ * POST one signed callback to a product's callback URL. Signed with that
+ * product's secret over the URL's own path, so the product verifies it with
+ * verifyCallback() and the same secret it signs its events with.
+ *
+ * Any 2xx is delivered — the product answers 200 for a duplicate too.
+ */
+export async function deliverCallback(
+  target: { callbackUrl: string; productSlug: string; secret: string },
+  callback: PortalCallback,
+  fetchImpl: Fetch = fetch,
+): Promise<CallbackDelivery> {
+  const url = new URL(target.callbackUrl);
+  const body = JSON.stringify(callback);
+  try {
+    const res = await fetchImpl(url.toString(), {
+      method: "POST",
+      headers: {
+        ...signedHeaders({
+          productSlug: target.productSlug,
+          secret: target.secret,
+          method: "POST",
+          pathname: url.pathname,
+          rawBody: body,
+        }),
+        "content-type": "application/json",
+      },
+      body,
+      signal: AbortSignal.timeout(15_000),
+      cache: "no-store",
+    });
+    if (res.status >= 200 && res.status < 300) return { kind: "delivered" };
+    const error = `HTTP ${res.status}`;
+    return PERMANENT.has(res.status) ? { kind: "failed", status: res.status, error } : { kind: "retry", status: res.status, error };
+  } catch (e) {
+    return { kind: "retry", status: null, error: e instanceof Error ? e.message : String(e) };
+  }
 }

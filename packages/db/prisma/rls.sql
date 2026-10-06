@@ -564,7 +564,7 @@ begin
     'agents', 'agent_payout_detail_changes', 'agent_referrals',
     'agent_contract_templates', 'agent_contracts', 'agent_payments',
     'agent_commissions', 'agent_payouts', 'agent_events', 'agent_audit_log',
-    'agent_settings', 'portal_staff'
+    'agent_settings', 'portal_staff', 'agent_callback_outbox'
   ] loop
     -- Skip quietly on a database that has not run add-agent-portal.sql yet,
     -- rather than failing the whole of rls.sql for every other product.
@@ -582,6 +582,7 @@ begin
     execute format('drop policy if exists verifier_review on %I;', t);
     execute format('drop policy if exists verifier_insert on %I;', t);
     execute format('drop policy if exists audit_insert on %I;', t);
+    execute format('drop policy if exists verifier_release on %I;', t);
 
     -- Admin: everything, on every table. The per-table policies below add
     -- the narrower callers; permissive policies OR together.
@@ -680,6 +681,21 @@ begin
     using (app.is_portal_verifier());
   create policy verifier_insert on agent_commissions for insert
     with check (app.is_portal_verifier() and amount >= 0);
+
+  -- The one commission update a verifier makes: releasing a held activation
+  -- commission (pending_release → approved) when a confirmation brings the
+  -- customer to the release month. Nothing else about the row may move —
+  -- the append-only trigger guards the amount, and this guards the status.
+  create policy verifier_release on agent_commissions for update
+    using (app.is_portal_verifier() and status = 'pending_release')
+    with check (app.is_portal_verifier() and status = 'approved');
+
+  -- A verifier's decision queues a callback to the product in the same
+  -- transaction; they may add to the queue, not read or change it.
+  if to_regclass('public.agent_callback_outbox') is not null then
+    create policy verifier_insert on agent_callback_outbox for insert
+      with check (app.is_portal_verifier() and status = 'pending');
+  end if;
 
   create policy agent_own on agent_payouts for select
     using ("agentId" = app.current_agent_id());

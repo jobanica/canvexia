@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./agent-kit": "./src/agent-kit/index.ts",
     "./agent-kit/ref": "./src/agent-kit/ref.ts",
+    "./agent-kit/billing": "./src/agent-kit/billing.ts",
     "./agent-kit/react": "./src/agent-kit/react/index.ts"
   },
   "dependencies": {

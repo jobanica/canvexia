@@ -12,4 +12,5 @@ export * from "./events";
 export * from "./callbacks";
 export * from "./client";
 export * from "./ref";
+export * from "./billing";
 export type { ReceiptFormState } from "./react/ReceiptUploadForm";

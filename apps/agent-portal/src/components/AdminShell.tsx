@@ -2,10 +2,15 @@ import Link from "next/link";
 import type { SignedInStaff } from "@/server/auth";
 
 const NAV: { href: string; label: string; adminOnly: boolean }[] = [
-  { href: "/admin", label: "Overview", adminOnly: false },
+  { href: "/admin", label: "Overview", adminOnly: true },
+  { href: "/admin/queue", label: "Verification", adminOnly: false },
+  { href: "/admin/customers", label: "Customers", adminOnly: true },
   { href: "/admin/agents", label: "Agents", adminOnly: true },
+  { href: "/admin/payout-changes", label: "Payout changes", adminOnly: true },
+  { href: "/admin/payouts", label: "Payouts", adminOnly: true },
   { href: "/admin/products", label: "Products & rules", adminOnly: true },
   { href: "/admin/agreement", label: "Agent agreement", adminOnly: true },
+  { href: "/admin/templates", label: "Contract templates", adminOnly: true },
   { href: "/admin/settings", label: "Settings", adminOnly: true },
   { href: "/admin/events", label: "Events", adminOnly: true },
   { href: "/admin/audit", label: "Audit log", adminOnly: true },

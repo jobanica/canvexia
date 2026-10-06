@@ -47,12 +47,15 @@ export async function submitReceiptAction(_prev: ReceiptFormState, fd: FormData)
   }
 
   const state = await tenantDb(restaurantId, async (tx) => ({
-    restaurant: await tx.restaurant.findFirst({ select: { billingMode: true } }),
+    restaurant: await tx.restaurant.findFirst({ select: { billingMode: true, contractSignedAt: true } }),
     payments: await tx.servdManualPayment.findMany({ select: { type: true, status: true } }),
     clash: await tx.servdManualPayment.findFirst({ where: { bankReference: input.bankReference }, select: { id: true } }),
   }));
   if (state.restaurant?.billingMode !== "manual") {
     return { status: "error", message: "This account is billed through the payment gateway, not by receipt." };
+  }
+  if (input.type === "activation" && !state.restaurant.contractSignedAt) {
+    return { status: "error", message: "Sign the subscription agreement before paying the activation." };
   }
   if (input.type === "activation" && !canSubmitActivation(state.payments)) {
     return { status: "error", message: "Your activation payment has already been sent." };

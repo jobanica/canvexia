@@ -2566,17 +2566,27 @@ model Pharmacy {
   /// wants each sequence gapless on its own terms.
   nextReturnNo Int @default(dbgenerated("1"))
 
+  // --- Agent-portal billing (D37) -------------------------------------------
+  // Manual (QR + receipt) payments, confirmed in the agent portal and called
+  // back here. Recorded, not enforced: whether a pharmacy may DISPENSE is the
+  // licence check (D36), and payment does not change it.
+  /// When the portal confirmed the one-time activation payment.
+  activationPaidAt DateTime?
+  /// When the owner signed the subscription agreement (contract.signed).
+  contractSignedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  staff      PharmacyStaff[]
-  categories PharmacyCategory[]
-  products   PharmacyProduct[]
-  suppliers  PharmacySupplier[]
-  batches    PharmacyBatch[]
-  movements  PharmacyStockMovement[]
-  sales      PharmacySale[]
-  returns    PharmacyReturn[]
+  staff          PharmacyStaff[]
+  manualPayments RescetaManualPayment[]
+  categories     PharmacyCategory[]
+  products       PharmacyProduct[]
+  suppliers      PharmacySupplier[]
+  batches        PharmacyBatch[]
+  movements      PharmacyStockMovement[]
+  sales          PharmacySale[]
+  returns        PharmacyReturn[]
 
   @@index([partnerId])
   @@map("pharmacies")
@@ -3121,6 +3131,7 @@ model AgentProduct {
   referrals  AgentReferral[]
   events     AgentEvent[]
   templates  AgentContractTemplate[]
+  callbacks  AgentCallbackOutbox[]
 
   @@map("agent_products")
 }
@@ -3446,6 +3457,31 @@ model AgentAuditLog {
   @@map("agent_audit_log")
 }
 
+/// Portal → product callbacks waiting to be delivered (payment.confirmed,
+/// payment.rejected, payment.reversed, contract.signed). Written in the same
+/// transaction as the decision, sent afterwards with retries — the mirror of
+/// the products' product_event_outbox.
+model AgentCallbackOutbox {
+  id            String    @id @default(uuid())
+  productId     String
+  eventId       String    @unique
+  type          String
+  payload       Json
+  /// pending → sent, or → failed when the product says it can never accept it.
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  lastStatus    Int?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  sentAt        DateTime?
+
+  product AgentProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt])
+  @@map("agent_callback_outbox")
+}
+
 /// Admin-editable settings. One row per key; see
 /// apps/agent-portal/src/lib/settings.ts for the keys and their defaults.
 model AgentSetting {
@@ -3539,4 +3575,29 @@ model ServdManualPayment {
 
   @@index([restaurantId, submittedAt])
   @@map("servd_manual_payments")
+}
+
+/// Resceta's record of each manual payment it reported to the agent portal —
+/// the twin of servd_manual_payments, on the pharmacy axis (D29), so the tenant
+/// loop in rls.sql isolates it with no policy written by hand.
+model RescetaManualPayment {
+  id                String    @id @default(uuid())
+  pharmacyId        String
+  type              String // activation | monthly
+  monthsCovered     Int       @default(1)
+  billingMonthStart DateTime? @db.Date
+  amount            Int // centavos
+  bankReference     String    @unique
+  receiptPath       String?
+  /// submitted | confirmed | rejected | reversed
+  status            String    @default("submitted")
+  reason            String?
+  eventId           String    @unique
+  submittedAt       DateTime  @default(now())
+  decidedAt         DateTime?
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId, submittedAt])
+  @@map("resceta_manual_payments")
 }

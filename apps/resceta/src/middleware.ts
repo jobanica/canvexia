@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { REF_COOKIE, REF_COOKIE_OPTIONS, refFromSearchParams } from "@servd/core/agent-kit/ref";
 
 /**
  * Keeps staff signed in.
@@ -15,7 +16,7 @@ import { createServerClient } from "@supabase/ssr";
  * a middleware that decides who may see what needs the membership rows, which
  * means Prisma, which does not belong here. Gating is done where the rows are:
  * `requireStaff()` in the layouts and actions. Middleware renews the token;
- * that is all.
+ * that is all — plus remembering an agent's referral code (below).
  *
  * `getUser()` rather than `getSession()`: getSession trusts whatever is in the
  * cookie, which is exactly the thing a browser controls.
@@ -23,7 +24,18 @@ import { createServerClient } from "@supabase/ssr";
 
 type PendingCookie = { name: string; value: string; options?: Record<string, unknown> };
 
+/**
+ * Agent referral (D37): ?ref=CODE into a 30-day cookie, read back by /signup.
+ * Only a well-formed code is stored, and only when the URL carries one.
+ */
 export async function middleware(req: NextRequest) {
+  const res = await refreshSession(req);
+  const code = refFromSearchParams(req.nextUrl.searchParams);
+  if (code) res.cookies.set(REF_COOKIE, code, REF_COOKIE_OPTIONS);
+  return res;
+}
+
+async function refreshSession(req: NextRequest): Promise<NextResponse> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return NextResponse.next();
