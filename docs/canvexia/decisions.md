@@ -1563,3 +1563,50 @@ from the portal is the next build, and the fix is a Servd-side adapter over
 shared provisioning logic rather than a second copy of it — merchant creation
 drifting into two implementations is precisely the failure this decision exists
 to prevent.
+
+---
+
+## D37 — The agent portal: sales agents on commission, manual payments, agents.canvexia.com
+
+**Settled by the owner**, 2026-10-06. Reverses D2's "no commission" and retires
+the partner model; the code that retirement touches lands in Phase 2.
+
+The owner's answers, recorded verbatim in substance:
+
+1. **Commission is back.** The programme removed in `drop-referral-program.sql`
+   returns, as a new design, not the old tables.
+2. **Agents only. Partners are gone.** An agent is a person who refers
+   customers and earns a fixed peso commission. Nothing about an agent is a
+   partner or reuses `partners`.
+3. **Servd pricing is ₱500 activation + ₱800/month** for agent-era customers.
+4. **Servd subscription billing moves fully to manual payment**: QR transfer to
+   the company account, receipt and bank reference uploaded, confirmed by a
+   verifier. No gateway.
+5. **A customer may have no agent** (`agent_referrals."agentId"` nullable). They
+   still pay through the verification queue.
+6. **Contracts and the new terms apply to new customers.** Existing accounts
+   are untouched.
+7. **`?ref=` keeps working as Servd's invite gate.** A value that is not a live
+   agent code reads as "no agent", silently.
+8. **Products are rows here** (`agent_products`), overriding D12 for the
+   portal only: adding a product is a row plus the connection kit.
+9. **Domain: agents.canvexia.com**, a third Vercel project, `apps/agent-portal`.
+
+### How it is built (Phase 1)
+
+- **Tables are prefixed** `agent_*` / `portal_*`: `payments` and `audit_logs`
+  are already Servd's.
+- **Access is Postgres's job.** Two GUCs, `app.current_agent_id` and
+  `app.portal_role` (`admin` | `verifier`), and a policy per table and command
+  in `rls.sql`. A verifier may move a *submitted* payment to confirmed or
+  rejected and nothing else; a column-guard trigger stops a verifier changing
+  an amount or reassigning a customer on the way.
+- **The commission ledger and the audit log are append-only by trigger**, so
+  not even `systemDb` can rewrite them. A correction is a negative row.
+- **The API secret is encrypted, not hashed.** HMAC verification needs the key
+  itself; a "hash" would be the key under another name.
+- **Signatures cover `timestamp.METHOD.path.body`**, not the body alone, so a
+  captured request cannot be replayed later or against another endpoint.
+- **Helper functions read GUCs directly.** `app_user` has no USAGE on schema
+  `app`; a helper that calls another helper fails at run time, which the
+  existing policies never hit because policy names resolve at creation.
