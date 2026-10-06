@@ -5,3 +5,16 @@
 :root {
   color-scheme: light;
 }
+
+/* Admin tables: purple header row, striped body (see AdminShell). :where()
+   keeps these at zero specificity, so a row's own colour (a late receipt's
+   red) still wins. */
+:where(.admin-shell) thead {
+  background: #8b80cf;
+}
+:where(.admin-shell tbody tr:nth-child(even)) {
+  background: #f6f5fb;
+}
+:where(.admin-shell) h1 {
+  color: #5a4bb0;
+}
