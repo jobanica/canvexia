@@ -1563,3 +1563,150 @@ from the portal is the next build, and the fix is a Servd-side adapter over
 shared provisioning logic rather than a second copy of it — merchant creation
 drifting into two implementations is precisely the failure this decision exists
 to prevent.
+
+---
+
+## D37 — The agent portal: sales agents on commission, manual payments, agents.canvexia.com
+
+**Settled by the owner**, 2026-10-06. Reverses D2's "no commission" and retires
+the partner model; the code that retirement touches lands in Phase 2.
+
+The owner's answers, recorded verbatim in substance:
+
+1. **Commission is back.** The programme removed in `drop-referral-program.sql`
+   returns, as a new design, not the old tables.
+2. **Agents only. Partners are gone.** An agent is a person who refers
+   customers and earns a fixed peso commission. Nothing about an agent is a
+   partner or reuses `partners`.
+3. **Servd pricing is ₱500 activation + ₱800/month** for agent-era customers.
+4. **Servd subscription billing moves fully to manual payment**: QR transfer to
+   the company account, receipt and bank reference uploaded, confirmed by a
+   verifier. No gateway.
+5. **A customer may have no agent** (`agent_referrals."agentId"` nullable). They
+   still pay through the verification queue.
+6. **Contracts and the new terms apply to new customers.** Existing accounts
+   are untouched.
+7. **`?ref=` keeps working as Servd's invite gate.** A value that is not a live
+   agent code reads as "no agent", silently.
+8. **Products are rows here** (`agent_products`), overriding D12 for the
+   portal only: adding a product is a row plus the connection kit.
+9. **Domain: agents.canvexia.com**, a third Vercel project, `apps/agent-portal`.
+
+### How it is built (Phase 1)
+
+- **Tables are prefixed** `agent_*` / `portal_*`: `payments` and `audit_logs`
+  are already Servd's.
+- **Access is Postgres's job.** Two GUCs, `app.current_agent_id` and
+  `app.portal_role` (`admin` | `verifier`), and a policy per table and command
+  in `rls.sql`. A verifier may move a *submitted* payment to confirmed or
+  rejected and nothing else; a column-guard trigger stops a verifier changing
+  an amount or reassigning a customer on the way.
+- **The commission ledger and the audit log are append-only by trigger**, so
+  not even `systemDb` can rewrite them. A correction is a negative row.
+- **The API secret is encrypted, not hashed.** HMAC verification needs the key
+  itself; a "hash" would be the key under another name.
+- **Signatures cover `timestamp.METHOD.path.body`**, not the body alone, so a
+  captured request cannot be replayed later or against another endpoint.
+- **Helper functions read GUCs directly.** `app_user` has no USAGE on schema
+  `app`; a helper that calls another helper fails at run time, which the
+  existing policies never hit because policy names resolve at creation.
+
+### Phase 2 — the connection kit, and Servd on it
+
+- **The kit is three entries**: `@servd/core/agent-kit` (server: signing,
+  event and callback contracts, `deliverEvent`, `uploadReceipt`,
+  `getCustomerTerms`, `verifyCallback`), `/ref` (Edge-safe `?ref=` capture for
+  middleware) and `/react` (`ReferralCodeField`, `ReceiptUploadForm`). The
+  outbox and callback inbox are in `@servd/db`, because they write tables.
+- **The outbox leases, it does not lock.** A row claimed for sending is pushed
+  two minutes into the future in a short statement and sent outside any
+  transaction; Servd's transactions time out at 5 s and an HTTP call does not
+  belong inside one.
+- **Servd's new self-signups are `billingMode = 'manual'`.** Existing rows are
+  `'gateway'` by database default and their billing is untouched. Manual
+  restaurants are taken out of the gateway cron: no invoice, no charge, and no
+  fall-back to the Free plan. Past paid coverage they go past_due, and
+  suspended after the gateway path's own 14-day grace.
+- **Prices shown to an owner come from the portal** (`GET /api/v1/customers/{id}`,
+  the rule they signed up under), never from Servd.
+- **Receipts are uploaded to the portal synchronously** (`POST /api/v1/receipts`)
+  and only then is `payment.submitted` queued, so a receipt that cannot be
+  stored is reported while the owner is on the page. The portal refuses a
+  payment whose receipt path belongs to another product.
+
+### Phases 3–5 — money, contracts, Resceta
+
+- **The commission engine is one pure function** (`apps/agent-portal/src/lib/commission.ts`)
+  over the referral's pinned rule and the settings. Confirmation, rejection and
+  reversal are each one transaction under the caller's own role, so Postgres —
+  not the button — decides that a verifier may confirm and reject but not
+  reverse. Payment and customer rows are locked in a fixed order, so two
+  verifiers cannot both confirm the same billing month.
+- **Reversal never edits the ledger.** An unpaid original is marked `reversed`
+  with a `reversed` negative twin (net zero, never paid). A paid original — or
+  one already in a payout — keeps its status and gets an `approved` negative
+  twin payable next month; a resulting negative balance carries forward.
+  Monthly reversals take the paid months back off the customer.
+- **Payouts** net per agent from approved commission payable before the payout
+  month; below the minimum (or ≤ 0) nothing is written and the rows wait. The
+  destination account is snapshotted onto the payout.
+- **The portal refuses to confirm an activation without a signed contract**, as
+  well as the products refusing to take one. Signing links are stateless HMAC
+  tokens (7 days); the signed text is re-rendered server-side for the PDF.
+- **Resceta self-signup** creates pharmacies through the existing
+  `provisionPharmacyIn`, owned by the house partner, `pending` — so the FDA
+  licence check (D36) still decides dispensing. Payment is recorded on the
+  pharmacy but enforces nothing; Resceta has no subscription to suspend.
+- **Shared, not copied:** month arithmetic and receipt rules are in
+  `@servd/core/agent-kit/billing`; the outbox loop is `flushProductOutbox` in
+  `@servd/db`. What a product does on lapse stays in the product.
+
+---
+
+## D38 — Gateway billing and the partner portal are retired
+
+**Settled by the owner** ("retire"), 2026-10-06. Follows from D37: payments
+are manual and partners are gone.
+
+### What is gone
+
+- **Xendit / PayMongo platform billing.** No checkout, no saved-card charge, no
+  hosted invoice, anywhere: subscriptions, the DIY ₱499 activation, one-time
+  feature unlocks, the custom-domain add-on, monthly feature subscriptions and
+  branch activation. The gateway clients, settlement, the partner ledger
+  writer, sub-accounts and the Xendit credentials screen are deleted.
+  `/api/webhooks/xendit` and `/api/webhooks/billing[/partnerId]` answer
+  **410 Gone** so a gateway still pointed at them gets a permanent answer.
+- **The partner portal** — `/partner`, `/partners`, super-admin Partners,
+  partner provisioning, merchant reassignment between partners. Partner hosts
+  (`canvexia.com`, `*.canvexia.com` served by Servd) now **308 to
+  `AGENT_PORTAL_URL`**, or answer 410 if it is unset. This supersedes D31's
+  routing for those hosts and D36's "partner portal" button.
+
+### What replaced it
+
+- **Every restaurant is manual billing** (`retire-gateway-billing.sql` flips
+  the default and every row, and queues `customer.signed_up` for each live
+  restaurant the portal has not heard of). The daily run only decides who has
+  lapsed; feature subscriptions simply run out.
+- **Every creation path tells the portal**: self-signup, DIY activation,
+  super-admin "create account" (both kinds) and demo conversion all go
+  through `queueSignupEvent`, which never sends a blank name or phone — the
+  portal would refuse it permanently.
+- **DIY activation is free and immediate**: the preview becomes an account on
+  a 30-day trial; the one-time activation is paid afterwards by receipt, once
+  the agreement is signed.
+- **Add-ons are asked for, not bought**: every former "Buy" button says
+  "message us"; HQ grants them with the existing super-admin tools after a
+  confirmed transfer.
+- **Pharmacy activation is HQ's** — `/super-admin/pharmacies`, owner role
+  only, same licence check and audit row as D36.
+
+### Left for a person to decide
+
+- The **Terms** page and the **refund policy** still describe one-time
+  payments. They are legal text and were not rewritten.
+- **Follow-up email templates** are database rows; any that say "₱499" are
+  edited in super-admin → Email.
+- `partners`, `partner_ledger_entries` and the partner RLS arm are still in
+  the schema, holding history. Dropping them is a separate, destructive step.

@@ -495,6 +495,347 @@ drop policy if exists super_only on landing_stats;
 create policy super_only on landing_stats for all
   using (app.is_super_admin()) with check (app.is_super_admin());
 
+-- ============================================================================
+-- Agent portal (D37): apps/agent-portal, agents.canvexia.com.
+--
+-- Three kinds of caller, told apart by two GUCs set by the portal's own
+-- scoped-db wrappers:
+--
+--   app.current_agent_id   an agent. Sees their own agent row, their own
+--                          referrals and everything hanging off them. Nothing
+--                          of any other agent's.
+--   app.portal_role        'admin'    — every agent-portal table.
+--                          'verifier' — the verification queue: may read
+--                          payments and the customers/agents they belong to,
+--                          and may move a SUBMITTED payment to confirmed or
+--                          rejected. Not reverse, not payouts, not settings.
+--
+-- app.is_super_admin() (systemDb) passes everywhere, as it does in the rest of
+-- this file; the portal uses it only for the signed product API, the public
+-- application form and the contract-signing page — callers with no portal
+-- login to scope by.
+--
+-- None of these tables carries "restaurantId" or "pharmacyId", so the tenant
+-- loop above never touches them, and every one has a policy by the time the
+-- backstop sweep below runs, so the sweep leaves them alone too.
+--
+-- A command with no policy is refused. So every table lists what each caller
+-- MAY do; anything not listed is the database saying no.
+-- ============================================================================
+
+create or replace function app.current_agent_id() returns text
+  language sql stable as $$
+    select nullif(current_setting('app.current_agent_id', true), '')
+$$;
+
+create or replace function app.portal_role() returns text
+  language sql stable as $$
+    select nullif(current_setting('app.portal_role', true), '')
+$$;
+
+-- These two read the GUCs themselves rather than calling app.is_super_admin()
+-- and app.portal_role(). A function body is resolved when it RUNS, as the
+-- caller — and app_user has no USAGE on schema app, so a helper that calls
+-- another helper fails with "permission denied for schema app". Policies do
+-- not have the problem because their names are resolved once, when the policy
+-- is created.
+create or replace function app.is_portal_admin() returns boolean
+  language sql stable as $$
+    select coalesce(current_setting('app.is_super_admin', true) = 'on', false)
+        or coalesce(nullif(current_setting('app.portal_role', true), '') = 'admin', false)
+$$;
+
+create or replace function app.is_portal_verifier() returns boolean
+  language sql stable as $$
+    select coalesce(nullif(current_setting('app.portal_role', true), '') = 'verifier', false)
+$$;
+
+alter function app.current_agent_id() set search_path = '';
+alter function app.portal_role() set search_path = '';
+alter function app.is_portal_admin() set search_path = '';
+alter function app.is_portal_verifier() set search_path = '';
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'agent_products', 'agent_product_credentials', 'agent_commission_rules',
+    'agents', 'agent_payout_detail_changes', 'agent_referrals',
+    'agent_contract_templates', 'agent_contracts', 'agent_payments',
+    'agent_commissions', 'agent_payouts', 'agent_events', 'agent_audit_log',
+    'agent_settings', 'portal_staff', 'agent_callback_outbox'
+  ] loop
+    -- Skip quietly on a database that has not run add-agent-portal.sql yet,
+    -- rather than failing the whole of rls.sql for every other product.
+    continue when to_regclass('public.' || t) is null;
+    execute format('alter table %I enable row level security;', t);
+    execute format('alter table %I force row level security;', t);
+    -- Drop every policy we might have created before, so re-running this
+    -- after a policy is renamed does not leave the old one granting access.
+    execute format('drop policy if exists super_only on %I;', t);
+    execute format('drop policy if exists portal_admin on %I;', t);
+    execute format('drop policy if exists portal_read on %I;', t);
+    execute format('drop policy if exists agent_own on %I;', t);
+    execute format('drop policy if exists agent_insert on %I;', t);
+    execute format('drop policy if exists verifier_read on %I;', t);
+    execute format('drop policy if exists verifier_review on %I;', t);
+    execute format('drop policy if exists verifier_insert on %I;', t);
+    execute format('drop policy if exists audit_insert on %I;', t);
+    execute format('drop policy if exists verifier_release on %I;', t);
+
+    -- Admin: everything, on every table. The per-table policies below add
+    -- the narrower callers; permissive policies OR together.
+    execute format($f$
+      create policy portal_admin on %I for all
+        using (app.is_portal_admin()) with check (app.is_portal_admin());
+    $f$, t);
+  end loop;
+end $$;
+
+-- Reference data every signed-in portal user reads: product names and links,
+-- the commission rules (an agent is entitled to know what they earn), the
+-- contract templates, and the settings (payout day, minimum).
+-- agent_product_credentials is deliberately NOT here: admin only.
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'agent_products', 'agent_commission_rules', 'agent_contract_templates', 'agent_settings'
+  ] loop
+    continue when to_regclass('public.' || t) is null;
+    execute format($f$
+      create policy portal_read on %I for select
+        using (app.is_portal_verifier() or app.current_agent_id() is not null);
+    $f$, t);
+  end loop;
+end $$;
+
+do $$
+begin
+  if to_regclass('public.agents') is null then return; end if;
+
+  -- agents: an agent reads their own row; a verifier reads agents to show
+  -- who referred the customer whose receipt they are checking. No caller but
+  -- an admin writes: the application form runs as the system, and payout
+  -- details change only through an approved agent_payout_detail_changes row.
+  create policy agent_own on agents for select
+    using (id = app.current_agent_id());
+  create policy verifier_read on agents for select
+    using (app.is_portal_verifier());
+
+  -- Payout detail changes: an agent may ASK, and read their own requests.
+  -- The with check is what stops an agent inserting a request that is
+  -- already approved.
+  create policy agent_own on agent_payout_detail_changes for select
+    using ("agentId" = app.current_agent_id());
+  create policy agent_insert on agent_payout_detail_changes for insert
+    with check (
+      "agentId" = app.current_agent_id()
+      and status = 'pending'
+      and "approvedBy" is null
+      and "decidedAt" is null
+    );
+
+  -- Referrals: own customers for an agent; every customer for a verifier,
+  -- who may also update them (confirming a payment advances paidMonths and
+  -- sets the status).
+  create policy agent_own on agent_referrals for select
+    using ("agentId" = app.current_agent_id());
+  create policy verifier_read on agent_referrals for select
+    using (app.is_portal_verifier());
+  create policy verifier_review on agent_referrals for update
+    using (app.is_portal_verifier()) with check (app.is_portal_verifier());
+
+  -- Contracts: an agent sees the contracts of their own customers.
+  create policy agent_own on agent_contracts for select
+    using (exists (
+      select 1 from agent_referrals r
+       where r.id = agent_contracts."referralId"
+         and r."agentId" = app.current_agent_id()));
+  create policy verifier_read on agent_contracts for select
+    using (app.is_portal_verifier());
+
+  -- Payments: an agent sees their customers' payments. A verifier reads all
+  -- of them and may move a SUBMITTED one to confirmed or rejected — that is
+  -- the whole of the verifier role, and it is enforced here rather than by a
+  -- hidden button. Reversing a confirmed payment is admin-only.
+  create policy agent_own on agent_payments for select
+    using (exists (
+      select 1 from agent_referrals r
+       where r.id = agent_payments."referralId"
+         and r."agentId" = app.current_agent_id()));
+  create policy verifier_read on agent_payments for select
+    using (app.is_portal_verifier());
+  create policy verifier_review on agent_payments for update
+    using (app.is_portal_verifier() and status = 'submitted')
+    with check (app.is_portal_verifier() and status in ('confirmed', 'rejected'));
+
+  -- Commissions: own rows for an agent. A verifier writes them as part of a
+  -- confirmation (and reads them, to refuse a double confirmation) but never
+  -- changes one; status and payout are an admin's.
+  create policy agent_own on agent_commissions for select
+    using ("agentId" = app.current_agent_id());
+  create policy verifier_read on agent_commissions for select
+    using (app.is_portal_verifier());
+  create policy verifier_insert on agent_commissions for insert
+    with check (app.is_portal_verifier() and amount >= 0);
+
+  -- The one commission update a verifier makes: releasing a held activation
+  -- commission (pending_release → approved) when a confirmation brings the
+  -- customer to the release month. Nothing else about the row may move —
+  -- the append-only trigger guards the amount, and this guards the status.
+  create policy verifier_release on agent_commissions for update
+    using (app.is_portal_verifier() and status = 'pending_release')
+    with check (app.is_portal_verifier() and status = 'approved');
+
+  -- A verifier's decision queues a callback to the product in the same
+  -- transaction; they may add to the queue, not read or change it.
+  if to_regclass('public.agent_callback_outbox') is not null then
+    create policy verifier_insert on agent_callback_outbox for insert
+      with check (app.is_portal_verifier() and status = 'pending');
+  end if;
+
+  create policy agent_own on agent_payouts for select
+    using ("agentId" = app.current_agent_id());
+
+  -- Audit log: read by admins only. Written by whoever acted, as themselves:
+  -- an agent cannot write a row claiming to be somebody else. No update and
+  -- no delete for anyone below the system.
+  create policy audit_insert on agent_audit_log for insert
+    with check (
+      app.is_portal_verifier() and "actorType" = 'verifier'
+      or (app.current_agent_id() is not null
+          and "actorType" = 'agent'
+          and "actorId" = app.current_agent_id())
+    );
+end $$;
+
+-- ----------------------------------------------------------------------------
+-- The commission ledger is append-only, for EVERY caller including the
+-- system. A row's amount, owner and provenance never change and a row is
+-- never deleted: a correction is a new row with a negative amount pointing at
+-- the one it cancels. Only the lifecycle columns move — status, payableFrom
+-- (an admin holding a row) and payoutId.
+--
+-- A trigger rather than a policy because policies are bypassed by
+-- app.is_super_admin(), and "the system may rewrite history" is exactly the
+-- exception this must not have.
+-- ----------------------------------------------------------------------------
+create or replace function app.agent_commissions_append_only() returns trigger
+  language plpgsql as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'agent_commissions is append-only: rows are never deleted (write a reversal)';
+  end if;
+  if new.amount is distinct from old.amount
+     or new."agentId" is distinct from old."agentId"
+     or new."referralId" is distinct from old."referralId"
+     or new."paymentId" is distinct from old."paymentId"
+     or new."ruleId" is distinct from old."ruleId"
+     or new.kind is distinct from old.kind
+     or new."paidMonthNumber" is distinct from old."paidMonthNumber"
+     or new."reversesId" is distinct from old."reversesId"
+     or new."createdAt" is distinct from old."createdAt" then
+    raise exception 'agent_commissions is append-only: only status, payableFrom and payoutId may change (write a reversal)';
+  end if;
+  return new;
+end $$;
+alter function app.agent_commissions_append_only() set search_path = '';
+
+do $$
+begin
+  if to_regclass('public.agent_commissions') is null then return; end if;
+  drop trigger if exists agent_commissions_append_only on agent_commissions;
+  create trigger agent_commissions_append_only
+    before update or delete on agent_commissions
+    for each row execute function app.agent_commissions_append_only();
+  -- TRUNCATE skips row triggers, so it needs its own.
+  drop trigger if exists agent_commissions_no_truncate on agent_commissions;
+  create trigger agent_commissions_no_truncate
+    before truncate on agent_commissions
+    for each statement execute function app.agent_commissions_append_only();
+end $$;
+
+-- The audit log is append-only the same way, and for the same reason.
+create or replace function app.agent_audit_append_only() returns trigger
+  language plpgsql as $$
+begin
+  raise exception 'agent_audit_log is append-only';
+end $$;
+alter function app.agent_audit_append_only() set search_path = '';
+
+do $$
+begin
+  if to_regclass('public.agent_audit_log') is null then return; end if;
+  drop trigger if exists agent_audit_append_only on agent_audit_log;
+  create trigger agent_audit_append_only
+    before update or delete on agent_audit_log
+    for each row execute function app.agent_audit_append_only();
+  drop trigger if exists agent_audit_no_truncate on agent_audit_log;
+  create trigger agent_audit_no_truncate
+    before truncate on agent_audit_log
+    for each statement execute function app.agent_audit_append_only();
+end $$;
+
+-- A verifier's UPDATE is row-scoped by the policies above; these narrow it to
+-- the columns a review actually touches. Without them, "may confirm a payment"
+-- would also be "may change its amount on the way", and "may advance the
+-- paid-month count" would be "may reassign the customer to a friend".
+create or replace function app.agent_verifier_column_guard() returns trigger
+  language plpgsql as $$
+begin
+  -- GUCs read directly, not through app.is_portal_*(): see the note on those
+  -- functions about schema usage.
+  if coalesce(current_setting('app.is_super_admin', true) = 'on', false)
+     or coalesce(nullif(current_setting('app.portal_role', true), '') = 'verifier', false) is false then
+    return new;
+  end if;
+  if tg_table_name = 'agent_payments' then
+    if (to_jsonb(new) - array['status', 'reviewedBy', 'reviewedAt', 'rejectReason'])
+       is distinct from
+       (to_jsonb(old) - array['status', 'reviewedBy', 'reviewedAt', 'rejectReason']) then
+      raise exception 'a verifier may only change a payment''s review fields';
+    end if;
+  elsif tg_table_name = 'agent_referrals' then
+    if (to_jsonb(new) - array['status', 'paidMonths', 'updatedAt'])
+       is distinct from
+       (to_jsonb(old) - array['status', 'paidMonths', 'updatedAt']) then
+      raise exception 'a verifier may only change a customer''s status and paid-month count';
+    end if;
+  end if;
+  return new;
+end $$;
+alter function app.agent_verifier_column_guard() set search_path = '';
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['agent_payments', 'agent_referrals'] loop
+    continue when to_regclass('public.' || t) is null;
+    execute format('drop trigger if exists agent_verifier_column_guard on %I;', t);
+    execute format($f$
+      create trigger agent_verifier_column_guard before update on %I
+        for each row execute function app.agent_verifier_column_guard();
+    $f$, t);
+  end loop;
+end $$;
+
+-- Contract templates: Prisma's unique (kind, productId, version) lets two
+-- GLOBAL templates share a version, because NULLs are distinct. And nothing
+-- in the schema can say "one active template per product". Both are partial
+-- indexes Prisma cannot express.
+do $$
+begin
+  if to_regclass('public.agent_contract_templates') is null then return; end if;
+  create unique index if not exists agent_contract_templates_global_version
+    on agent_contract_templates (kind, version) where "productId" is null;
+  create unique index if not exists agent_contract_templates_one_active
+    on agent_contract_templates (kind, coalesce("productId", '')) where active;
+end $$;
+
 -- ----------------------------------------------------------------------------
 -- Harden the helper functions: pin search_path.
 --

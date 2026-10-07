@@ -21,6 +21,10 @@ export const GUC = {
   partnerId: "app.current_partner_id",
   /** Trusted system context. Set by systemDb(). Bypasses every tenant policy. */
   superAdmin: "app.is_super_admin",
+  /** The agent-portal agent the request is scoped to. Set by agentDb(). */
+  agentId: "app.current_agent_id",
+  /** 'admin' | 'verifier' in the agent portal. Set by staffDb(). */
+  portalRole: "app.portal_role",
 } as const;
 
 export type GucName = (typeof GUC)[keyof typeof GUC];

@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { systemDb } from "@/server/tenancy/scoped-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { normalizeUsername } from "@/lib/partners/login-username";
+import { queueSignupEvent } from "@/server/agent-portal/signup-event";
 import { getFreePlan, getDefaultPlan, getTopPlan, SIGNUP_TRIAL_DAYS } from "@/server/billing/subscription";
 import { revokePreviewLogin } from "./preview-login";
 import { internalLoginDomain } from "@/lib/branding/app-domain";
@@ -148,7 +149,7 @@ export async function convertDemo(
   const info = await systemDb((tx) =>
     tx.restaurant.findFirst({
       where: { id: restaurantId },
-      select: { id: true },
+      select: { id: true, name: true, contactPhone: true },
     }),
   );
   if (!info) return { ok: false, error: "Storefront not found." };
@@ -185,6 +186,10 @@ export async function convertDemo(
         select: { id: true },
       });
       await applyBilling(tx, restaurantId, billing);
+      // A converted demo is a paying customer like any other (D37/D38): manual
+      // billing, and the agent portal told, so its receipts can be confirmed.
+      await tx.restaurant.update({ where: { id: restaurantId }, data: { billingMode: "manual" }, select: { id: true } });
+      await queueSignupEvent(tx, { restaurantId, businessName: info.name, ownerPhone: info.contactPhone });
     });
   } catch (e) {
     // Undo the auth user, or the username is burned and the retry can't reuse it.

@@ -644,9 +644,22 @@ model Restaurant {
   loyaltyPesosPerPoint Int     @default(20) // ₱ spent to earn 1 point
   loyaltyPointValue    Int     @default(100) // centavos a point is worth on redeem
 
+  // --- Agent-portal billing (D37) -------------------------------------------
+  /// "manual" — the owner pays by QR or bank transfer and uploads a receipt;
+  /// the agent portal confirms it and calls back (D37). Every restaurant is
+  /// manual since gateway billing was retired (D38). "gateway" survives only
+  /// in history, and nothing reads it any more.
+  billingMode      String    @default(dbgenerated("'manual'"))
+  /// When the agent portal confirmed the one-time activation payment. Null
+  /// until then, and again if that payment is reversed.
+  activationPaidAt DateTime?
+  /// When the owner signed the subscription agreement (contract.signed).
+  contractSignedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  manualPayments     ServdManualPayment[]
   plan               Plan?                 @relation(fields: [planId], references: [id])
   staff              StaffUser[]
   subscriptions      Subscription[]
@@ -2552,17 +2565,27 @@ model Pharmacy {
   /// wants each sequence gapless on its own terms.
   nextReturnNo Int @default(dbgenerated("1"))
 
+  // --- Agent-portal billing (D37) -------------------------------------------
+  // Manual (QR + receipt) payments, confirmed in the agent portal and called
+  // back here. Recorded, not enforced: whether a pharmacy may DISPENSE is the
+  // licence check (D36), and payment does not change it.
+  /// When the portal confirmed the one-time activation payment.
+  activationPaidAt DateTime?
+  /// When the owner signed the subscription agreement (contract.signed).
+  contractSignedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  staff      PharmacyStaff[]
-  categories PharmacyCategory[]
-  products   PharmacyProduct[]
-  suppliers  PharmacySupplier[]
-  batches    PharmacyBatch[]
-  movements  PharmacyStockMovement[]
-  sales      PharmacySale[]
-  returns    PharmacyReturn[]
+  staff          PharmacyStaff[]
+  manualPayments RescetaManualPayment[]
+  categories     PharmacyCategory[]
+  products       PharmacyProduct[]
+  suppliers      PharmacySupplier[]
+  batches        PharmacyBatch[]
+  movements      PharmacyStockMovement[]
+  sales          PharmacySale[]
+  returns        PharmacyReturn[]
 
   @@index([partnerId])
   @@map("pharmacies")
@@ -2994,4 +3017,586 @@ model PartnerWaitlist {
   @@index([status])
   @@index([territoryId])
   @@map("partner_waitlist")
+}
+
+// ============================================================================
+// CANVEXIA Agent Portal — apps/agent-portal (agents.canvexia.com). D37.
+//
+// Sales agents, the customers they refer in every CANVEXIA product, and the
+// commission owed to them. Products never calculate commission: they report
+// events to the portal's signed API, and the portal decides.
+//
+// Every table is prefixed `agent_` (or `portal_`) because the bare names are
+// taken or too generic: `payments` is a Servd diner payment, `audit_logs` is the
+// merchant audit trail.
+//
+// MONEY: integer centavos. TIME: UTC in the database, Asia/Manila on screen.
+//
+// RLS: packages/db/prisma/rls.sql, section "Agent portal". Access is decided by
+// two GUCs — app.current_agent_id (an agent sees only their own rows) and
+// app.portal_role ('admin' | 'verifier') — not by `where` clauses.
+//
+// LEDGER: agent_commissions rows are never updated in amount and never deleted.
+// A correction is a new row with a negative amount. A trigger in rls.sql
+// refuses anything else, whoever is asking.
+// ============================================================================
+
+enum AgentStatus {
+  pending
+  active
+  suspended
+  removed
+}
+
+enum AgentProductStatus {
+  active
+  inactive
+}
+
+enum AgentReferralStatus {
+  lead
+  active
+  churned
+}
+
+enum AgentPaymentType {
+  activation
+  monthly
+}
+
+enum AgentPaymentStatus {
+  submitted
+  confirmed
+  rejected
+  reversed
+}
+
+enum AgentCommissionKind {
+  activation
+  monthly
+  reversal
+}
+
+enum AgentCommissionStatus {
+  pending_release
+  approved
+  paid
+  reversed
+}
+
+enum AgentPayoutStatus {
+  draft
+  approved
+  paid
+}
+
+enum AgentChangeStatus {
+  pending
+  approved
+  rejected
+}
+
+enum PortalStaffRole {
+  admin
+  verifier
+}
+
+enum AgentTemplateKind {
+  /// The subscription agreement a product's customer signs before activation.
+  customer
+  /// The agreement an agent accepts when applying.
+  agent
+}
+
+/// One CANVEXIA product that reports to the portal. Adding a product is a row
+/// here plus the connection kit — no portal code.
+model AgentProduct {
+  id          String             @id @default(uuid())
+  /// Matches the product registry id in packages/core where one exists
+  /// ("servd", "pharmacy"), but nothing requires it: a product built outside
+  /// this monorepo is just a row.
+  slug        String             @unique
+  name        String
+  /// Where agents send customers: the referral link is `${signupUrl}?ref=CODE`.
+  signupUrl   String?
+  /// Portal → product callbacks are POSTed here, signed with the same secret.
+  callbackUrl String?
+  status      AgentProductStatus @default(active)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  credential AgentProductCredential?
+  rules      AgentCommissionRule[]
+  referrals  AgentReferral[]
+  events     AgentEvent[]
+  templates  AgentContractTemplate[]
+  callbacks  AgentCallbackOutbox[]
+
+  @@map("agent_products")
+}
+
+/// The product's API secret, kept off agent_products so that the row agents
+/// and verifiers can read (names, links) never carries it.
+///
+/// ENCRYPTED, not hashed. HMAC verification needs the key itself, so a hash
+/// would either be useless or be the key under another name. AES-256-GCM with
+/// CREDENTIALS_ENCRYPTION_KEY, the same scheme Servd uses for gateway keys.
+/// The plaintext is shown once, when it is generated.
+model AgentProductCredential {
+  productId  String   @id
+  secretEnc  String
+  /// Last four characters of the plaintext, so an admin can tell which secret
+  /// a product is configured with without the portal ever showing it again.
+  secretHint String
+  rotatedAt  DateTime @default(now())
+
+  product AgentProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("agent_product_credentials")
+}
+
+/// Prices and commission for one product (and optionally one plan), valid for
+/// a period. Rows are never edited once referrals point at them: a change is
+/// a new row with a later validFrom, and the old row gets a validTo. A
+/// referral keeps the rule it signed up under (AgentReferral.commissionRuleId).
+model AgentCommissionRule {
+  id                   String    @id @default(uuid())
+  productId            String
+  /// Null = applies to every plan of the product without a plan-specific rule.
+  plan                 String?
+  activationFee        Int
+  monthlyFee           Int
+  activationCommission Int
+  tier1Amount          Int
+  tier1Months          Int
+  tier2Amount          Int
+  validFrom            DateTime
+  validTo              DateTime?
+  createdAt            DateTime  @default(now())
+  createdBy            String?
+
+  product     AgentProduct      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  referrals   AgentReferral[]
+  commissions AgentCommission[]
+
+  @@index([productId, plan, validFrom])
+  @@map("agent_commission_rules")
+}
+
+model Agent {
+  id                  String      @id @default(uuid())
+  /// Supabase auth user. Unique: one login is one agent.
+  authUserId          String      @unique
+  name                String
+  email               String
+  mobile              String
+  /// Uppercase, unique, generated on application.
+  referralCode        String      @unique
+  payoutMethod        String
+  payoutAccountName   String
+  payoutAccountNumber String
+  status              AgentStatus @default(pending)
+  /// Reserved for team-leader overrides. Not read by anything yet.
+  uplineAgentId       String?
+  agreementAcceptedAt DateTime
+  /// Which agent-agreement template version they accepted.
+  agreementVersion    Int
+  approvedAt          DateTime?
+  approvedBy          String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  upline        Agent?                    @relation("AgentUpline", fields: [uplineAgentId], references: [id], onDelete: SetNull)
+  downline      Agent[]                   @relation("AgentUpline")
+  payoutChanges AgentPayoutDetailChange[]
+  referrals     AgentReferral[]
+  commissions   AgentCommission[]
+  payouts       AgentPayout[]
+
+  @@index([status])
+  @@map("agents")
+}
+
+/// An agent's request to change where they are paid. Takes effect only when
+/// an admin approves it — a payout redirected by whoever got hold of an
+/// agent's login is the fraud this exists to stop.
+model AgentPayoutDetailChange {
+  id         String            @id @default(uuid())
+  agentId    String
+  oldValues  Json
+  newValues  Json
+  status     AgentChangeStatus @default(pending)
+  approvedBy String?
+  decidedAt  DateTime?
+  createdAt  DateTime          @default(now())
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([agentId])
+  @@map("agent_payout_detail_changes")
+}
+
+/// One customer of one product, and the agent (if any) who referred them.
+/// The agent stays attached permanently; only an admin reassigns.
+model AgentReferral {
+  id                 String              @id @default(uuid())
+  productId          String
+  /// The product's own id for this customer. Opaque to the portal.
+  externalCustomerId String
+  businessName       String
+  ownerName          String
+  ownerPhone         String
+  /// Null for customers who signed up without a code — they still pay through
+  /// the verification queue, they just earn nobody a commission.
+  agentId            String?
+  plan               String?
+  signedUpAt         DateTime
+  status             AgentReferralStatus @default(lead)
+  /// Paid months confirmed so far, across every stint. Drives the commission
+  /// tier; an unpaid month does not advance it, and a returning customer
+  /// resumes it.
+  paidMonths         Int                 @default(0)
+  /// The rule in force at signup. Null only if none existed for the product
+  /// then — the payment cannot be confirmed until an admin attaches one.
+  commissionRuleId   String?
+  /// The code the product reported, verbatim, even when it did not resolve to
+  /// an agent. Lets an admin see what the customer typed.
+  reportedAgentCode  String?
+  agentAttachedAt    DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  product     AgentProduct         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  agent       Agent?               @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  rule        AgentCommissionRule? @relation(fields: [commissionRuleId], references: [id], onDelete: Restrict)
+  contracts   AgentContract[]
+  payments    AgentPayment[]
+  commissions AgentCommission[]
+
+  @@unique([productId, externalCustomerId])
+  @@index([agentId, status])
+  @@map("agent_referrals")
+}
+
+model AgentContractTemplate {
+  id        String            @id @default(uuid())
+  kind      AgentTemplateKind @default(customer)
+  /// Null = global (every product without its own template).
+  productId String?
+  version   Int
+  /// Text with {{placeholders}} filled at signing time.
+  body      String
+  active    Boolean           @default(false)
+  createdAt DateTime          @default(now())
+
+  product   AgentProduct?   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  contracts AgentContract[]
+
+  @@unique([kind, productId, version])
+  @@map("agent_contract_templates")
+}
+
+model AgentContract {
+  id                String   @id @default(uuid())
+  referralId        String
+  templateId        String
+  templateVersion   Int
+  signerName        String
+  signerPosition    String
+  signerPhone       String
+  /// Private storage path of the signature PNG.
+  signaturePath     String
+  signedAt          DateTime
+  ip                String?
+  userAgent         String?
+  minimumTermEndsAt DateTime
+  /// Private storage path of the generated PDF.
+  pdfPath           String?
+  createdAt         DateTime @default(now())
+
+  referral AgentReferral         @relation(fields: [referralId], references: [id], onDelete: Restrict)
+  template AgentContractTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  @@index([referralId])
+  @@map("agent_contracts")
+}
+
+/// A manual payment: the customer paid by QR to the company account and
+/// uploaded the receipt. Nothing here is money moving — it is a claim that
+/// money moved, until a verifier confirms it.
+model AgentPayment {
+  id                String             @id @default(uuid())
+  referralId        String
+  type              AgentPaymentType
+  monthsCovered     Int                @default(1)
+  /// First day (Manila) of the first month this pays for. Null for activation.
+  billingMonthStart DateTime?          @db.Date
+  amount            Int
+  /// Unique across the whole table: one bank transfer is one payment, in any
+  /// product, ever.
+  bankReference     String             @unique
+  receiptPath       String?
+  status            AgentPaymentStatus @default(submitted)
+  /// The event that reported it.
+  sourceEventId     String?            @unique
+  submittedAt       DateTime           @default(now())
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  rejectReason      String?
+  reversedBy        String?
+  reversedAt        DateTime?
+  reverseReason     String?
+
+  referral    AgentReferral     @relation(fields: [referralId], references: [id], onDelete: Restrict)
+  commissions AgentCommission[]
+
+  @@index([status, submittedAt])
+  @@index([referralId, billingMonthStart])
+  @@map("agent_payments")
+}
+
+/// The commission ledger. Append-only: see the trigger in rls.sql.
+model AgentCommission {
+  id              String                @id @default(uuid())
+  agentId         String
+  referralId      String
+  paymentId       String
+  kind            AgentCommissionKind
+  /// The customer's paid-month number this row is for (1-based). Null for the
+  /// activation commission.
+  paidMonthNumber Int?
+  /// Centavos. Negative for a reversal.
+  amount          Int
+  status          AgentCommissionStatus @default(pending_release)
+  /// Earliest payout this row may go into.
+  payableFrom     DateTime
+  payoutId        String?
+  ruleId          String
+  /// For a reversal: the row it cancels.
+  reversesId      String?               @unique
+  createdAt       DateTime              @default(now())
+
+  agent    Agent               @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  referral AgentReferral       @relation(fields: [referralId], references: [id], onDelete: Restrict)
+  payment  AgentPayment        @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  rule     AgentCommissionRule @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  payout   AgentPayout?        @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  reverses AgentCommission?    @relation("CommissionReversal", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversal AgentCommission?    @relation("CommissionReversal")
+
+  @@index([agentId, status, payableFrom])
+  @@index([paymentId])
+  @@index([payoutId])
+  @@map("agent_commissions")
+}
+
+model AgentPayout {
+  id              String            @id @default(uuid())
+  agentId         String
+  /// First day of the payout month (the month payments were confirmed in is
+  /// the one before).
+  period          DateTime          @db.Date
+  total           Int
+  method          String
+  referenceNumber String?
+  status          AgentPayoutStatus @default(draft)
+  approvedBy      String?
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  paidBy          String?
+  createdAt       DateTime          @default(now())
+
+  agent       Agent             @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  commissions AgentCommission[]
+
+  @@unique([agentId, period])
+  @@map("agent_payouts")
+}
+
+/// Every event a product sent, verbatim. Idempotent on eventId.
+model AgentEvent {
+  id                 String    @id @default(uuid())
+  eventId            String    @unique
+  productId          String
+  type               String
+  payload            Json
+  receivedAt         DateTime  @default(now())
+  processedAt        DateTime?
+  /// Why it is not processed: an out-of-order event waiting for its customer
+  /// ("waiting_for_customer"), or a refusal.
+  error              String?
+  attempts           Int       @default(0)
+  /// The product's customer id, lifted out of the payload so the retry on
+  /// signup is an index lookup.
+  externalCustomerId String?
+
+  product AgentProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([productId, externalCustomerId, processedAt])
+  @@index([receivedAt])
+  @@map("agent_events")
+}
+
+model AgentAuditLog {
+  id         String   @id @default(uuid())
+  /// "admin" | "verifier" | "agent" | "system" | "product"
+  actorType  String
+  actorId    String?
+  actorEmail String?
+  action     String
+  entity     String
+  entityId   String?
+  before     Json?
+  after      Json?
+  at         DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([at])
+  @@map("agent_audit_log")
+}
+
+/// Portal → product callbacks waiting to be delivered (payment.confirmed,
+/// payment.rejected, payment.reversed, contract.signed). Written in the same
+/// transaction as the decision, sent afterwards with retries — the mirror of
+/// the products' product_event_outbox.
+model AgentCallbackOutbox {
+  id            String    @id @default(uuid())
+  productId     String
+  eventId       String    @unique
+  type          String
+  payload       Json
+  /// pending → sent, or → failed when the product says it can never accept it.
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  lastStatus    Int?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  sentAt        DateTime?
+
+  product AgentProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt])
+  @@map("agent_callback_outbox")
+}
+
+/// Admin-editable settings. One row per key; see
+/// apps/agent-portal/src/lib/settings.ts for the keys and their defaults.
+model AgentSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("agent_settings")
+}
+
+/// Portal admins and verifiers. Agents are not here — they are `agents`.
+model PortalStaff {
+  id         String          @id @default(uuid())
+  authUserId String          @unique
+  email      String
+  role       PortalStaffRole
+  active     Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+
+  @@map("portal_staff")
+}
+
+// ============================================================================
+// Connection kit, product side (D37). Shared by every product in this
+// database; each row says which product it belongs to.
+// ============================================================================
+
+/// Events waiting to be delivered to the agent portal. Written in the SAME
+/// transaction as the change they describe — a signup and its
+/// customer.signed_up land together or not at all — and sent afterwards, with
+/// retries, until the portal answers 200. That is the whole point of an outbox:
+/// the portal being down never loses an event and never fails a signup.
+model ProductEventOutbox {
+  id            String    @id @default(uuid())
+  productSlug   String
+  eventId       String    @unique
+  type          String
+  payload       Json
+  /// pending → sent, or → failed when the portal says it can never accept it.
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  lastStatus    Int?
+  lastError     String?
+  /// The portal's answer: processed | pending | duplicate | refused.
+  portalStatus  String?
+  createdAt     DateTime  @default(now())
+  sentAt        DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@map("product_event_outbox")
+}
+
+/// Callbacks received from the agent portal, kept for idempotency: the portal
+/// delivers at least once, and a payment confirmed twice must extend the
+/// subscription once.
+model ProductCallbackInbox {
+  eventId     String   @id
+  productSlug String
+  type        String
+  payload     Json
+  receivedAt  DateTime @default(now())
+  /// What applying it did ("applied", or why it was skipped).
+  outcome     String?
+
+  @@map("product_callback_inbox")
+}
+
+/// Servd's own record of a manual payment it reported to the portal, so the
+/// owner's billing page can show what they sent and what became of it without
+/// asking the portal. The portal's agent_payments row is the authority; this
+/// row follows it through the callbacks.
+model ServdManualPayment {
+  id                String    @id @default(uuid())
+  restaurantId      String
+  type              String // activation | monthly
+  monthsCovered     Int       @default(1)
+  billingMonthStart DateTime? @db.Date
+  amount            Int // centavos
+  bankReference     String    @unique
+  receiptPath       String?
+  /// submitted | confirmed | rejected | reversed
+  status            String    @default("submitted")
+  reason            String?
+  eventId           String    @unique
+  submittedAt       DateTime  @default(now())
+  decidedAt         DateTime?
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, submittedAt])
+  @@map("servd_manual_payments")
+}
+
+/// Resceta's record of each manual payment it reported to the agent portal —
+/// the twin of servd_manual_payments, on the pharmacy axis (D29), so the tenant
+/// loop in rls.sql isolates it with no policy written by hand.
+model RescetaManualPayment {
+  id                String    @id @default(uuid())
+  pharmacyId        String
+  type              String // activation | monthly
+  monthsCovered     Int       @default(1)
+  billingMonthStart DateTime? @db.Date
+  amount            Int // centavos
+  bankReference     String    @unique
+  receiptPath       String?
+  /// submitted | confirmed | rejected | reversed
+  status            String    @default("submitted")
+  reason            String?
+  eventId           String    @unique
+  submittedAt       DateTime  @default(now())
+  decidedAt         DateTime?
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId, submittedAt])
+  @@map("resceta_manual_payments")
 }

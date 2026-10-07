@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 import { parseHost } from "@/lib/host";
 import { readUtmParams, encodeUtm, UTM_COOKIE, UTM_MAX_AGE } from "@/lib/utm";
 import { PATH_HEADER } from "@/lib/platform/admin-scope";
+import { REF_COOKIE, REF_COOKIE_OPTIONS, refFromSearchParams } from "@servd/core/agent-kit/ref";
 
 /**
  * Host-based multi-tenant routing.
@@ -43,15 +44,21 @@ function captureUtm(req: NextRequest, res: NextResponse): NextResponse {
 }
 
 /**
- * Click attribution, applied to whatever response we're sending.
- *
- * There used to be a second capture here — ?ref=CODE into a 30-day referral
- * cookie — which the referral program read to attribute a signup and accrue a
- * commission. There is no commission any more, so nothing reads it and it is
- * gone; only the ad tags are still worth keeping.
+ * Agent referral (D37): ?ref=CODE into a 30-day cookie, so a restaurant owner
+ * who opens an agent's link today and signs up next week is still credited to
+ * that agent. Only a well-formed code is stored, and only when the URL carries
+ * one — a plain reload never erases it. The signup page reads it back to
+ * prefill the code; the agent portal decides whether it attaches.
  */
+function captureRef(req: NextRequest, res: NextResponse): NextResponse {
+  const code = refFromSearchParams(req.nextUrl.searchParams);
+  if (code) res.cookies.set(REF_COOKIE, code, REF_COOKIE_OPTIONS);
+  return res;
+}
+
+/** Click attribution, applied to whatever response we're sending. */
 function captureAttribution(req: NextRequest, res: NextResponse): NextResponse {
-  return captureUtm(req, res);
+  return captureRef(req, captureUtm(req, res));
 }
 
 type PendingCookie = { name: string; value: string; options?: Record<string, unknown> };
@@ -120,34 +127,15 @@ export async function middleware(req: NextRequest) {
 
   const info = parseHost(host, rootDomain, process.env.NEXT_PUBLIC_PARTNER_ROOT_DOMAIN);
 
-  // A partner's own domain serves the partner portal, not a storefront.
-  //
-  // This branch has to exist before NEXT_PUBLIC_PARTNER_ROOT_DOMAIN is set, not
-  // after: without it, the first partner host configured would fall through to
-  // the tenant rewrite below and be looked up as a restaurant, which it is not.
-  // Inert until that variable exists, because parseHost cannot return this kind
-  // without it.
-  // CANVEXIA's own domain: the bare root AND a partner's subdomain both serve
-  // the portal, and the rewrite is identical — /partner is prefixed either way,
-  // and which partner it is gets resolved from the host further down. The only
-  // difference is that the root has no partner to resolve, which the portal
-  // already handles by sending an unauthenticated visitor to /partner/login.
+  // The partner portal is retired (D38). Its hosts — CANVEXIA's own domain and
+  // any partner subdomain — no longer serve anything from this app: they
+  // redirect to the agent portal, where sales now live. Kept as an explicit
+  // branch rather than deleted, because without it a partner host would fall
+  // through to the tenant rewrite below and be looked up as a restaurant.
   if (info.kind === "partner" || info.kind === "partner_root") {
-    const session = await refreshSession(req);
-    const headers = new Headers(req.headers);
-    headers.set(PATH_HEADER, pathname);
-    // Already-prefixed paths are left alone so a redirect to /partner/login from
-    // inside the portal does not become /partner/partner/login.
-    const target = pathname.startsWith("/partner")
-      ? `${pathname}${search}`
-      : `/partner${pathname === "/" ? "" : pathname}${search}`;
-    return withSession(
-      captureAttribution(
-        req,
-        NextResponse.rewrite(new URL(target, req.url), { request: { headers } }),
-      ),
-      session,
-    );
+    const target = process.env.AGENT_PORTAL_URL?.trim();
+    if (target) return NextResponse.redirect(new URL("/", target), 308);
+    return new NextResponse("This address is no longer in use.", { status: 410 });
   }
 
   if (info.kind === "platform") {

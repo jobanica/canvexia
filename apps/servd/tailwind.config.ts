@@ -30,7 +30,12 @@ function brandColor(cssVar: string) {
 }
 
 const config: Config = {
-  content: ["./src/**/*.{ts,tsx}"],
+  content: [
+    "./src/**/*.{ts,tsx}",
+    // The agent-portal connection kit's form components (D37) render inside
+    // Servd pages; without this their classes are purged.
+    "../../packages/core/src/agent-kit/react/**/*.tsx",
+  ],
   theme: {
     extend: {
       colors: {

@@ -23,7 +23,9 @@ export type Bucket =
   | "build:write"
   | "build:upload"
   | "build:activate"
-  | "landing:event";
+  | "landing:event"
+  | "agent:code"
+  | "billing:receipt";
 
 /** Per-hour allowance for each bucket, per IP. */
 const LIMITS: Record<Bucket, number> = {
@@ -35,6 +37,11 @@ const LIMITS: Record<Bucket, number> = {
   // (a view plus a click, and they may come back). This is a graffiti guard on
   // the founder's ad numbers, not a gate on anything that matters.
   "landing:event": 200,
+  // Referral-code checks from the signup form: one per pause in typing. The
+  // limit is what keeps the endpoint from being a way to walk the agent list.
+  "agent:code": 60,
+  // Receipt uploads from the billing page; each one is an image upload.
+  "billing:receipt": 20,
 };
 
 /** Hashed client IP, or "unknown" behind a proxy that strips everything. */

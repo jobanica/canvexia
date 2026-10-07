@@ -1,5 +1,4 @@
 import { systemDb } from "@/server/tenancy/scoped-db";
-import { getBillingStatus } from "@/server/billing/platform-settings";
 import { parseHost } from "@/lib/host";
 
 /**
@@ -128,13 +127,12 @@ export async function GET(req: Request) {
     db = { connected: false, error: e instanceof Error ? e.message : "DB error" };
   }
 
-  // Subscription billing provider status (Xendit / PayMongo).
-  let billing: { provider: string | null; xenditConfigured: boolean } = { provider: null, xenditConfigured: false };
-  try {
-    billing = await getBillingStatus();
-  } catch {
-    /* platform_settings not migrated yet */
-  }
+  // Billing is manual (bank/QR transfer, confirmed in the agent portal) — D38.
+  // Reports whether that link is configured; there is no gateway to check.
+  const billing = {
+    mode: "manual",
+    agentPortalConfigured: !!(process.env.AGENT_PORTAL_URL && process.env.AGENT_PORTAL_PRODUCT_SLUG && process.env.AGENT_PORTAL_SECRET),
+  };
 
   const healthy =
     Object.values(env).every((v) => v !== false && v !== null) &&

@@ -18,6 +18,7 @@ const NAV: { href: string; label: string; needs?: Permission }[] = [
   { href: "/receiving", label: "Receive", needs: "manageStock" },
   { href: "/staff", label: "Staff", needs: "manageStaff" },
   { href: "/settings", label: "Settings", needs: "manageSettings" },
+  { href: "/billing", label: "Billing", needs: "manageSettings" },
 ];
 
 export function AppShell({

@@ -89,7 +89,7 @@ export default function Image() {
               font per glyph at build time, and the peso sign isn't in the
               default set — a build that needs the network to render a currency
               symbol is a build that fails on a bad day. */}
-          No credit card • No commitment • PHP 499 one-time to activate
+          No credit card • 30 days free
         </div>
       </div>
     ),

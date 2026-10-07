@@ -454,7 +454,7 @@ function ActivateStep({
     setBusy(true);
     setError(null);
     const res = await requestActivation();
-    if (res.ok) window.location.href = res.checkoutUrl;
+    if (res.ok) window.location.href = res.nextUrl;
     else {
       setBusy(false);
       setError(res.error);
@@ -475,7 +475,7 @@ function ActivateStep({
           "Real orders straight to your kitchen",
           "Your own ordering website + table QR codes",
           "Cashier, kitchen and sales dashboard",
-          "Yours for life — one payment, no monthly fees",
+          "30 days free, then a monthly subscription",
         ].map((line) => (
           <li key={line} className="flex gap-2">
             <span className="text-brand-primary">✓</span>
@@ -489,9 +489,12 @@ function ActivateStep({
         disabled={busy}
         className="mt-5 w-full rounded-full py-3.5 font-heading text-base font-bold btn-brand disabled:opacity-60"
       >
-        {busy ? "Opening payment…" : "Activate for ₱499"}
+        {busy ? "Activating…" : "Activate my account"}
       </button>
-      <p className="mt-2 text-xs text-plum-ink/45">One-time. Pay with GCash or card.</p>
+      <p className="mt-2 text-xs text-plum-ink/45">
+        Free to activate now. You&apos;ll set your password next, then sign up for the subscription
+        from Billing — paid by bank or e-wallet transfer.
+      </p>
       {error && <p className="mt-2 text-sm text-guava">{error}</p>}
 
       <div className="mt-5 rounded-xl bg-cream/60 p-3 text-left">

@@ -41,7 +41,8 @@ export default async function LoginPage({
       <LoginForm next={target} />
 
       <p className="mt-8 text-xs text-slate-500">
-        Accounts are created by your pharmacy&apos;s owner or manager, not here.
+        Staff accounts are created by your pharmacy&apos;s owner or manager. New pharmacy?{" "}
+        <a href="/signup" className="font-medium text-slate-700 underline">Create an account</a>.
       </p>
     </main>
   );

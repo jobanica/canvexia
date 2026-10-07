@@ -8,7 +8,8 @@ import { systemDb } from "@/server/tenancy/scoped-db";
 import { requireSuperAdmin } from "@/server/tenancy/current-user";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { runBillingCron, type CronSummary } from "@/server/billing/run-cron";
-import { saveXenditCreds, setOrderCapEnabled, setUploadPostKey } from "@/server/billing/platform-settings";
+import { setOrderCapEnabled, setUploadPostKey } from "@/server/billing/platform-settings";
+import { queueSignupEvent } from "@/server/agent-portal/signup-event";
 import { provisionTrial, getFreePlan } from "@/server/billing/subscription";
 import { COMP_FOREVER } from "@/lib/billing/comp";
 import { uniqueSlug } from "@/lib/slug";
@@ -561,29 +562,6 @@ export async function runBillingNow(_prev: CronState, _formData: FormData): Prom
 }
 
 // ---------------------------------------------------------------------------
-// Payments (Xendit) — subscription billing provider
-// ---------------------------------------------------------------------------
-
-/** Save the platform's Xendit credentials (encrypted) for subscription billing. */
-export async function saveXenditSettings(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireSuperAdmin();
-  const secretKey = String(formData.get("secretKey") ?? "").trim();
-  const callbackToken = String(formData.get("callbackToken") ?? "").trim();
-  if (!secretKey || !/^xnd_/.test(secretKey)) {
-    return { error: "Enter your Xendit secret key (starts with xnd_)." };
-  }
-  if (!callbackToken) return { error: "Enter your Xendit webhook callback token." };
-  try {
-    await saveXenditCreds({ secretKey, callbackToken });
-  } catch (e) {
-    console.error("saveXenditSettings failed", e);
-    return { error: e instanceof Error ? e.message : "Couldn't save. Run the migration if you haven't yet." };
-  }
-  revalidatePath("/super-admin/payments");
-  return { ok: true, message: "Xendit connected. Subscriptions will activate automatically on payment." };
-}
-
-// ---------------------------------------------------------------------------
 // Accounts — provision restaurant logins with the email pre-confirmed
 // ---------------------------------------------------------------------------
 
@@ -638,10 +616,12 @@ export async function createRestaurantAccount(_prev: ActionState, formData: Form
           status: "active",
           ...(phone ? { printerConfig: { receipt: { phone } } as unknown as Prisma.InputJsonValue } : {}),
           staff: { create: { authUserId, role: "admin", email } },
+          billingMode: "manual",
         },
         select: { id: true },
       });
       await provisionTrial(tx, restaurant.id);
+      await queueSignupEvent(tx, { restaurantId: restaurant.id, businessName: restaurantName, ownerPhone: phone });
     });
   } catch (e) {
     // Roll back the orphaned auth user so the email can be reused.
@@ -723,10 +703,12 @@ export async function createBusinessAccount(_prev: ActionState, formData: FormDa
           latitude,
           longitude,
           staff: { create: { authUserId, role: "admin", email, username } },
+          billingMode: "manual",
         },
         select: { id: true },
       });
       await provisionTrial(tx, restaurant.id);
+      await queueSignupEvent(tx, { restaurantId: restaurant.id, businessName: restaurantName });
     });
   } catch (e) {
     try {

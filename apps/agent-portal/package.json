@@ -1,0 +1,46 @@
+{
+  "name": "agent-portal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CANVEXIA agent portal: sales agents, their referrals and commission across every product.",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "dev": "next dev -p 3002",
+    "build": "next build",
+    "start": "next start",
+    "postinstall": "prisma generate --schema=../../packages/db/prisma/schema.prisma",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "prisma generate --schema=../../packages/db/prisma/schema.prisma",
+    "staff:create": "node scripts/create-staff.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "@servd/core": "workspace:*",
+    "@servd/db": "workspace:*",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.47.10",
+    "next": "^15.5.19",
+    "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "server-only": "^0.0.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.0.4",
+    "@types/react-dom": "^19.0.2",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "prisma": "^6.2.1",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.8"
+  }
+}

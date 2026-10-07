@@ -33,14 +33,9 @@ export function BillingRunButton() {
           {(
             [
               ["Processed", state.summary.processed],
-              ["Charged", state.summary.charged],
-              ["Failed", state.summary.failed],
-              ["Awaiting", state.summary.awaiting],
-              ["Suspended", state.summary.suspended],
-              ["Features renewed", state.summary.featuresRenewed],
-              ["Feature invoices", state.summary.featuresInvoiced],
+              ["Past due", state.summary.manualPastDue],
+              ["Suspended", state.summary.manualSuspended],
               ["Features lapsed", state.summary.featuresLapsed],
-              ["Cancelled", state.summary.cancelled],
             ] as const
           ).map(([label, value]) => (
             <div key={label} className="rounded-lg bg-cream p-2">

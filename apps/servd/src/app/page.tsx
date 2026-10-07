@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { AppIcon, Wordmark } from "@/components/Wordmark";
 
+/** The agent portal's application page (D37/D38), or the contact link if it isn't configured. */
+function agentApplyUrl(): string {
+  const base = process.env.AGENT_PORTAL_URL?.trim();
+  return base ? new URL("/apply", base).toString() : "#";
+}
+
 /* ------------------------------------------------------------------ icons */
 function Icon({ path }: { path: string }) {
   return (
@@ -317,7 +323,7 @@ export default async function Home() {
           </div>
           <div className="rounded-tile bg-plum-ink p-7 text-cream">
             <p className="text-xs font-bold uppercase tracking-widest text-mango">With Servd</p>
-            <p className="mt-3 font-heading text-4xl font-extrabold">From ₱0</p>
+            <p className="mt-3 font-heading text-4xl font-extrabold">One subscription</p>
             <p className="mt-1 text-sm text-cream/70">per month — technology handles the ordering, around the clock.</p>
           </div>
         </div>
@@ -475,27 +481,27 @@ export default async function Home() {
       <section id="pricing" className="mx-auto max-w-6xl px-6 py-20">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="font-heading text-4xl font-extrabold tracking-tight">
-            Pay once. Keep it forever.
+            Simple, monthly.
           </h2>
           <p className="mt-3 text-plum-ink/70">
-            No monthly subscription. Start free with QR ordering, then unlock only the features you
-            actually want — each is a <strong>one-time payment</strong> and it&apos;s yours for good.{" "}
+            Try every feature free for 30 days. To keep going, there&apos;s a one-time activation and
+            one monthly subscription — paid by bank or e-wallet transfer, no card needed.{" "}
             <strong>We handle the setup for you</strong> — message us to get onboarded.
           </p>
         </div>
 
         {/* What every account gets, free */}
         <div className="mx-auto mt-10 max-w-3xl rounded-tile border border-brand-primary/25 bg-brand-primary/5 p-6 text-center">
-          <p className="font-heading text-xl font-extrabold text-brand-primary">Free to start</p>
+          <p className="font-heading text-xl font-extrabold text-brand-primary">30 days free</p>
           <p className="mt-1.5 text-sm text-plum-ink/70">
-            Unlimited dine-in QR codes, the cashier POS, kitchen display and your online ordering
-            page — at no cost, with no card required.
+            Dine-in QR codes, the cashier POS, kitchen display, your online ordering page and every
+            other feature — free for your first 30 days, with no card required.
           </p>
         </div>
 
         <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-plum-ink/55">
-          Unlock features one at a time, whenever you need them — you&apos;ll see the price for each
-          inside your dashboard. Message us and we&apos;ll walk you through what fits your restaurant.
+          Your activation fee and monthly price are shown on your Billing page when you sign up.
+          Message us and we&apos;ll walk you through what fits your restaurant.
         </p>
 
         {/* Refund policy */}
@@ -530,7 +536,7 @@ export default async function Home() {
             ["Do diners need to download an app?", "No. They scan the QR on the table and your menu opens in their browser — order and pay right there."],
             ["Where does the money go?", "Your money goes directly to you. We don't hold any of your money — payments land in your own account."],
             ["Can I use my own branding?", "Yes — your logo, colors, tagline, and even your own domain. Diners only ever see your brand."],
-            ["Is there a free trial?", "Yes — every new account starts with a 30-day free trial of every feature, no card required. When the trial ends you're moved to the Free plan automatically (QR dine-in ordering, kitchen display and cashier POS) — keep using it for free forever, or upgrade to Growth or Business for online ordering, payments, marketing and the back office."],
+            ["Is there a free trial?", "Yes — every new account starts with a 30-day free trial of every feature, no card required. To keep using Servd after that, sign the subscription agreement, pay the one-time activation and your monthly subscription by bank or e-wallet transfer, and upload the receipt from your Billing page."],
             ["Does it work on iPad for the cashier?", "Yes. Printing supports cloud/poll printers and AirPrint so it works on any device."],
             ["What's your refund policy?", "We offer a 30-day money-back guarantee on plan/system upgrade payments — reach out within 30 days of the charge and we'll refund it. One-time setup fees (the agent setup / onboarding done for your restaurant) are non-refundable, since that work is completed up front."],
           ].map(([q, a]) => (
@@ -573,7 +579,7 @@ export default async function Home() {
           </div>
           {[
             ["Product", [["Features", "#features"], ["Pricing", "#pricing"], ["Staff login", "/login"]]],
-            ["Company", [["Become a partner", "/partner/apply"], ["Contact", "#"], ["Blog", "#"]]],
+            ["Company", [["Become an agent", agentApplyUrl()], ["Contact", "#"], ["Blog", "#"]]],
             ["Legal", [["Refund policy", "#refund"], ["Privacy", "#"], ["Terms", "#"], ["SMS consent", "#"]]],
           ].map(([title, rows]) => (
             <div key={title as string}>

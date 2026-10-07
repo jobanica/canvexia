@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+/* Admin tables: purple header row, striped body (see AdminShell). :where()
+   keeps these at zero specificity, so a row's own colour (a late receipt's
+   red) still wins. */
+:where(.admin-shell) thead {
+  background: #8b80cf;
+}
+:where(.admin-shell tbody tr:nth-child(even)) {
+  background: #f6f5fb;
+}
+:where(.admin-shell) h1 {
+  color: #5a4bb0;
+}
+
+/* Agent area: dark glass theme (see AgentShell). Pages keep their light
+   utility classes; these rules, later in the file than the utilities and of
+   equal specificity, recolour them inside .agent-shell. */
+.agent-shell .bg-white,
+.agent-shell .bg-slate-50 {
+  background-color: rgb(255 255 255 / 0.05);
+}
+.agent-shell .bg-slate-100 {
+  background-color: rgb(255 255 255 / 0.1);
+}
+.agent-shell .border-slate-200,
+.agent-shell .border-slate-300,
+.agent-shell .divide-slate-100 > * + * {
+  border-color: rgb(255 255 255 / 0.1);
+}
+.agent-shell .text-slate-900,
+.agent-shell .text-slate-700 {
+  color: #f1f0f9;
+}
+.agent-shell .text-slate-600,
+.agent-shell .text-slate-500 {
+  color: #a5a1c2;
+}
+.agent-shell .bg-slate-900 {
+  background-image: linear-gradient(to right, #7c5cf5, #5b3fd6);
+}
+.agent-shell .rounded-lg.border,
+.agent-shell .rounded-xl.border {
+  backdrop-filter: blur(8px);
+}
+.agent-shell input,
+.agent-shell select,
+.agent-shell textarea {
+  color-scheme: dark;
+  background-color: rgb(255 255 255 / 0.06);
+  color: #f1f0f9;
+}
+
+/* The phone drawer. It is mounted when it opens, so there is an entrance to
+   animate and no exit; honour a reduced-motion preference by skipping both. */
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes drawer-fade {
+  from {
+    opacity: 0;
+  }
+}
+.drawer-in {
+  animation: drawer-in 0.2s ease-out;
+}
+.drawer-fade {
+  animation: drawer-fade 0.2s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-in,
+  .drawer-fade {
+    animation: none;
+  }
+}
