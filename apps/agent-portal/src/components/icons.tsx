@@ -1,6 +1,6 @@
 /**
- * The admin area's icons, drawn inline: no icon library (the build rules say no
- * new UI library), and a dozen 24px outline paths is all the admin needs.
+ * The portal's icons, drawn inline: no icon library (the build rules say no
+ * new UI library), and a dozen 24px outline paths is all the portal needs.
  */
 const PATHS = {
   dashboard: "M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z",
@@ -23,6 +23,8 @@ const PATHS = {
   share: "M7.22 10.91a2.25 2.25 0 1 0 0 2.18m0-2.18c.18.32.28.7.28 1.09s-.1.77-.28 1.09m0-2.18 9.56-5.31m-9.56 7.49 9.56 5.31m0 0a2.25 2.25 0 1 0 3.93 2.19 2.25 2.25 0 0 0-3.93-2.19Zm0-12.8a2.25 2.25 0 1 0 3.93-2.18 2.25 2.25 0 0 0-3.93 2.18Z",
   chart: "M3 13.13C3 12.5 3.5 12 4.13 12h2.25c.62 0 1.12.5 1.12 1.13v6.75c0 .62-.5 1.12-1.12 1.12H4.13C3.5 21 3 20.5 3 19.88v-6.75ZM9.75 8.63c0-.63.5-1.13 1.13-1.13h2.25c.62 0 1.12.5 1.12 1.13v11.25c0 .62-.5 1.12-1.12 1.12h-2.25c-.63 0-1.13-.5-1.13-1.12V8.63ZM16.5 4.13c0-.63.5-1.13 1.13-1.13h2.25C20.5 3 21 3.5 21 4.13v15.75c0 .62-.5 1.12-1.12 1.12h-2.25c-.63 0-1.13-.5-1.13-1.12V4.13Z",
   arrow: "M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3",
+  menu: "M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5",
+  close: "M6 18 18 6M6 6l12 12",
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -56,3 +56,28 @@
   background-color: rgb(255 255 255 / 0.06);
   color: #f1f0f9;
 }
+
+/* The phone drawer. It is mounted when it opens, so there is an entrance to
+   animate and no exit; honour a reduced-motion preference by skipping both. */
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes drawer-fade {
+  from {
+    opacity: 0;
+  }
+}
+.drawer-in {
+  animation: drawer-in 0.2s ease-out;
+}
+.drawer-fade {
+  animation: drawer-fade 0.2s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-in,
+  .drawer-fade {
+    animation: none;
+  }
+}
