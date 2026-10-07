@@ -24,8 +24,8 @@ export function AgentShell({ agent, children }: { agent: SignedInAgent; children
   const links = agent.status === "active" ? [...NAV, { href: "/share", label: "Share my link", icon: "share" as const }] : NAV;
 
   return (
-    <div className="agent-shell min-h-screen bg-[#0f0d18] bg-[radial-gradient(ellipse_at_top,_#2a1f4d_0%,_#0f0d18_55%)] pb-28 text-slate-100">
-      <header className="sticky top-0 z-30 border-b border-white/5 bg-[#0f0d18]/80 backdrop-blur">
+    <div className="agent-shell min-h-screen bg-[#0f0d18] bg-[radial-gradient(ellipse_at_top,_#2a1f4d_0%,_#0f0d18_55%)] pb-[calc(7rem+env(safe-area-inset-bottom))] text-slate-100">
+      <header className="sticky top-0 z-30 border-b border-white/5 bg-[#0f0d18]/80 pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="mx-auto flex max-w-lg items-center gap-3 px-4 py-3">
           <NavDrawer
             panelClassName="bg-[#1a1630] text-slate-100"

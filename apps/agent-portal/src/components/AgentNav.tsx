@@ -21,7 +21,7 @@ export function AgentNav() {
   const isActive = (href: string) => (href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`));
 
   return (
-    <nav className="fixed inset-x-0 bottom-4 z-20 px-4">
+    <nav className="fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 px-4">
       <div className="mx-auto flex max-w-lg items-center justify-between rounded-full border border-white/10 bg-[#1d1b2b]/90 p-1.5 shadow-2xl shadow-black/50 backdrop-blur">
         {TABS.map((t) => {
           const active = isActive(t.href);

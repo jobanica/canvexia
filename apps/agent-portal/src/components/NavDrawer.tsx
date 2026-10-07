@@ -66,7 +66,7 @@ export function NavDrawer({
             role="dialog"
             aria-modal="true"
             aria-label="Menu"
-            className={`drawer-in absolute inset-y-0 left-0 flex w-72 max-w-[82%] flex-col overflow-y-auto shadow-2xl outline-none ${panelClassName}`}
+            className={`drawer-in absolute inset-y-0 left-0 flex w-72 max-w-[82%] flex-col overflow-y-auto pt-[env(safe-area-inset-top)] shadow-2xl outline-none ${panelClassName}`}
           >
             <button
               type="button"

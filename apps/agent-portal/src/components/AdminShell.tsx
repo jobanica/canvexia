@@ -46,7 +46,7 @@ export function AdminShell({ staff, children }: { staff: SignedInStaff; children
   );
 
   return (
-    <div className="admin-shell min-h-screen bg-[#e9e8f4] p-0 lg:p-4">
+    <div className="admin-shell min-h-screen bg-[#e9e8f4] p-0 pt-[env(safe-area-inset-top)] lg:p-4">
       <div className="mx-auto flex min-h-screen max-w-[1400px] flex-col gap-4 lg:min-h-[calc(100vh-2rem)] lg:flex-row">
         <aside className="hidden bg-[#6c5dbe] text-white lg:flex lg:w-60 lg:shrink-0 lg:flex-col lg:rounded-2xl lg:py-6">
           {sidebar}
