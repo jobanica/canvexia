@@ -52,14 +52,30 @@ export default async function CustomerDetail({ params }: { params: Promise<{ id:
 
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="rounded-lg border border-slate-200 bg-white p-4">
-          <h2 className="mb-2 font-semibold">Reassign agent</h2>
-          <ActionForm action={reassignAction} submitLabel="Reassign" confirm="Move this customer? Commission already earned stays with the current agent.">
-            <input type="hidden" name="referralId" value={r.id} />
-            <select name="agentId" required className={inputClass} defaultValue="">
-              <option value="" disabled>Choose an agent</option>
-              {agents.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.referralCode})</option>)}
-            </select>
-          </ActionForm>
+          <h2 className="mb-2 font-semibold">{r.agent ? "Reassign agent" : "Assign agent"}</h2>
+          <p className="mb-2 text-xs text-slate-500">
+            Currently: {r.agent ? `${r.agent.name} (${r.agent.referralCode})` : "no agent"}. Commission
+            already earned stays with the current agent; the new agent earns from the next confirmed payment.
+          </p>
+          {agents.length === 0 ? (
+            <p className="text-xs text-slate-500">No active agents to assign to yet.</p>
+          ) : (
+            <ActionForm
+              action={reassignAction}
+              submitLabel={r.agent ? "Reassign" : "Assign"}
+              confirm={
+                r.agent
+                  ? "Move this customer to the chosen agent? Commission already earned stays with the current agent."
+                  : "Assign this customer to the chosen agent?"
+              }
+            >
+              <input type="hidden" name="referralId" value={r.id} />
+              <select name="agentId" required className={inputClass} defaultValue="">
+                <option value="" disabled>Choose an active agent</option>
+                {agents.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.referralCode})</option>)}
+              </select>
+            </ActionForm>
+          )}
         </section>
         {!r.agent && (
           <section className="rounded-lg border border-slate-200 bg-white p-4">
