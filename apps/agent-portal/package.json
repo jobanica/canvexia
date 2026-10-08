@@ -23,6 +23,7 @@
     "@servd/db": "workspace:*",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.47.10",
+    "@vercel/analytics": "^2.0.1",
     "next": "^15.5.19",
     "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",

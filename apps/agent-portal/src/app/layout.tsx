@@ -1,8 +1,19 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import "./globals.css";
 
+/** Absolute URLs for Open Graph. A bad or missing value falls back rather than failing the build. */
+function siteUrl(): URL {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_APP_URL ?? "");
+  } catch {
+    return new URL("https://agents.canvexia.com");
+  }
+}
+
 export const metadata: Metadata = {
+  metadataBase: siteUrl(),
   title: "CANVEXIA Agents",
   description: "Refer businesses to CANVEXIA products and track your commission.",
   applicationName: "CANVEXIA Agents",
@@ -31,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
         {children}
         <ServiceWorker />
+        <Analytics />
       </body>
     </html>
   );

@@ -14,3 +14,14 @@ export function parsePesos(input: string | null | undefined): number | null {
   const [whole, frac = ""] = s.split(".");
   return Number(whole) * 100 + Number(frac.padEnd(2, "0"));
 }
+
+/**
+ * Centavos in, "₱1,234" out. Whole pesos, for display where the centavos are
+ * noise — the landing page's commission figures and calculator results, which
+ * are always round hundreds. Rounds, so it never shows a figure above the real
+ * one by more than fifty centavos.
+ */
+export function pesoWhole(centavos: number): string {
+  const sign = centavos < 0 ? "-" : "";
+  return `${sign}₱${Math.round(Math.abs(centavos) / 100).toLocaleString("en-PH")}`;
+}
