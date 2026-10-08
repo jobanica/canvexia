@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSignedIn } from "@/server/auth";
+import { LandingPage } from "@/components/landing/LandingPage";
 import { agentDb } from "@/server/scoped-db";
 import { AgentShell } from "@/components/AgentShell";
 import { Icon, type IconName } from "@/components/icons";
@@ -10,28 +13,45 @@ import { manilaDate } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
-  const who = await getSignedIn();
+const LANDING_TITLE = "Maging Canvexia Agent | Kumita buwan-buwan sa bawat referral";
+const LANDING_DESCRIPTION =
+  "I-refer ang mga restaurant at pharmacy sa Servd at Reseta. \u20b1500 sa bawat activation at hanggang \u20b1200 kada buwan habang nagbabayad ang client. Libre mag-apply.";
 
-  if (!who) {
-    return (
-      <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6 py-12">
-        <h1 className="text-3xl font-semibold tracking-tight">CANVEXIA Agents</h1>
-        <p className="mt-3 text-slate-600">
-          Refer businesses to Servd and other CANVEXIA products. Earn on their activation and on
-          every month they pay.
-        </p>
-        <div className="mt-8 space-y-3">
-          <Link href="/apply" className="block rounded-md bg-slate-900 px-4 py-3 text-center font-medium text-white">
-            Apply to be an agent
-          </Link>
-          <Link href="/login" className="block rounded-md border border-slate-300 px-4 py-3 text-center font-medium">
-            Sign in
-          </Link>
-        </div>
-      </main>
-    );
-  }
+/**
+ * `/` is the landing page to a visitor and a dashboard to an agent, so the
+ * title has to follow. Read from the cookie rather than by resolving the
+ * session again: metadata only needs to know whether someone is signed in, and
+ * this way an anonymous visitor costs nothing extra.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const jar = await cookies();
+  const hasSession = jar.getAll().some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"));
+  if (hasSession) return { title: "CANVEXIA Agents" };
+
+  return {
+    title: LANDING_TITLE,
+    description: LANDING_DESCRIPTION,
+    alternates: { canonical: "/" },
+    openGraph: {
+      type: "website",
+      locale: "tl_PH",
+      url: "/",
+      siteName: "Canvexia Agents",
+      title: LANDING_TITLE,
+      description: LANDING_DESCRIPTION,
+    },
+    twitter: { card: "summary_large_image", title: LANDING_TITLE, description: LANDING_DESCRIPTION },
+  };
+}
+
+export default async function HomePage() {
+  // `/` is the landing page the Facebook traffic lands on. If Supabase is
+  // unreachable, show it rather than an error: it needs no session and no
+  // data. /login and /apply already resolve the session the same way.
+  const who = await getSignedIn().catch(() => null);
+
+  if (!who) return <LandingPage />;
+
   if (who.kind === "staff") redirect("/admin");
   if (who.status === "removed") redirect("/login");
 
