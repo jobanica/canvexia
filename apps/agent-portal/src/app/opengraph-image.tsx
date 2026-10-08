@@ -1,8 +1,7 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { AGENT_OFFER } from "@/lib/agentOffer";
 import { pesoWhole } from "@/lib/money";
+import { FONT_BASE64 } from "./og/font";
 
 /**
  * The picture Facebook and Messenger show when someone shares the link.
@@ -11,15 +10,17 @@ import { pesoWhole } from "@/lib/money";
  * and served as a static asset, and the numbers come from the same offer
  * config as the page, so a share preview can never quote a stale commission.
  *
- * The font is committed alongside it — see `og/README.md`. Left to itself
- * `next/og` fetches one from Google Fonts for any character it cannot draw,
- * which turned ₱ into an empty box here.
+ * The font is inlined as base64 — see `og/font.ts`. Left to itself `next/og`
+ * fetches one from Google Fonts for any character it cannot draw, which turned
+ * ₱ into an empty box here; a file on disk broke too, because every page
+ * imports this module for its og:image tag and the asset was not traced into
+ * their serverless bundles.
  */
 export const alt = "Maging Canvexia Agent — kumita buwan-buwan sa bawat referral";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const font = readFileSync(join(process.cwd(), "src/app/og/dejavu-sans-bold-subset.ttf"));
+const font = Buffer.from(FONT_BASE64, "base64");
 
 export default function Image() {
   const figure = (amount: number, label: string) => (
