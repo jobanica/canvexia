@@ -43,6 +43,9 @@ export async function applyAction(_prev: FormState, fd: FormData): Promise<FormS
   if (!user) {
     const creds = Credentials.safeParse({ email: form.email, password: form.password });
     if (!creds.success) return { status: "error", message: creds.error.issues[0].message };
+    if (form.password !== form.confirmPassword) {
+      return { status: "error", message: "Passwords do not match." };
+    }
     const supabase = await createSupabaseServerClient();
     const base = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3002").replace(/\/$/, "");
     const { data, error } = await supabase.auth.signUp({
