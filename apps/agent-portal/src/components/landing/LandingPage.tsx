@@ -16,55 +16,55 @@ const CONTACT_MOBILE_READABLE = "0976 209 7075";
 // Three ways you earn — the feature cards, as in the reference design but with
 // our real commission figures instead of invented numbers.
 const EARNINGS: { amount: string; when: string; detail: string; icon: IconName }[] = [
-  { amount: pesoWhole(O.activationCommission), when: "sa activation", detail: "Sa iyo ang buong activation fee ng client.", icon: "peso" },
-  { amount: pesoWhole(O.tier1Amount), when: "kada buwan", detail: `Sa unang ${O.tier1Months} na buwan na nagbabayad ang client.`, icon: "wallet" },
-  { amount: pesoWhole(O.tier2Amount), when: "kada buwan", detail: `Mula sa ika-${O.tier1Months + 1} buwan, habang active pa ang client.`, icon: "chart" },
+  { amount: pesoWhole(O.activationCommission), when: "on activation", detail: "The client's full activation fee is yours.", icon: "peso" },
+  { amount: pesoWhole(O.tier1Amount), when: "per month", detail: `For the first ${O.tier1Months} months the client pays.`, icon: "wallet" },
+  { amount: pesoWhole(O.tier2Amount), when: "per month", detail: `From month ${O.tier1Months + 1} onward, while the client stays active.`, icon: "chart" },
 ];
 
 // The stat tiles in the split section. In the reference these are fabricated
 // social proof ("10K+ works", "4.9 rating"); here they are the real offer.
 const STATS: { value: string; label: string }[] = [
-  { value: pesoWhole(O.activationCommission), label: "kada activation" },
-  { value: `${pesoWhole(O.tier1Amount)}/buwan`, label: `unang ${O.tier1Months} buwan` },
-  { value: pesoWhole(FIRST_SIX_MONTHS_PER_CLIENT), label: "isang client, unang 6 buwan" },
-  { value: `Ika-${O.payoutDayOfMonth}`, label: "payout kada buwan" },
+  { value: pesoWhole(O.activationCommission), label: "per activation" },
+  { value: `${pesoWhole(O.tier1Amount)}/mo`, label: `first ${O.tier1Months} months` },
+  { value: pesoWhole(FIRST_SIX_MONTHS_PER_CLIENT), label: "one client, first 6 months" },
+  { value: `Day ${O.payoutDayOfMonth}`, label: "payout each month" },
 ];
 
 const PRODUCTS = [
-  { name: "Servd", detail: "Para sa mga restaurant, cafe, at kahit anong food business, pati online food sellers. Ordering at management system sa iisang lugar.", icon: "store" as const },
-  { name: "Reseta", detail: "All-in-one POS para sa mga pharmacy.", icon: "box" as const },
-  { name: "Paparating", detail: "Laundry, car wash, at printing business software.", icon: "bolt" as const },
+  { name: "Servd", detail: "For restaurants, cafes, and any food business, including online food sellers. Ordering and management in one place.", icon: "store" as const },
+  { name: "Reseta", detail: "An all-in-one POS for pharmacies.", icon: "box" as const },
+  { name: "Coming soon", detail: "Software for laundry, car wash, and printing businesses.", icon: "bolt" as const },
 ];
 
 const STEPS = [
-  "Mag-apply online. Ilagay ang pangalan, mobile number, at GCash o bank details mo.",
-  "Kunin ang link at QR mo. Pagka-approve, may sarili kang referral link at QR code.",
-  "I-refer ang negosyo. Mag-sign up ang may-ari gamit ang link mo. Naka-record agad sa pangalan mo.",
-  "Tanggapin ang bayad mo. Buwan-buwan, diretso sa GCash o bank account mo.",
+  "Apply online. Enter your name, mobile number, and GCash or bank details.",
+  "Get your link and QR. Once approved, you have your own referral link and QR code.",
+  "Refer a business. The owner signs up with your link, and it's recorded under your name right away.",
+  "Get paid. Every month, straight to your GCash or bank account.",
 ];
 
 const BENEFITS = [
-  ["Sariling dashboard.", "Kita mo ang bawat client, kung bayad na sila, at magkano ang commission mo."],
-  ["Hindi ikaw ang maniningil.", "Diretso sa company ang bayad ng client. Ikaw, magbenta lang."],
-  ["Malinaw na record.", "Bawat commission may katumbas na client at buwan. May payout history at reference number."],
-  ["Handang gamitin na materials.", "Link, QR code, at product info na pwede mong i-share."],
+  ["Your own dashboard.", "See every client, whether they've paid, and how much commission you've earned."],
+  ["You don't collect payments.", "Clients pay the company directly. You just refer."],
+  ["Clear records.", "Every commission ties to a client and a month, with payout history and reference numbers."],
+  ["Ready-to-use materials.", "A link, QR code, and product info you can share."],
 ];
 
 const FOR_YOU = [
-  "May kakilala kang may-ari ng restaurant, cafe, o pharmacy",
-  "Gusto mo ng sideline na hindi kailangan ng puhunan",
-  "Sanay kang makipag-usap sa tao, online man o harapan",
-  "Gusto mo ng kita na tumutuloy kahit tapos na ang benta",
+  "You know someone who owns a restaurant, cafe, or pharmacy",
+  "You want a sideline that needs no capital",
+  "You're comfortable talking to people, online or in person",
+  "You want income that continues even after the sale",
 ];
 
 const FAQ = [
-  ["May bayad ba mag-apply?", "Wala. Libre ang application at wala kang bibilhin."],
-  ["Kailangan ko ba ng experience sa sales?", "Hindi. Bibigyan ka namin ng product info at materials. Ang kailangan lang, marunong kang makipag-usap sa may-ari ng negosyo."],
-  ["Kailan ako mababayaran?", `Tuwing ika-${O.payoutDayOfMonth} ng buwan, para sa mga bayad ng client na na-confirm noong nakaraang buwan. Minimum payout ay ${pesoWhole(O.payoutMinimum)}.`],
-  ["Paano kung huminto sa pagbabayad ang client ko?", "Hihinto rin ang commission mo sa client na iyon. Kapag bumalik sila, sa iyo pa rin sila naka-record."],
-  ["Ako ba ang kokolekta ng bayad?", "Hindi. Diretso sa company ang bayad ng client. Huwag tumanggap ng cash mula sa client."],
-  ["Pwede ba ito kahit part-time?", "Oo. Ikaw ang bahala sa oras mo."],
-  ["Paano ko masisiguro na tama ang bilang ng kita ko?", "Sa dashboard mo, makikita mo ang bawat client, bawat bayad, at bawat commission. Pwede mo ring i-download ang monthly statement mo."],
+  ["Is there a fee to apply?", "No. The application is free and there's nothing to buy."],
+  ["Do I need sales experience?", "No. We give you product info and materials. You just need to be able to talk to a business owner."],
+  ["When do I get paid?", `On the ${O.payoutDayOfMonth}th of each month, for client payments confirmed the previous month. The minimum payout is ${pesoWhole(O.payoutMinimum)}.`],
+  ["What if my client stops paying?", "Your commission for that client pauses too. If they come back, they're still recorded under you."],
+  ["Do I collect the payment?", "No. Clients pay the company directly. Never accept cash from a client."],
+  ["Can I do this part-time?", "Yes. Your hours are up to you."],
+  ["How can I be sure my earnings are correct?", "Your dashboard shows every client, every payment, and every commission. You can also download your monthly statement."],
 ];
 
 const sectionClass = "px-4 py-12 sm:py-16";
@@ -95,9 +95,9 @@ export function LandingPage() {
       <header className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-4">
         <span className="text-lg font-bold tracking-tight text-[#4a3aa3]">Canvexia</span>
         <nav className="ml-6 hidden items-center gap-6 text-sm text-slate-600 md:flex">
-          <a href="#kita" className="hover:text-slate-900">Kita</a>
-          <a href="#produkto" className="hover:text-slate-900">Produkto</a>
-          <a href="#paano" className="hover:text-slate-900">Paano</a>
+          <a href="#earnings" className="hover:text-slate-900">Earnings</a>
+          <a href="#products" className="hover:text-slate-900">Products</a>
+          <a href="#how" className="hover:text-slate-900">How it works</a>
           <a href="#faq" className="hover:text-slate-900">FAQ</a>
         </nav>
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
@@ -107,7 +107,7 @@ export function LandingPage() {
           >
             Agent login
           </Link>
-          <ApplyButton position="header" className="px-4 py-2 text-sm">Mag-apply</ApplyButton>
+          <ApplyButton position="header" className="px-4 py-2 text-sm">Apply</ApplyButton>
         </div>
       </header>
 
@@ -122,11 +122,11 @@ export function LandingPage() {
                   Canvexia Agent Program
                 </span>
                 <h1 className="mt-4 text-3xl font-bold leading-[1.1] tracking-tight sm:text-5xl">
-                  Kumita buwan-buwan sa bawat negosyong <span className="text-[#a78bfa]">ma-refer mo.</span>
+                  Earn every month from every business <span className="text-[#a78bfa]">you refer.</span>
                 </h1>
                 <p className="mt-4 max-w-xl text-base leading-relaxed text-white/70 sm:text-lg">
-                  I-alok ang Servd sa mga restaurant at Reseta sa mga pharmacy. {pesoWhole(O.activationCommission)} agad sa
-                  bawat activation, plus hanggang {pesoWhole(O.tier1Amount)} kada buwan habang nagbabayad ang client mo.
+                  Offer Servd to restaurants and Reseta to pharmacies. {pesoWhole(O.activationCommission)} on every
+                  activation, plus up to {pesoWhole(O.tier1Amount)} a month for as long as your client keeps paying.
                 </p>
                 <div className="mt-7 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
                   <ApplyButton position="hero" className="w-full sm:w-auto" />
@@ -135,19 +135,19 @@ export function LandingPage() {
                       <Icon name="phone" className="h-5 w-5" />
                     </span>
                     <span className="text-sm leading-tight">
-                      <span className="block text-white/50">May tanong?</span>
+                      <span className="block text-white/50">Questions?</span>
                       <span className="font-semibold text-white">{CONTACT_MOBILE_READABLE}</span>
                     </span>
                   </a>
                 </div>
-                <p className="mt-5 text-sm text-white/50">Libre mag-apply · Walang puhunan · Walang inventory</p>
+                <p className="mt-5 text-sm text-white/50">Free to apply · No capital · No inventory</p>
               </div>
 
               <div className="relative">
                 <HeroVideo />
                 <span className="absolute -right-3 -top-3 hidden rounded-xl bg-white px-4 py-3 text-slate-900 shadow-lg sm:block">
                   <span className="block font-mono text-xl font-bold text-[#4a3aa3]">{pesoWhole(O.activationCommission)}</span>
-                  <span className="block text-xs text-slate-500">kada activation</span>
+                  <span className="block text-xs text-slate-500">per activation</span>
                 </span>
               </div>
             </div>
@@ -156,10 +156,10 @@ export function LandingPage() {
         <div id={HERO_SENTINEL_ID} aria-hidden="true" />
 
         {/* 2. Features — three ways you earn */}
-        <section id="kita" className={sectionClass}>
+        <section id="earnings" className={sectionClass}>
           <div className={innerClass}>
-            <p className={eyebrowClass}>Ang kita mo</p>
-            <h2 className={h2Class}>Tatlong beses kang kikita sa isang client.</h2>
+            <p className={eyebrowClass}>What you earn</p>
+            <h2 className={h2Class}>You earn three ways from one client.</h2>
             <div className="mt-8 grid gap-4 md:grid-cols-3">
               {EARNINGS.map((e, i) => (
                 <div key={e.detail} className={`rounded-2xl p-6 ${CARD_FILLS[i]}`}>
@@ -173,8 +173,8 @@ export function LandingPage() {
               ))}
             </div>
             <p className="mt-6 text-base leading-relaxed text-slate-700">
-              Isang client lang, {pesoWhole(FIRST_SIX_MONTHS_PER_CLIENT)} na sa unang {O.tier1Months} na buwan. Tapos tuloy
-              pa ang {pesoWhole(O.tier2Amount)} kada buwan.
+              One client alone is {pesoWhole(FIRST_SIX_MONTHS_PER_CLIENT)} in the first {O.tier1Months} months. Then{" "}
+              {pesoWhole(O.tier2Amount)} a month keeps coming.
             </p>
           </div>
         </section>
@@ -193,8 +193,8 @@ export function LandingPage() {
               </div>
             </div>
             <div>
-              <p className={eyebrowClass}>Bakit Canvexia</p>
-              <h2 className={h2Class}>Hindi mo kailangang manghula kung magkano na ang kita mo.</h2>
+              <p className={eyebrowClass}>Why Canvexia</p>
+              <h2 className={h2Class}>You never have to guess what you&apos;ve earned.</h2>
               <ul className="mt-6 space-y-4">
                 {BENEFITS.map(([title, detail]) => (
                   <li key={title} className="flex gap-3">
@@ -215,9 +215,9 @@ export function LandingPage() {
         {/* 4. Income calculator */}
         <section className={sectionClass}>
           <div className={`${innerClass} rounded-3xl bg-white p-6 shadow-sm sm:p-10`}>
-            <p className={eyebrowClass}>Kalkulahin</p>
-            <h2 className={h2Class}>Magkano ang pwede mong kitain?</h2>
-            <p className="mt-2 text-base text-slate-700">Piliin kung ilang bagong client ang kaya mong makuha kada buwan.</p>
+            <p className={eyebrowClass}>Calculate</p>
+            <h2 className={h2Class}>How much could you earn?</h2>
+            <p className="mt-2 text-base text-slate-700">Choose how many new clients you can sign up each month.</p>
             <div className="mx-auto max-w-2xl">
               <IncomeCalculator />
             </div>
@@ -225,10 +225,10 @@ export function LandingPage() {
         </section>
 
         {/* 5. Products */}
-        <section id="produkto" className={sectionClass}>
+        <section id="products" className={sectionClass}>
           <div className={innerClass}>
-            <p className={eyebrowClass}>I-aalok mo</p>
-            <h2 className={h2Class}>Dalawang produkto ngayon. Dadami pa.</h2>
+            <p className={eyebrowClass}>What you&apos;ll offer</p>
+            <h2 className={h2Class}>Two products today. More coming.</h2>
             <div className="mt-8 grid gap-4 md:grid-cols-3">
               {PRODUCTS.map((p) => (
                 <div key={p.name} className="rounded-2xl border border-slate-200 bg-white p-6">
@@ -241,17 +241,17 @@ export function LandingPage() {
               ))}
             </div>
             <p className="mt-6 text-base leading-relaxed text-slate-700">
-              Isang agent code lang, gamit mo sa lahat ng produkto. {pesoWhole(O.customerActivationFee)} activation at{" "}
-              {pesoWhole(O.customerMonthlyFee)} kada buwan lang ang bayad ng client.
+              One agent code works across every product. The client pays just {pesoWhole(O.customerActivationFee)} activation
+              and {pesoWhole(O.customerMonthlyFee)} a month.
             </p>
           </div>
         </section>
 
         {/* 6. How it works */}
-        <section id="paano" className={sectionClass}>
+        <section id="how" className={sectionClass}>
           <div className={innerClass}>
-            <p className={eyebrowClass}>Paano gumagana</p>
-            <h2 className={h2Class}>Apat na hakbang lang.</h2>
+            <p className={eyebrowClass}>How it works</p>
+            <h2 className={h2Class}>Just four steps.</h2>
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               {STEPS.map((step, i) => (
                 <div key={step} className="flex gap-4 rounded-2xl bg-white p-5">
@@ -268,8 +268,8 @@ export function LandingPage() {
         {/* 7. Who this is for */}
         <section className={sectionClass}>
           <div className={`${innerClass} rounded-3xl bg-[#efecfd] p-6 sm:p-10`}>
-            <p className={eyebrowClass}>Para kanino</p>
-            <h2 className={h2Class}>Para sa iyo ito kung:</h2>
+            <p className={eyebrowClass}>Who it&apos;s for</p>
+            <h2 className={h2Class}>This is for you if:</h2>
             <ul className="mt-6 grid gap-3 sm:grid-cols-2">
               {FOR_YOU.map((line) => (
                 <li key={line} className="flex gap-3 rounded-xl bg-white/70 p-4 text-sm leading-relaxed text-slate-700">
@@ -286,7 +286,7 @@ export function LandingPage() {
         {/* 8. FAQ */}
         <section id="faq" className={sectionClass}>
           <div className={`${innerClass} max-w-3xl`}>
-            <p className={eyebrowClass}>Mga tanong</p>
+            <p className={eyebrowClass}>Questions</p>
             <h2 className={h2Class}>FAQ</h2>
             <div className="mt-6 divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white">
               {FAQ.map(([q, a]) => (
@@ -305,14 +305,14 @@ export function LandingPage() {
         {/* 9. Final CTA */}
         <section className="px-4 pb-14">
           <div className="mx-auto max-w-6xl overflow-hidden rounded-3xl bg-[#1a1630] bg-[radial-gradient(ellipse_at_top,_#3a2d6e_0%,_#1a1630_60%)] px-5 py-12 text-center text-white sm:px-10 sm:py-16">
-            <h2 className="text-2xl font-bold tracking-tight sm:text-4xl">Magsimula sa isang client.</h2>
+            <h2 className="text-2xl font-bold tracking-tight sm:text-4xl">Start with one client.</h2>
             <p className="mx-auto mt-3 max-w-xl text-base leading-relaxed text-white/70">
-              Isang restaurant o pharmacy lang na kakilala mo, may {pesoWhole(O.activationCommission)} ka na at buwan-buwang kita.
+              Just one restaurant or pharmacy you know, and you&apos;ve got {pesoWhole(O.activationCommission)} plus monthly income.
             </p>
             <div className="mt-7 flex justify-center">
               <ApplyButton position="final" />
             </div>
-            <p className="mt-3 text-sm text-white/50">Maikli lang ang application form.</p>
+            <p className="mt-3 text-sm text-white/50">The application form is short.</p>
           </div>
         </section>
       </main>

@@ -16,7 +16,7 @@ import { FONT_BASE64 } from "./og/font";
  * imports this module for its og:image tag and the asset was not traced into
  * their serverless bundles.
  */
-export const alt = "Maging Canvexia Agent — kumita buwan-buwan sa bawat referral";
+export const alt = "Become a Canvexia Agent — earn every month from every referral";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -50,14 +50,14 @@ export default function Image() {
         </div>
 
         <div style={{ display: "flex", fontSize: 56, lineHeight: 1.15, maxWidth: 1010 }}>
-          Kumita buwan-buwan sa bawat negosyong ma-refer mo.
+          Earn every month from every business you refer.
         </div>
 
         <div style={{ display: "flex", alignItems: "flex-end", gap: 56 }}>
-          {figure(AGENT_OFFER.activationCommission, "sa activation")}
-          {figure(AGENT_OFFER.tier1Amount, "kada buwan")}
+          {figure(AGENT_OFFER.activationCommission, "per activation")}
+          {figure(AGENT_OFFER.tier1Amount, "per month")}
           <span style={{ fontSize: 24, opacity: 0.8, paddingBottom: 8, whiteSpace: "nowrap" }}>
-            Libre mag-apply. Walang puhunan.
+            Free to apply. No capital.
           </span>
         </div>
       </div>
