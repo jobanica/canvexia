@@ -145,7 +145,7 @@ export function LandingPage() {
 
               <div className="relative">
                 <HeroVideo />
-                <span className="absolute -bottom-3 -left-3 hidden rounded-xl bg-white px-4 py-3 text-slate-900 shadow-lg sm:block">
+                <span className="absolute -right-3 -top-3 hidden rounded-xl bg-white px-4 py-3 text-slate-900 shadow-lg sm:block">
                   <span className="block font-mono text-xl font-bold text-[#4a3aa3]">{pesoWhole(O.activationCommission)}</span>
                   <span className="block text-xs text-slate-500">kada activation</span>
                 </span>
