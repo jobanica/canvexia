@@ -16,6 +16,7 @@ export function ActionForm({
   className,
   danger,
   confirm,
+  submitClassName,
 }: {
   action: (prev: FormState, fd: FormData) => Promise<FormState>;
   submitLabel: string;
@@ -25,6 +26,8 @@ export function ActionForm({
   danger?: boolean;
   /** Ask before submitting — for actions that are hard to undo. */
   confirm?: string;
+  /** Replace the default button styling (e.g. the sign-up page's pill). */
+  submitClassName?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, IDLE);
 
@@ -61,10 +64,11 @@ export function ActionForm({
         type="submit"
         disabled={pending}
         className={
+          submitClassName ??
           (danger
             ? "bg-red-700 hover:bg-red-800"
             : "bg-slate-900 hover:bg-slate-800") +
-          " rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+            " rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
         }
       >
         {pending ? (pendingLabel ?? "Saving…") : submitLabel}
