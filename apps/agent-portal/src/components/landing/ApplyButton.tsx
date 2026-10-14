@@ -17,7 +17,7 @@ export type ApplyPosition = "header" | "hero" | "calculator" | "final" | "sticky
 export function ApplyButton({
   position,
   className = "",
-  children = "Mag-apply bilang Agent",
+  children = "Apply as an Agent",
 }: {
   position: ApplyPosition;
   className?: string;

@@ -33,7 +33,7 @@ export function HeroVideo() {
         <iframe
           className="absolute inset-0 h-full w-full"
           src={`https://www.youtube-nocookie.com/embed/${yt}?rel=0`}
-          title="Panoorin: Canvexia Agent Program"
+          title="Watch: Canvexia Agent Program"
           loading="lazy"
           allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
@@ -42,7 +42,7 @@ export function HeroVideo() {
         <iframe
           className="absolute inset-0 h-full w-full"
           src={`https://player.vimeo.com/video/${vm}`}
-          title="Panoorin: Canvexia Agent Program"
+          title="Watch: Canvexia Agent Program"
           loading="lazy"
           allow="fullscreen; picture-in-picture"
           allowFullScreen
@@ -60,7 +60,7 @@ export function HeroVideo() {
             </span>
             <p className="text-sm font-medium text-white/80">Explainer video</p>
             <p className="max-w-[16rem] text-xs text-white/50">
-              Panoorin kung paano kumita bilang Canvexia agent.
+              See how you earn as a Canvexia agent.
             </p>
           </div>
         </div>

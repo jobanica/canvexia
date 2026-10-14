@@ -13,9 +13,9 @@ import { manilaDate } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
-const LANDING_TITLE = "Maging Canvexia Agent | Kumita buwan-buwan sa bawat referral";
+const LANDING_TITLE = "Become a Canvexia Agent | Earn every month from every referral";
 const LANDING_DESCRIPTION =
-  "I-refer ang mga restaurant at pharmacy sa Servd at Reseta. \u20b1500 sa bawat activation at hanggang \u20b1200 kada buwan habang nagbabayad ang client. Libre mag-apply.";
+  "Refer restaurants and pharmacies to Servd and Reseta. \u20b1500 on every activation and up to \u20b1200 a month while the client keeps paying. Free to apply.";
 
 /**
  * `/` is the landing page to a visitor and a dashboard to an agent, so the
